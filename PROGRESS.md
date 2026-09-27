@@ -3,8 +3,10 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
-- **Phase:** 0 (Setup), DONE 2026-09-28. Owner answered Q1–Q4. Next session: Phase 1 research.
-- **Next:** owner approval gate → Phase 1 research (parallel subagents → `docs/research/`).
+- **Phase:** 1 (Research), research DONE 2026-09-28 → **waiting at the research approval gate**.
+  Summary: `docs/research/07-summary.md` (R1–R14). Details: 01–06.
+- **Next:** owner approves/amends R1–R14 and answers Q5–Q8 → write the overall plan (plan mode) →
+  owner approves the plan → Phase 2.
 - **Start new sessions from `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`** so the
   project's `.claude/settings.json` hook and `verifier` agent load.
 
@@ -15,7 +17,9 @@ The only memory between phases. Read it at the start of every phase; update it a
 - Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`. **Not pushed.**
 - Submodules: only `MPVKit` is mapped. `libass-android`, `vendor/TorrServer` and `vendor/quickjs-kt`
   are unmapped gitlinks (upstream quirk); the Windows build doesn't need them (build is green).
-- libmpv: Git LFS, `composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll` (115 MB). Version TBD (Phase 1).
+- libmpv: Git LFS, `composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll` (115 MB): mpv v0.40.0-465-gf6c116491,
+  libplacebo v7.357.0, FFmpeg N-121828 (measured from the DLL, 03-mpv-libmpv.md).
+- Upstream Dev moved to `c6c9c308` (4 UI-padding commits, nothing relevant) as of 2026-09-28; not rebased yet.
 - Native bridge: `buildWindowsPlayerBridge` compiles ONE source file (`player_bridge.cpp`) and only
   runs when the DLL is missing (`onlyIf { !exists }`). ⇒ Phase 4: new native `.cpp` files need either
   a hook in `composeApp/build.gradle.kts` (compile list) or `#include` from player_bridge.cpp.
@@ -59,14 +63,19 @@ suite, ≈ 15 s with only the patch tests.
 - Q3 feature request: **hold** until Phase 2 measurements exist; re-ask then.
 - Q4 git identity: repo-local `ducto898 <24544110+ducto898@users.noreply.github.com>` (GitHub no-reply).
 
-## Open questions for owner
-(none)
+## Open questions for owner (Phase 1 gate)
+- Q5 NVIDIA Control Panel → Set up G-SYNC: is it "full screen mode" only, or "windowed and full screen mode"?
+- Q6 A 1–3 s black screen when playback starts (mode switch) and when leaving the player (restore): acceptable?
+- Q7 Phase 2 measurement tools: OK to download PresentMon (Intel, MIT licence, a portable exe kept in
+  `NuvioRate	ools`, nothing installed) to see whether VRR/independent flip engages?
+- Q8 Approve R4's "highest integer multiple" rule as the spec (240 for 23.976–60, 100 for 25/50), knowing
+  Kodi/Jellyfin prefer the lowest exact multiple? (It matches your madVR setup.)
 
 ## Effort / token budget (rough)
 | Phase | Estimate | Actual |
 |---|---|---|
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
-| 1 Research | ~600k (subagents) | |
+| 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k | |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
@@ -76,7 +85,9 @@ suite, ≈ 15 s with only the patch tests.
 | 8 Upkeep | ~250k | |
 
 ## Measurements
-(none yet — baseline in Phase 2)
+- 2026-09-28 (read-only enumeration, 02-mode-enumeration.md): 2560x1440 modes 279.961 (current+registry),
+  239.901, 143.973, 119.998, 100.000, 59.951 Hz; HDR on, 10 bpc. No 1000/1001 timings.
+- Baseline playback numbers: Phase 2.
 - Note for Phase 2: the app's stdout contains NO player/mpv lines. Find where the native bridge and mpv
   log (stderr? a log file? the `log-file` mpv option?) before building measure.ps1. run-dev.ps1 captures stdout only.
 
@@ -89,3 +100,7 @@ suite, ≈ 15 s with only the patch tests.
   a native timestamp change forces a bridge rebuild. The hook no-ops on non-source files. Dev build
   launched with an isolated, copied profile.
 - 2026-09-28 P0-4 PASS [HUMAN]: owner played a video in the dev build — picture, sound, seek and fullscreen all OK.
+- 2026-09-28 Phase 1: 5 parallel research subagents → docs/research/01–06, summary 07. Key results: CDS_FULLSCREEN
+  (auto-revert on kill ~80% likely, to be proven); exact rates measured; mpv in `wid` likely misses
+  WM_DISPLAYCHANGE ⇒ switch in on_preloaded + display-fps-override; each episode = new native player ⇒
+  session state must be process-global; bridge has no native logging. Upstream re-checked: nothing new.
