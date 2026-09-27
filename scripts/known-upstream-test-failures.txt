@@ -1,0 +1,15 @@
+# Upstream desktopTest failures on the UNMODIFIED fork (Windows host). verify.ps1 reports these
+# but does not fail on them; any failure NOT listed here fails verification.
+# Recorded 2026-09-27 at upstream Dev 083921cf; deterministic (failed 3/3 runs).
+# Re-check after every upstream update; delete lines upstream has fixed.
+# Format: <class>#<test name as in JUnit XML>
+
+# Linux-only path assumptions ("/tmp/..." vs "C:\tmp\..."): fail on any Windows host.
+com.nuvio.app.features.updater.LinuxUpdateInstallTest#a package install is handed to the desktop package handler[desktop]
+com.nuvio.app.features.updater.LinuxUpdateInstallTest#an app image with no known path falls back to the desktop handler[desktop]
+com.nuvio.app.features.updater.LinuxUpdateInstallTest#an app image replaces itself once this process is gone[desktop]
+
+# Home-screen hover image test: "focus asset should not load before hover expected:<0> but was:<1>".
+com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedImageDoesNotRequireAFileExtension[desktop]
+com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedGifStillPlaysOnHover[desktop]
+com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedWebpPlaysOnHoverAndRestoresCoverOnExit[desktop]

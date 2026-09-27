@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/scripts/hook-verify-fast.ps1\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

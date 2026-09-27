@@ -1,0 +1,185 @@
+<#
+.SYNOPSIS
+  Deterministic checks for the refresh-rate-matching patch. Exits non-zero on any failure.
+
+.DESCRIPTION
+  -Fast : incremental compile (Kotlin desktop + native bridge) and the patch's unit tests.
+          Meant to run automatically after edits (Claude Code hook). Target: under ~1 minute warm.
+  -Full : clean build of the native bridge and the desktop app, ALL desktop unit tests,
+          and a diff-size report against upstream (merge-base with upstream/Dev).
+
+.PARAMETER Tests
+  Gradle --tests filter for -Fast. Defaults to the patch's test package; falls back to the
+  whole desktopTest suite if the package has no tests yet.
+
+.EXAMPLE
+  pwsh -File scripts/verify.ps1 -Fast
+  pwsh -File scripts/verify.ps1 -Full
+#>
+[CmdletBinding(DefaultParameterSetName = 'Fast')]
+param(
+    [Parameter(ParameterSetName = 'Fast')][switch]$Fast,
+    [Parameter(ParameterSetName = 'Full')][switch]$Full,
+    [string]$Tests = 'com.nuvio.app.features.player.desktop.refreshrate.*',
+    [string]$UpstreamRef = 'upstream/Dev'
+)
+
+$ErrorActionPreference = 'Stop'
+$repo = Split-Path -Parent $PSScriptRoot
+Set-Location $repo
+
+# --- Toolchain: JDK 17 (portable Temurin, see FORK.md) ---------------------------------------
+if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
+    $jdk = Get-ChildItem "$env:USERPROFILE\.jdks" -Directory -Filter 'jdk-17*' -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $jdk) { Write-Error 'JDK 17 not found. Set JAVA_HOME or see FORK.md (toolchain).'; exit 2 }
+    $env:JAVA_HOME = $jdk.FullName
+}
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+
+$failures = [System.Collections.Generic.List[string]]::new()
+
+function Invoke-Gradle([string[]]$GradleArgs, [string]$Label) {
+    Write-Host "==> $Label" -ForegroundColor Cyan
+    Write-Host "    gradlew $($GradleArgs -join ' ')"
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    & "$repo\gradlew.bat" @GradleArgs --console=plain -q --warning-mode=none --no-configuration-cache
+    $code = $LASTEXITCODE
+    $sw.Stop()
+    if ($code -ne 0) {
+        $failures.Add("$Label (exit $code)")
+        Write-Host "    FAIL ($code) in $([int]$sw.Elapsed.TotalSeconds)s" -ForegroundColor Red
+    } else {
+        Write-Host "    OK in $([int]$sw.Elapsed.TotalSeconds)s" -ForegroundColor Green
+    }
+}
+
+# Runs desktopTest. A red Gradle run is tolerated ONLY when every failing test is listed in
+# scripts/known-upstream-test-failures.txt (pre-existing upstream failures). Anything else fails.
+function Invoke-Tests([string[]]$GradleArgs, [string]$Label) {
+    Write-Host "==> $Label" -ForegroundColor Cyan
+    Write-Host "    gradlew $($GradleArgs -join ' ')"
+    $start = Get-Date
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $out = & "$repo\gradlew.bat" @GradleArgs --console=plain -q --warning-mode=none --no-configuration-cache 2>&1
+    $code = $LASTEXITCODE
+    $sw.Stop()
+    $summary = $out | Select-String 'tests completed' | Select-Object -First 1
+    if ($summary) { Write-Host "    $summary" }
+    if ($code -eq 0) { Write-Host "    OK in $([int]$sw.Elapsed.TotalSeconds)s" -ForegroundColor Green; return }
+
+    $known = Get-Content (Join-Path $PSScriptRoot 'known-upstream-test-failures.txt') |
+        Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { $_.Trim() }
+    $resultsDir = Join-Path $repo 'composeApp/build/test-results/desktopTest'
+    $failed = @()
+    Get-ChildItem $resultsDir -Filter 'TEST-*.xml' -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -ge $start.AddSeconds(-2) } | ForEach-Object {
+            foreach ($tc in ([xml](Get-Content -Raw -LiteralPath $_.FullName)).SelectNodes('//testcase')) {
+                if ($tc.failure -or $tc.error) { $failed += "$($tc.classname)#$($tc.name)" }
+            }
+        }
+    if ($failed.Count -eq 0) {
+        # Red Gradle run but no failed test cases: compile error or infrastructure failure.
+        $out | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" }
+        $failures.Add("$Label (exit $code, no test results: build error?)")
+        Write-Host "    FAIL ($code)" -ForegroundColor Red
+        return
+    }
+    $new = $failed | Where-Object { $_ -notin $known }
+    $failed | Where-Object { $_ -in $known } | ForEach-Object { Write-Host "    known upstream failure: $_" -ForegroundColor DarkYellow }
+    if ($new) {
+        $new | ForEach-Object { Write-Host "    NEW FAILURE: $_" -ForegroundColor Red }
+        $failures.Add("$Label ($(@($new).Count) new failing test(s))")
+        Write-Host "    FAIL in $([int]$sw.Elapsed.TotalSeconds)s" -ForegroundColor Red
+    } else {
+        Write-Host "    OK (only known upstream failures) in $([int]$sw.Elapsed.TotalSeconds)s" -ForegroundColor Green
+    }
+}
+
+function Test-PatchTestsExist {
+    $dir = Join-Path $repo 'composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate'
+    return (Test-Path $dir) -and (Get-ChildItem $dir -Recurse -Filter '*.kt' | Measure-Object).Count -gt 0
+}
+
+function Write-DiffReport {
+    Write-Host '==> Diff vs upstream' -ForegroundColor Cyan
+    $base = (git merge-base HEAD $UpstreamRef 2>$null)
+    if (-not $base) { $failures.Add("diff report: cannot find merge-base with $UpstreamRef"); return }
+    Write-Host "    base: $UpstreamRef @ $($base.Substring(0, 10))"
+
+    # Paths that are patch infrastructure (docs, tooling), reported separately from product code.
+    $infra = '^(SPEC\.md|PROGRESS\.md|FORK\.md|docs/|scripts/|\.claude/)'
+
+    $rows = @()
+    # Tracked changes (committed + staged + unstaged) vs base.
+    foreach ($line in (git diff --numstat $base -- . 2>$null)) {
+        $p = $line -split "`t"
+        if ($p.Count -lt 3) { continue }
+        git cat-file -e "${base}:$($p[2])" 2>$null
+        $existsUpstream = ($LASTEXITCODE -eq 0)
+        $rows += [pscustomobject]@{ Path = $p[2]; Added = [int]($p[0] -replace '-', '0'); Removed = [int]($p[1] -replace '-', '0'); Upstream = $existsUpstream }
+    }
+    # Untracked, non-ignored new files.
+    foreach ($f in (git ls-files --others --exclude-standard 2>$null)) {
+        $n = (Get-Content -LiteralPath $f -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+        $rows += [pscustomobject]@{ Path = $f; Added = $n; Removed = 0; Upstream = $false }
+    }
+
+    $up = $rows | Where-Object { $_.Upstream }
+    $newProduct = $rows | Where-Object { -not $_.Upstream -and $_.Path -notmatch $infra }
+    $newInfra = $rows | Where-Object { -not $_.Upstream -and $_.Path -match $infra }
+    $sum = { param($r) [int](($r | Measure-Object -Property Added -Sum).Sum) + [int](($r | Measure-Object -Property Removed -Sum).Sum) }
+
+    Write-Host ("    upstream files touched : {0,3}   lines changed: {1}" -f @($up).Count, (& $sum $up))
+    foreach ($r in $up) { Write-Host ("      M {0}  (+{1} -{2})" -f $r.Path, $r.Added, $r.Removed) }
+    Write-Host ("    new product files      : {0,3}   lines: {1}" -f @($newProduct).Count, (& $sum $newProduct))
+    foreach ($r in $newProduct) { Write-Host ("      A {0}  (+{1})" -f $r.Path, $r.Added) }
+    Write-Host ("    new infra/doc files    : {0,3}   lines: {1}" -f @($newInfra).Count, (& $sum $newInfra))
+}
+
+$total = [Diagnostics.Stopwatch]::StartNew()
+
+if ($Full) {
+    Write-Host '### verify.ps1 -Full' -ForegroundColor Yellow
+    # Clean native bridge + app outputs, then rebuild everything from scratch (no build cache).
+    Invoke-Gradle @(':composeApp:clean') 'clean'
+    Invoke-Gradle @(':composeApp:buildWindowsPlayerBridge', ':composeApp:compileKotlinDesktop',
+        ':composeApp:desktopJar', '--no-build-cache', '--rerun-tasks') 'clean build: native bridge + desktop app'
+    if ($failures.Count -eq 0) {
+        Invoke-Tests @(':composeApp:desktopTest', '--no-build-cache') 'all desktop unit tests'
+    }
+    Write-DiffReport
+} else {
+    Write-Host '### verify.ps1 -Fast' -ForegroundColor Yellow
+    # Upstream's buildWindowsPlayerBridge only runs when the DLL is missing (onlyIf !exists), so a
+    # native edit would silently keep a stale DLL. Force a rebuild when any native source is newer.
+    $dll = Join-Path $repo 'composeApp/build/native/windows/player_bridge.dll'
+    if (Test-Path $dll) {
+        $dllTime = (Get-Item $dll).LastWriteTime
+        $newer = Get-ChildItem (Join-Path $repo 'composeApp/src/desktopMain/native/windows') -File |
+            Where-Object { $_.Extension -in '.cpp', '.h', '.hpp' -and $_.LastWriteTime -gt $dllTime }
+        if ($newer) {
+            Write-Host "    native sources changed ($($newer.Name -join ', ')); forcing bridge rebuild"
+            Remove-Item $dll -Force
+        }
+    }
+    Invoke-Gradle @(':composeApp:buildWindowsPlayerBridge', ':composeApp:compileKotlinDesktop') 'incremental compile'
+    if ($failures.Count -eq 0) {
+        if (Test-PatchTestsExist) {
+            Invoke-Tests @(':composeApp:desktopTest', '--tests', $Tests) "unit tests ($Tests)"
+        } else {
+            Write-Host '    (no patch tests yet; running the whole desktopTest suite)'
+            Invoke-Tests @(':composeApp:desktopTest') 'unit tests (all desktop)'
+        }
+    }
+}
+
+$total.Stop()
+Write-Host ''
+if ($failures.Count -gt 0) {
+    Write-Host "VERIFY FAILED in $([int]$total.Elapsed.TotalSeconds)s:" -ForegroundColor Red
+    $failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+    exit 1
+}
+Write-Host "VERIFY OK in $([int]$total.Elapsed.TotalSeconds)s" -ForegroundColor Green
+exit 0
