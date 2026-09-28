@@ -3,10 +3,10 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
-- **Phase:** 1 (Research) **DONE 2026-09-28**. Research gate passed; overall plan **approved** → `docs/PLAN.md`.
-- **Next:** fresh session → Phase 2 (Measure only). First: rebase onto `upstream/Dev`, write Phase 2 acceptance
-  criteria into SPEC.md, then stop at the "before code" gate. Phase 2 needs the owner at the PC
-  (kill test, PresentMon, visual checks) — owner is away at night.
+- **Phase:** 2 (Measure only) **IN PROGRESS 2026-09-28**. Rebased onto `upstream/Dev` `fe92d414` (local, backup
+  branch `backup/pre-rebase-phase2`). Phase 2 acceptance criteria P2-0..P2-19 written in SPEC.md.
+- **Next:** owner approval of the Phase 2 criteria ("before code" gate), then implement: sampler (H1+H4),
+  gen-testclips.ps1, measure.ps1, rr-tools + kill test A–J with the owner, baseline runs.
 - **Start new sessions from `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`** so the
   project's `.claude/settings.json` hook and `verifier` agent load.
 
@@ -19,7 +19,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   are unmapped gitlinks (upstream quirk); the Windows build doesn't need them (build is green).
 - libmpv: Git LFS, `composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll` (115 MB): mpv v0.40.0-465-gf6c116491,
   libplacebo v7.357.0, FFmpeg N-121828 (measured from the DLL, 03-mpv-libmpv.md).
-- Upstream Dev moved to `c6c9c308` (4 UI-padding commits, nothing relevant) as of 2026-09-28; not rebased yet.
+- 2026-09-28 Phase 2 start: rebased onto `upstream/Dev` `fe92d414` (7 UI/inset commits; `Main.kt` +3 lines around `App()`,
+  `onCloseRequest` block (H8) unchanged at l.125). No conflicts.
 - Native bridge: `buildWindowsPlayerBridge` compiles ONE source file (`player_bridge.cpp`) and only
   runs when the DLL is missing (`onlyIf { !exists }`). ⇒ Phase 4: new native `.cpp` files need either
   a hook in `composeApp/build.gradle.kts` (compile list) or `#include` from player_bridge.cpp.
