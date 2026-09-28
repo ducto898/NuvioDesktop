@@ -3,6 +3,7 @@ package com.nuvio.app.features.player.desktop.refreshrate.runtime
 import com.nuvio.app.features.player.desktop.refreshrate.DisplayMode
 import com.nuvio.app.features.player.desktop.refreshrate.DisplayState
 import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
+import com.nuvio.app.features.player.desktop.refreshrate.Timing
 
 /**
  * The Win32 side, implemented in display_mode_matcher.cpp (compiled into player_bridge.dll).
@@ -40,6 +41,11 @@ internal object NativeDisplayPort : DisplayPort {
     override fun restore(display: String): Boolean = nativeRestore(display)
 
     override fun playerDisplay(playerId: Long): String? = nativePlayerDisplay(playerId)
+
+    // TODO(P5-6, P5-11): native exports in commit C.
+    override fun setTiming(playerId: Long, timing: Timing): Boolean = false
+
+    override fun timingStats(playerId: Long): TimingStats? = null
 
     /** The native `[nuvio-rr]` file sink (refresh-rate.log). */
     fun log(line: String) {

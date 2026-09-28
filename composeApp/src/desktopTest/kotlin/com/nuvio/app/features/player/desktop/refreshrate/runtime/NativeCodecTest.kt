@@ -49,4 +49,26 @@ class NativeCodecTest {
         assertContentEquals(longArrayOf(1, 0, 0), NativeCodec.timing(Timing.Upstream))
         assertContentEquals(longArrayOf(0, 0, 0), NativeCodec.timing(null))
     }
+
+    // P5-9: 0 = off, NaN = unknown; both mean "no cap to respect"
+    @Test
+    fun `frame cap decodes off, unknown and nonsense to null`() {
+        assertEquals(200.0, NativeCodec.frameCap(200.0))
+        for (v in listOf(0.0, Double.NaN, -1.0, Double.POSITIVE_INFINITY)) assertNull(NativeCodec.frameCap(v), "$v")
+    }
+
+    // P5-11
+    @Test
+    fun `timing stats decode, NaN means unavailable`() {
+        assertEquals(
+            TimingStats(3, 4, 239.9, 12.5, paused = true, displaySyncApplied = true),
+            NativeCodec.timingStats(doubleArrayOf(3.0, 4.0, 239.9, 12.5, 1.0, 1.0)),
+        )
+        assertEquals(
+            TimingStats(0, 0, null, null, paused = false, displaySyncApplied = false),
+            NativeCodec.timingStats(doubleArrayOf(Double.NaN, Double.NaN, Double.NaN, Double.NaN, 0.0, 0.0)),
+        )
+        assertNull(NativeCodec.timingStats(null))
+        assertNull(NativeCodec.timingStats(doubleArrayOf(1.0, 2.0)))
+    }
 }

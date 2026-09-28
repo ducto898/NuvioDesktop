@@ -80,7 +80,13 @@ object ModeSelector {
         }
     }
 
-    /** The whole decision for one playback start (SPEC P3-6..P3-15). */
+    /** A driver frame cap must be at least this much above the target, or display-resample collapses (P5-10). */
+    const val FRAME_CAP_HEADROOM = 1.05
+
+    /**
+     * The whole decision for one playback start (SPEC P3-6..P3-15, P5-10).
+     * [frameCap]: the NVIDIA Max Frame Rate for this process; null = off or unknown.
+     */
     fun decide(
         enabled: Boolean,
         containerFps: Double?,
@@ -88,6 +94,7 @@ object ModeSelector {
         isImage: Boolean,
         current: DisplayMode,
         modes: List<DisplayMode>,
+        frameCap: Double? = null,
     ): Selection {
         if (!enabled) return Selection.NoSwitch("disabled", "setting off")
         return when (val fps = FpsSnapper.resolve(containerFps, estimatedFps, isImage)) {

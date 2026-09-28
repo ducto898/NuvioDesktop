@@ -25,6 +25,9 @@ class RefreshRateController(
     private val port: DisplayPort,
     private val log: (String) -> Unit,
 ) {
+    /** Seconds on a monotonic clock (the health check's windows, P5-11); replaced in tests. */
+    internal var clock: () -> Double = { System.nanoTime() / 1e9 }
+
     var session: Session = Session()
         private set
 

@@ -13,6 +13,8 @@ import com.nuvio.app.features.player.desktop.refreshrate.Timing
  * modes = n x [width, height, num, den, bpc, interlaced 0/1]
  * switch = [code, state..., elapsedMs]; code 0 = ok, else FailureKind.ordinal + 1
  * timing (to native) = [kind, num, den]; kind 0 = none/timeout, 1 = upstream, 2 = display-sync
+ * frame cap (from native, double) = fps; 0 = off, NaN = unknown
+ * stats (from native, double[]) = [drops, mistimed, estimated-display-fps, time-pos, paused 0/1, ours 0/1]; NaN = unavailable
  */
 object NativeCodec {
     const val STATE_SIZE = 7
@@ -50,6 +52,13 @@ object NativeCodec {
         Timing.Upstream -> longArrayOf(1, 0, 0)
         is Timing.DisplaySync -> longArrayOf(2, timing.rate.numerator, timing.rate.denominator)
     }
+
+    const val STATS_SIZE = 6
+
+    /** Null = no cap to respect (off, unknown or nonsense). */
+    fun frameCap(value: Double): Double? = null // TODO(P5-9): commit B
+
+    fun timingStats(values: DoubleArray?): TimingStats? = null // TODO(P5-11): commit B
 
     private fun stateAt(values: LongArray, o: Int) = DisplayState(
         mode = DisplayMode(

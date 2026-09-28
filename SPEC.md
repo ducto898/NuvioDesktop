@@ -414,7 +414,7 @@ display watcher) go through the same holder on one thread.
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
-### Phase 5 — mpv timing + OLED stability (written 2026-09-28, before code; awaiting owner approval, Q20–Q22)
+### Phase 5 — mpv timing + OLED stability (written 2026-09-28, before code; owner-approved 2026-09-28 with Q20 (a), Q21 yes, Q22 yes)
 Scope: apply the `Timing` that Phase 3/4 already compute, i.e. display-synced mpv timing for every playback we switched,
 and upstream timing everywhere else. Switch mpv back to its own timing at runtime when a session ends mid-playback. Keep
 the panel rate constant (req. 9). Make the driver preconditions from Phase 2b visible.
@@ -452,7 +452,8 @@ first change on a player and puts exactly those back on revert.
 - P5-7 — Controller routing: every `Timing` a step returns goes to the session owner, not only the hook's. Hook start ⇒
   returned to the worker (as now). Watcher, window-move and screen-gone steps ⇒ `setTiming(owner, …)` on the `nuvio-rr`
   thread (never on the EDT or the mpv event thread). Unit tests with the fake port: `mode-lost` re-switch OK ⇒
-  `DisplaySync`; `mode-lost-again` ⇒ `Upstream`; `hdr-toggled` re-switch OK ⇒ `DisplaySync`, 4th HDR change ⇒ `Upstream`;
+  `DisplaySync`; `mode-lost-again` ⇒ `Upstream`; `hdr-toggled` re-switch OK ⇒ `DisplaySync`; once the 3 HDR re-switches and the one `mode-lost` re-switch are used
+  up (P4-22/P3-22), the next loss ⇒ `Upstream`;
   verify-mismatch on a re-switch ⇒ `Upstream`; window moved (Q15) ⇒ `Upstream` on the old owner; screen gone ⇒ no call
   needed (the player is leaving); a `setTiming` failure or exception ⇒ logged, session unchanged — auto (tests)
 - P5-8 — Runtime changes work in the real player: new fault kind `drop-mode` (measure-only, part of `NUVIO_RR_FAULT`)
@@ -518,8 +519,9 @@ first change on a player and puts exactly those back on revert.
   "Prefer maximum performance" for 4K HDR, how to set them (NVIDIA App / Control Panel, global or per app), how to read
   the `driver` log line, and that a capped setup makes the feature skip the switch (P5-10). PROGRESS updated with the
   measurements — auto (files exist)
-- P5-19 — Phase 4 carry-over: the watcher's `query failed` line is logged once per change of the failure state (first
-  failure, then recovery), not once per second — auto (unit test with the fake port)
+- P5-19 — Phase 4 carry-over: the native `query <display> failed` line is logged once per change of the failure (first
+  failure or a different error text, then one `query <display> ok again`), not once per second — auto (code review; the
+  line is written natively, so no Kotlin unit test; corrected before code 2026-09-28)
 
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).

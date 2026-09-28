@@ -6,6 +6,7 @@ import com.nuvio.app.features.player.desktop.refreshrate.FailureKind
 import com.nuvio.app.features.player.desktop.refreshrate.MODE_280
 import com.nuvio.app.features.player.desktop.refreshrate.OWNER_MODES
 import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
+import com.nuvio.app.features.player.desktop.refreshrate.Timing
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -24,6 +25,11 @@ internal class FakeDisplayPort(
     var onSwitch: ((String, DisplayMode, Long) -> SwitchOutcome)? = null
     var onRestore: ((String) -> Boolean)? = null
     var onPlayerDisplay: ((Long) -> String?)? = null
+    var onSetTiming: ((Long, Timing) -> Boolean)? = null
+
+    /** mpv counters per player for the health check; absent = player gone. */
+    val stats = mutableMapOf<Long, TimingStats>()
+    var onTimingStats: ((Long) -> TimingStats?)? = null
 
     /** Highest number of port calls running at the same time (dispatcher tests). */
     val maxConcurrent = AtomicInteger(0)
@@ -71,7 +77,25 @@ internal class FakeDisplayPort(
     override fun playerDisplay(playerId: Long): String? = track("playerDisplay p$playerId") {
         onPlayerDisplay?.invoke(playerId) ?: playerDisplays[playerId]
     }
+
+    override fun setTiming(playerId: Long, timing: Timing): Boolean = track("setTiming p$playerId ${timing.text()}") {
+        onSetTiming?.invoke(playerId, timing) ?: true
+    }
+
+    override fun timingStats(playerId: Long): TimingStats? = track("timingStats p$playerId") {
+        onTimingStats?.invoke(playerId) ?: stats[playerId]
+    }
 }
 
-internal fun startInput(playerId: Long, fps: Double? = 23.976, display: String = "A", estimate: Double? = null) =
-    StartInput(playerId, display, containerFps = fps, estimatedFps = estimate, isImage = false)
+internal fun Timing.text() = when (this) {
+    is Timing.DisplaySync -> "display-sync(${rate})"
+    Timing.Upstream -> "upstream"
+}
+
+internal fun startInput(
+    playerId: Long,
+    fps: Double? = 23.976,
+    display: String = "A",
+    estimate: Double? = null,
+    frameCap: Double? = null,
+) = StartInput(playerId, display, containerFps = fps, estimatedFps = estimate, isImage = false, frameCap = frameCap)

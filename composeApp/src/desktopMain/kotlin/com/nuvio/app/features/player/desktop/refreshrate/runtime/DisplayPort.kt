@@ -3,6 +3,7 @@ package com.nuvio.app.features.player.desktop.refreshrate.runtime
 import com.nuvio.app.features.player.desktop.refreshrate.DisplayMode
 import com.nuvio.app.features.player.desktop.refreshrate.DisplayState
 import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
+import com.nuvio.app.features.player.desktop.refreshrate.Timing
 
 /** What the native glue reads at mpv's on_preloaded hook for one playback start (SPEC P4-9). */
 data class StartInput(
@@ -11,6 +12,18 @@ data class StartInput(
     val containerFps: Double?,
     val estimatedFps: Double?,
     val isImage: Boolean,
+    /** NVIDIA Max Frame Rate for this process (P5-9); null = off or unknown. */
+    val frameCap: Double? = null,
+)
+
+/** A player's mpv counters for the health check (P5-11). [displaySyncApplied]: our timing change is in place. */
+data class TimingStats(
+    val drops: Long,
+    val mistimed: Long,
+    val estimatedDisplayFps: Double?,
+    val timePos: Double?,
+    val paused: Boolean,
+    val displaySyncApplied: Boolean,
 )
 
 /**
@@ -32,4 +45,10 @@ interface DisplayPort {
 
     /** Display hosting [playerId]'s window now; null when that player is gone. */
     fun playerDisplay(playerId: Long): String?
+
+    /** Applies [timing] to [playerId]'s mpv (P5-6); false = player gone/stopping or an mpv call failed. */
+    fun setTiming(playerId: Long, timing: Timing): Boolean
+
+    /** [playerId]'s mpv counters; null when that player is gone. */
+    fun timingStats(playerId: Long): TimingStats?
 }

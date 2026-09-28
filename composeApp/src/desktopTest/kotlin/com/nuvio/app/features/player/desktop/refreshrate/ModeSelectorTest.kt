@@ -13,7 +13,8 @@ class ModeSelectorTest {
         enabled: Boolean = true,
         estimate: Double? = null,
         image: Boolean = false,
-    ) = ModeSelector.decide(enabled, fps, estimate, image, current, modes)
+        frameCap: Double? = null,
+    ) = ModeSelector.decide(enabled, fps, estimate, image, current, modes, frameCap)
 
     private fun assertSwitch(sel: Selection, rate: Rational, k: Long, label: String) {
         val s = assertIs<Selection.Switch>(sel, "$label: $sel")
@@ -143,5 +144,30 @@ class ModeSelectorTest {
         assertTrue("23.81" in n.detail, "detail should name the fps: ${n.detail}")
         val m = assertIs<Selection.NoSwitch>(decide(25.0, modes = listOf(MODE_280, MODE_240)))
         assertTrue(m.detail.isNotBlank(), "detail should list what was considered")
+    }
+
+    // P5-10 (Q20 a): a driver frame cap below 1.05 x target collapses display-resample (Phase 2b) ⇒ don't switch
+    @Test
+    fun `a frame cap below the headroom gives frame-cap, not a switch`() {
+        assertNoSwitch(decide(23.976, frameCap = 200.0), "frame-cap", "old 200 cap vs 239.901")
+        assertNoSwitch(decide(23.976, frameCap = 250.0), "frame-cap", "250 < 1.05 x 239.901")
+        assertNoSwitch(decide(23.976, current = MODE_240, frameCap = 200.0), "frame-cap", "already at target")
+    }
+
+    @Test
+    fun `a frame cap with enough headroom, off or unknown changes nothing`() {
+        assertSwitch(decide(23.976, frameCap = 252.0), Rational(239901, 1000), 10, "252 >= 1.05 x 239.901")
+        assertSwitch(decide(23.976, frameCap = null), Rational(239901, 1000), 10, "off / unknown")
+        assertSwitch(decide(25.0, frameCap = 200.0), Rational(10000, 100), 4, "200 is plenty for 100 Hz")
+        assertIs<Selection.AlreadyAtTarget>(decide(23.976, current = MODE_240, frameCap = 300.0))
+    }
+
+    @Test
+    fun `earlier rules win over the frame cap and its detail explains it`() {
+        assertNoSwitch(decide(23.976, enabled = false, frameCap = 200.0), "disabled", "disabled")
+        assertNoSwitch(decide(null, frameCap = 200.0), "fps-missing", "no fps")
+        assertNoSwitch(decide(25.0, modes = listOf(MODE_280, MODE_240), frameCap = 200.0), "no-suitable-mode", "no fitting mode")
+        val n = assertIs<Selection.NoSwitch>(decide(23.976, frameCap = 200.0))
+        assertTrue("200" in n.detail && "239.901" in n.detail, n.detail)
     }
 }
