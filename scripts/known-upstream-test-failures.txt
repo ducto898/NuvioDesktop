@@ -17,3 +17,8 @@ com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedWeb
 # Added 2026-09-28 at upstream Dev fe92d414 (owner approved): upstream 50c5e321 changed the hero max height
 # 660dp -> 640dp without updating the test ("Expected <660.0> ... actual <640.0>"). Platform-independent.
 com.nuvio.app.features.home.components.HomeHeroSectionTest#desktop hero keeps the existing full bleed layout at sixteen by nine[desktop]
+
+# Added 2026-09-28 at upstream Dev fe92d414 (owner approved): FLAKY under full-suite load, not deterministic.
+# QuickJs NPE ("this.closed" is null in QuickJs.evaluateBytecode) during 32 concurrent runs; failed 4 of ~10 full runs,
+# passes when run alone (3/3). Unrelated to the patch. Remove if upstream fixes it.
+com.nuvio.app.features.plugins.PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions[desktop]

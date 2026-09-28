@@ -7,7 +7,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   recorded/accepted/waived by the owner). Upstream diff: 2 lines in `player_bridge.cpp`. Rebased on `fe92d414`, not pushed.
   Open: upstream `PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions` is **flaky under load**
   (QuickJs NPE `this.closed`; failed 4 of ~10 full runs today, passes alone 3/3 and in 2 later full runs, unrelated to the
-  patch) — owner to decide: add to the known-failure baseline, or keep and re-run on failure.
+  patch) — **added to the known-failure baseline (owner approved 2026-09-28)**; baseline is now 8 entries.
 - **Next:** Phase 3 (pure logic, tests first) in a fresh session: write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
