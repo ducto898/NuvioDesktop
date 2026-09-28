@@ -37,8 +37,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   drsprobe.cpp); under the `timing-set` fault knob a later revert also reports ok=0 (knob only).
   **Owner session 19:45–20:05:** PresentMon runs + checklist "all OK" (owner). P5-15 PASS, P5-16 PASS on substance (see
   Measurements; strict ±0.25 ms wording missed by jittered pairs ⇒ owner to accept), P5-13 PASS from the log, P5-17
-  owner-attested; monitor off/on not in the log ⇒ Phase 7 matrix. **Phase 5 DONE 2026-09-28 (pending the owner's OK on the
-  P5-16 note). Next: Phase 6** (write P6 criteria, stop at the gate).
+  owner-attested; monitor off/on not in the log ⇒ Phase 7 matrix. **Phase 5 DONE 2026-09-28 except one fullscreen-pause
+  PresentMon run (P5-16, see Measurements follow-up). Next: Phase 6** (write P6 criteria, stop at the gate).
   History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
@@ -345,6 +345,18 @@ suite, ≈ 15 s with only the patch tests.
   to 280) ⇒ timestamp jitter, **VRR not engaged, panel rate constant** through pause/seek/controls/fullscreen. Harness
   note: both action runs ended fs=yes (one f11 not applied), a measure-script issue. The summary's own grid check uses the
   280 Hz period; fix in the tooling before Phase 7.
+  **Follow-up analysis (owner: "investigate further", 2026-09-28 ~20:20), run 2 `*195048*-p5-pm-actions`:**
+  (a) The pairs are not caused by other apps (no other process presented within 30 ms of 6 of the 7). One is the f11 present-mode
+  change (65.5 s capture ≈ load + 71.5 s). The other 6 come at capture 98–102 s (≈ load + 104–108 s, fullscreen, no action), some 250 ms
+  apart. Present pacing stays steady (`MsBetweenPresents` 4.07–4.35 ms); only the display timestamp moves 0.25 ms
+  late then early; `MsFlipDelay` is NA on every present, so there is no VRR indicator from PresentMon. mpv's own flip statistics see it too:
+  `vsync-jitter` 0.00023 ⇒ 0.00035 at the same time-pos (84–86). (b) Each f11 toggle disturbs display sync for ~4 s:
+  vsync-jitter 0.095, estimated rate 238.7, +1 mistimed, +1..3 delayed. (c) **The windowed 20 s pause lands on the grid:** resume
+  19 962.495 ms = 4789.02 refreshes, 0.094 ms off ⇒ fixed refresh while nothing is presented (run 1: 7.8 s gap, 0.026 ms
+  off). (d) **Not yet proven: a pause in FULLSCREEN**, the only mode where G-SYNC ("full screen only") could engage. A
+  steady 239.9 fps presenter looks the same under VRR and under a fixed 240 Hz, so the pm-fs run alone can't tell them apart. The test is a
+  fullscreen pause (a VRR panel would slow down and the resume would land off the grid). Phase 2 proved this at 280 in audio sync
+  (20 s pause = 5595 vsyncs exactly), not under the feature at 240. ⇒ one more owner PresentMon run needed.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
