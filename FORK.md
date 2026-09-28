@@ -8,10 +8,15 @@ Behaviour and acceptance criteria: [`SPEC.md`](SPEC.md). Status: [`PROGRESS.md`]
 > update runbook, conflict hot spots, updater, app identity).
 
 ## 1. What the patch does
-_TBD (Phase 3–6)._ See SPEC.md §1.
+_Being built (Phases 3–6)._ See SPEC.md §1. State after Phase 4: with `NUVIO_RR_ENABLE=1` (dev knob;
+`scripts/run-dev.ps1 -Feature`) the player switches the monitor to the best integer multiple of the video fps before
+mpv creates its video output, verifies it, and restores it when the player screen goes away, the window closes or the
+JVM exits (Windows itself reverts it on a crash or kill). mpv timing is not changed yet (Phase 5); there is no settings
+toggle yet (Phase 6). Log: `%LOCALAPPDATA%\Nuvio\Cache\refresh-rate.log` (dev profile in dev runs).
 
 ## 2. Files and hooks touched
-_TBD._ `scripts/verify.ps1 -Full` prints the current list and line counts against upstream.
+SPEC.md §2 (hook lines, each tagged `nuvio-rr fork hook Hn`) and §3 (new files). `scripts/verify.ps1 -Full` prints
+the current list and line counts against upstream.
 
 ## 3. Toolchain (Windows 11, verified 2026-09-27)
 Nothing below needs admin rights except Visual Studio, which was already installed.

@@ -17,10 +17,15 @@
 
 .PARAMETER GradleArgs
   Extra Gradle arguments (e.g. -Pnuvio.desktop.smokePlayerUrl=...).
+
+.PARAMETER Feature
+  Turn refresh-rate matching on (NUVIO_RR_ENABLE=1, the dev knob until the Phase 6 setting). Its log is
+  <ProfileRoot>\Local\Nuvio\Cache\refresh-rate.log.
 #>
 param(
     [string]$ProfileRoot = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'devprofile'),
-    [string[]]$GradleArgs = @()
+    [string[]]$GradleArgs = @(),
+    [switch]$Feature
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -45,6 +50,10 @@ $env:LOCALAPPDATA = $local
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $local 'Nuvio\WebView2'
 New-Item -ItemType Directory -Force $env:WEBVIEW2_USER_DATA_FOLDER | Out-Null
 Write-Host "Dev profile: $ProfileRoot (APPDATA/LOCALAPPDATA redirected for this process)"
+if ($Feature) {
+    $env:NUVIO_RR_ENABLE = '1'
+    Write-Host "Refresh-rate matching ON; log: $(Join-Path $local 'Nuvio\Cache\refresh-rate.log')"
+}
 
 Set-Location $repo
 & "$repo\gradlew.bat" :composeApp:run --no-daemon --no-configuration-cache --console=plain @GradleArgs

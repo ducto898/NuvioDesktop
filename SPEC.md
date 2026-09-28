@@ -15,14 +15,27 @@ _TBD after Phase 1 research and plan approval._ Summary of intent:
 - Restore on end/close/exit/crash/kill. Never persisted as the Windows default.
 
 ## 2. Upstream files touched (hooks)
+Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a rebase).
 | File | Hook | Lines |
 |---|---|---|
-| _TBD_ | | |
+| `composeApp/src/desktopMain/native/windows/player_bridge.cpp` | H1 `#include "display_mode_matcher.cpp"` after `mpvApi()` | 1 |
+| same | H2 `nuvio_rr::onMpvInitialized(this, mpv, containerHwnd)` in `startMpv()`, after the `mpv_initialize` check, before `loadfile` | 1 |
+| same | H4 `nuvio_rr::onMpvEvent(...)` in `drainMpvEvents()`, after `waitEvent` | 1 |
+| same | H5 `nuvio_rr::onPlayerShutdown(this)` first line of `shutdown()` | 1 |
+| `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt` | H6 `RefreshRateMatch.onScreenGone()` (fully qualified, no import) first line of `DisposableEffect(host).onDispose` | 1 |
+| `composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt` | H8 `RefreshRateMatch.onAppExit()` (fully qualified) first line of `onCloseRequest` | 1 |
 
 ## 3. New files
 | File | Purpose |
 |---|---|
-| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`); Phase 2/2b: measure-only sampler + knobs |
+| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`; closes/reopens its anonymous namespace for `<dxgi1_2.h>` and the JNI exports; `#pragma comment(lib, "dxgi.lib")`). Phase 2/2b: measure-only sampler + knobs. Phase 4: feature config (`NUVIO_RR_ENABLE`, `NUVIO_RR_FAULT`), `refresh-rate.log` sink, player registry, `on_preloaded` hook worker + JNI upcall, Win32 port (QDC query, DXGI modes, CDS switch + settle, restore), JNI exports for `NativeDisplayPort` |
+| `.../refreshrate/runtime/DisplayPort.kt` | `DisplayPort` interface (the Win32 side) + `StartInput` (P4-5..P4-9) |
+| `.../refreshrate/runtime/RefreshRateController.kt` | runs `decide()`/`step()` against a `DisplayPort`, every command to its result; fail-safe; watcher with two-read debounce; monitor move (Q15) (P4-13..P4-17) |
+| `.../refreshrate/runtime/RefreshRateDispatcher.kt` | one daemon thread `nuvio-rr`, bounded waits, 1 s watcher (P4-13, P4-16) |
+| `.../refreshrate/runtime/NativeCodec.kt` | `long[]` layouts across JNI |
+| `.../refreshrate/runtime/NativeDisplayPort.kt` | `external` functions implemented in `display_mode_matcher.cpp` |
+| `.../refreshrate/runtime/RefreshRateMatch.kt` | process-global entry points: native upcall, H6, H8, JVM shutdown hook; Kermit tag `RefreshRateMatch` |
+| `composeApp/src/desktopTest/kotlin/.../refreshrate/runtime/*Test.kt`, `FakeDisplayPort.kt` | Phase 4 controller, dispatcher and codec tests |
 | `composeApp/src/desktopMain/kotlin/.../player/desktop/refreshrate/RefreshRateModels.kt` | `Rational` (exact rates), `DisplayMode`, `DisplayState` |
 | `.../refreshrate/FpsSnapper.kt` | fps → standard rate, container first / estimate fallback, cross-check (P3-6..P3-9) |
 | `.../refreshrate/ModeSelector.kt` | target-mode selection and the per-start decision `decide()` (P3-10..P3-15) |
@@ -358,7 +371,8 @@ display watcher) go through the same holder on one thread.
 **Kotlin holder and restore paths**
 - P4-13 — One process-global holder owns the `Session` and runs all events on one thread (`nuvio-rr`), so `step()` calls
   never overlap and P3-17 holds for real. The EDT and the mpv event thread never wait on it, except window close, which
-  waits ≤ 2 s for its restore. The native player id is the `Long` handle — auto (unit tests with the fake port + review)
+  waits ≤ 2 s for its restore. The player id is a per-player counter assigned natively at H2 (`p1`, `p2`… in the
+  log; corrected during implementation: the JNI handle is a heap pointer that can be reused, so it is not used) — auto (unit tests with the fake port + review)
 - P4-14 — Restore paths: (a) player screen gone (H6, `DisposableEffect(host).onDispose`); (b) main window close (H8);
   (c) a JVM shutdown hook in the holder (covers the `exitProcess` paths, ≤ 2 s); (d) crash/kill ⇒ Windows' revert (D7).
   (b) and (d) auto via measure.ps1 (window close; `-Kill`): 279.961 within 1 s, registry 280 throughout. (a) [HUMAN]

@@ -21,6 +21,11 @@
   -HideOverlay (NUVIO_RR_MEASURE_HIDE_OVERLAY=1, hides the WebView2 controls overlay for the run).
   -PresentMonCsv <csv> slices this run (app pid, file-loaded + 6 s .. close - 1 s) out of one long elevated capture.
 
+  Phase 4 (the feature): -Feature sets NUVIO_RR_ENABLE=1; its log is the run folder's refresh-rate.log and
+  summary.json gets a "feature" section. -Fault <kind> sets NUVIO_RR_FAULT (measure runs only; kinds: enumerate,
+  display-not-found, switch-api, settle-timeout, slow-settle, verify-mismatch, restore-failed, unexpected).
+  -CloseAfterSwitchMs <ms> closes the window <ms> after the feature's switch call (dispose-mid-switch, P4-12).
+
 .PARAMETER Actions
   Comma list of key@second (seconds after file-loaded): space (pause toggle), right/left (seek),
   mouse (wiggle the cursor over the window so the controls show), f11. Example: 'space@40,space@60'.
@@ -45,7 +50,10 @@ param(
     [string]$PresentMonCsv = '',
     # Live rate expected before/after. Only for runs where switcher.exe holds a mode around the run (P2-19);
     # the registry mode must still be 280 before/during/after in every run.
-    [double]$ExpectHz = 279.961
+    [double]$ExpectHz = 279.961,
+    [switch]$Feature,
+    [string]$Fault = '',
+    [int]$CloseAfterSwitchMs = -1
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -182,6 +190,15 @@ $ignore = Join-Path $measureRoot '.gitignore'
 if (-not (Test-Path $ignore)) { Set-Content -Encoding ascii $ignore "*`n!.gitignore" }
 Write-Host "run: $runName"
 
+# Wake the monitor first: after the Windows display timeout the panel is off, and presenting to it gives
+# ~500 drops + audio underruns per 30 s even with the feature off (measured 2026-09-28 16:23 vs 16:25).
+# A 1 px relative mouse move there and back is enough; the app keeps the display awake while playing.
+if (-not ('RrWake' -as [type])) {
+    Add-Type -Namespace '' -Name RrWake -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, uint d, System.UIntPtr e);'
+}
+[RrWake]::mouse_event(1, 1, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 200; [RrWake]::mouse_event(1, -1, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Seconds 2
+
 $officialProfile = Join-Path $env:APPDATA 'Nuvio'
 $officialLocal = Join-Path $env:LOCALAPPDATA 'Nuvio'   # incl. WebView2 (see run-dev.ps1)
 $startTime = Get-Date
@@ -208,6 +225,7 @@ $envSet = @{
     NUVIO_DESKTOP_SMOKE_PLAYER_URL = 'file:///' + ($clipPath -replace '\\', '/')
     NUVIO_RR_MEASURE_IPC = $(if ($Actions) { '1' } else { '' })
     NUVIO_RR_MEASURE_OPTS = $Opts; NUVIO_RR_MEASURE_HIDE_OVERLAY = $(if ($HideOverlay) { '1' } else { '' })
+    NUVIO_RR_ENABLE = $(if ($Feature) { '1' } else { '' }); NUVIO_RR_FAULT = $Fault
 }
 foreach ($k in $envSet.Keys) { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envSet[$k]) }
 try {
@@ -218,22 +236,33 @@ try {
 }
 
 $problems = @()
-$log = $null; $appPid = $null; $loadedAt = $null
+$log = $null; $appPid = $null; $loadedAt = $null; $closedEarlyAt = $null
+$featureLog = Join-Path $out 'refresh-rate.log'
 $deadline = (Get-Date).AddSeconds(300)
 while ((Get-Date) -lt $deadline -and -not $loadedAt) {
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds $(if ($CloseAfterSwitchMs -ge 0) { 20 } else { 500 })
     if ($launcher.HasExited) { break }
     $log = Get-ChildItem $out -Filter 'nuvio-rr-*.log' -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $log) { continue }
     $text = Get-Content $log.FullName -Raw -ErrorAction SilentlyContinue
     if (-not $appPid -and $text -match 'start: pid=(\d+)') { $appPid = [int]$Matches[1] }
+    if ($CloseAfterSwitchMs -ge 0 -and $appPid -and (Test-Path $featureLog) -and
+        (Get-Content $featureLog -Raw -ErrorAction SilentlyContinue) -match 'CDS_FULLSCREEN\) = 0') {
+        # P4-12: close the window while the switch/settle is (probably) still running.
+        Start-Sleep -Milliseconds $CloseAfterSwitchMs
+        $closedEarlyAt = Get-Date
+        $early = Get-Process -Id $appPid -ErrorAction SilentlyContinue
+        if ($early) { [void]$early.CloseMainWindow() }
+        Add-Content "$out\actions.txt" "$($closedEarlyAt.ToString('HH:mm:ss.fff')) close $CloseAfterSwitchMs ms after the switch call"
+        break
+    }
     if ($text -match '\bE file-loaded\b') { $loadedAt = Get-Date }
 }
-if (-not $loadedAt) { $problems += 'app did not reach file-loaded within 300 s (see app-stdout.txt)' }
+if (-not $loadedAt -and -not $closedEarlyAt) { $problems += 'app did not reach file-loaded within 300 s (see app-stdout.txt)' }
 $app = if ($appPid) { Get-Process -Id $appPid -ErrorAction SilentlyContinue } else { $null }
 
 $powerProc = $null; $pmProc = $null
-if ($loadedAt -and $app) {
+if ($loadedAt -and $app -and -not $closedEarlyAt) {
     Write-Host "file loaded (pid $appPid); playing $Seconds s"
     $shell = New-Object -ComObject WScript.Shell
     if (-not ('RrWin' -as [type])) {
@@ -315,7 +344,7 @@ if ($loadedAt -and $app) {
 }
 
 # Close normally (onCloseRequest -> exitApplication), then force if needed.
-$closeAt = Get-Date
+$closeAt = if ($closedEarlyAt) { $closedEarlyAt } else { Get-Date }
 $forced = $false
 if ($Kill -and $app -and -not $app.HasExited) {
     # Hard kill (TerminateProcess), for crash/kill restore tests: no cleanup code runs.
@@ -425,7 +454,7 @@ foreach ($phase in 'before', 'after') {
     if ($summary.windows.$phase.regHz -ne 280) { $problems += "registry mode $phase the run: $($summary.windows.$phase.regHz) (expected 280)" }
 }
 $regDuring = @($summary.windows.during.distinctRegHz)
-if ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280) { $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
+if (-not $closedEarlyAt -and ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280)) {  # early close: no "during" window $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
 if (Test-Path "$out\power.csv") {
     $pw = Get-Content "$out\power.csv" | ForEach-Object { $c = $_ -split ',\s*'; [pscustomobject]@{ W = [double]$c[1]; Clock = [double]$c[2]; Util = [double]$c[4] } }
     $summary.power = [ordered]@{ samples = @($pw).Count; wattsMedian = Median ($pw.W); clockMedian = Median ($pw.Clock); utilMedian = Median ($pw.Util) }
@@ -480,6 +509,31 @@ if (Test-Path "$out\presentmon.csv") {
         $summary.cadence = Get-Cadence "$out\presentmon.csv" $duringHz ([double]$summary.mpv.containerFps)
     }
 }
+
+# Phase 4 feature log (P4-10, P4-19, P4-20) and crash evidence (P4-12).
+if ($Feature) {
+    $fl = if (Test-Path $featureLog) { @(Get-Content $featureLog) } else { @() }
+    $ms = { param($pattern) @($fl | ForEach-Object { if ($_ -match $pattern) { [double]$Matches[1] } }) }
+    $firstSwitch = $fl | Where-Object { $_ -match 'CDS_FULLSCREEN\) = ' } | Select-Object -First 1
+    $summary.feature = [ordered]@{
+        fault = $Fault; closeAfterSwitchMs = $CloseAfterSwitchMs; lines = $fl.Count
+        switchCalls = @($fl | Where-Object { $_ -match 'CDS_FULLSCREEN\) = ' } | ForEach-Object { $_.Substring(0, 12) + ' ' + ($_ -replace '^.*ChangeDisplaySettingsExW', 'CDS') })
+        restoreCalls = @($fl | Where-Object { $_ -match 'restore = ' } | ForEach-Object { $_.Substring(0, 12) + ' ' + ($_ -replace '^.*restore = ', 'restore = ') })
+        settleMs = & $ms 'settled in (\d+) ms'
+        hookDoneMs = & $ms 'hook p\d+ done after (\d+) ms'
+        switchBeforeFileLoaded = if ($firstSwitch -and $loadWall) { $firstSwitch.Substring(0, 12) -lt $loadWall.Substring(0, 12) } else { $null }
+        reasons = @($fl | Where-Object { $_ -match ' K step ' } | ForEach-Object { if ($_ -match 'reasons=(\S*)') { $Matches[1] } })
+        modesLine = $fl | Where-Object { $_ -match ' N modes ' } | Select-Object -First 1
+    }
+}
+$hsErr = @(Get-ChildItem $repo, (Join-Path $repo 'composeApp') -Filter 'hs_err_pid*.log' -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -gt $startTime } | ForEach-Object { $_.FullName })
+$werEvents = @(try {
+        Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = 'Application Error', 'Windows Error Reporting'; StartTime = $startTime } -ErrorAction Stop |
+            Where-Object { $_.Message -match 'java' } | ForEach-Object { "$($_.TimeCreated.ToString('HH:mm:ss')) $($_.ProviderName) $($_.Id)" }
+    } catch { @() })
+$summary.crash = [ordered]@{ hsErr = $hsErr; werEvents = $werEvents }
+if ($hsErr.Count -or $werEvents.Count) { $problems += "crash evidence: $($hsErr.Count) hs_err file(s), $($werEvents.Count) WER event(s)" }
 
 # Official profile must be untouched (P2-11).
 $touched = @($officialProfile, $officialLocal | Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem $_ -Recurse -File -ErrorAction SilentlyContinue } |
