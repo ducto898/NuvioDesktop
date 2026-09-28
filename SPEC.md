@@ -360,7 +360,8 @@ display watcher) go through the same holder on one thread.
   measure runs + code review)
 - P4-10 — mpv starts at the new rate: `sdr-1080p-23.976` with the feature on ⇒ the switch line is logged before the
   first video frame, Windows reads 239.901 during playback, and mpv's `display-fps` is 239.901 (± 0.01 %) from the first
-  stats line — auto (measure.ps1). Same for 25 fps ⇒ 100.000; 59.94 ⇒ 239.901; VFR clip ⇒ no switch, 279.961
+  stats line — auto (measure.ps1). Same for 25 fps ⇒ 100.000; 59.94 ⇒ 239.901; VFR clip ⇒ decided by its container header like any file (Q18, owner 2026-09-28: the
+  test clip says 60 fps ⇒ 239.901; no estimate exists at on_preloaded and there is no mid-playback switch, Q11)
 - P4-11 — No mpv timing change in Phase 4: the `Timing` result is logged, not applied; with the feature on, the only mpv
   difference from upstream is the hook — auto (code review + options log)
 - P4-12 — Dispose mid-switch: `shutdown()` (H5) cancels the worker and waits ≤ 1 s for it to let go of the mpv handle,

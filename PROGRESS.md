@@ -165,6 +165,9 @@ suite, ≈ 15 s with only the patch tests.
 - P4-1..P4-21: **approved**. Q14 dev knob `NUVIO_RR_ENABLE=1` until Phase 6: **yes**. Q15 monitor move mid-playback ⇒
   restore the old monitor, keep playing, no switch until the next video: **yes**. Q16 fault knob `NUVIO_RR_FAULT=<kind>` +
   measure.ps1 `-Feature`/window-close runs: **yes**.
+- Q18 VFR clip switching by its header: **accepted** (option a); P4-10 amended.
+- Q17 follow-up (17:35): owner created a 250 Hz custom mode. It appears only in GDI EDS_RAWMODE (with 100 and 265),
+  not in the normal GDI list or DXGI ⇒ the feature still does not see it; 25 fps stays at 280 (run `*p4-250check`).
 
 ## Open questions for owner
 - Q17 (Phase 4, 2026-09-28): **100 Hz is gone from the monitor's normal mode list.** Today GDI (non-raw) and DXGI list
@@ -173,10 +176,6 @@ suite, ≈ 15 s with only the patch tests.
   Result: 25/50 fps stay at 280 (`no-suitable-mode`, fail-safe). Did anything change (NVIDIA App reset, monitor OSD,
   cable/DSC)? Options: (a) accept; (b) owner restores 100 Hz (e.g. NVCP custom resolution) — then it works with no code
   change; (c) also consider raw modes — NOT recommended (a pruned mode can mean "no signal" while Windows reports success).
-- Q18 (Phase 4): the VFR test clip's container header says 60 fps and mpv has no estimate at on_preloaded, so it
-  switches to 239.901 (P4-10 expected no switch). Per Q11 there is no mid-playback switch. Options: (a) accept and amend
-  P4-10 (VFR with a plausible header switches; the after-start cross-check logs `fps-disagree`, Phase 5 decides timing);
-  (b) something stricter (would need Phase 3 logic changes). Recommended: (a).
 - Q19 (Phase 4): P4-12 (player shutdown during a running settle) cannot be reached by a window close (upstream disposes the
   player ~1.8 s after the 2 s close wait). Proposed: prove it by hand in the P4-21 checklist (slow-settle knob, leave the
   player within 3 s) and amend P4-12's "20 window-close runs" to "20 close runs (done: no crash, 279.961 after) + 1 manual
