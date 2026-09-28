@@ -43,6 +43,36 @@ Upstream hook sites (from docs/research/06): H1 `#include` after `mpvApi()` (PB:
 - **Kill test** (research 01 §7, standalone scratchpad tools, owner present): cases A–J. Decides the crash design before Phase 4.
 - Baseline (feature absent) for 23.976/25/59.94, 2–3 runs to prove repeatability; VRR/present-mode findings; GPU power 240 vs 120 Hz (Q8 downside check). Record in PROGRESS.md.
 
+**Phase 2b — display-resample diagnosis spike (added 2026-09-28, D11; owner at the PC only for PresentMon UAC clicks)** · est. 150–250k
+Why: a fixed 240 Hz with upstream audio sync is not smooth (75 % of frames at 10 refreshes, 11/9 bursts ~60 of 80 s,
+PROGRESS "Fixed 240 Hz"). The project's value depends on display-synced timing, which is broken in the embedded player:
+`video-sync=display-resample` gives estimated display fps ≈ 6 Hz windowed / ≈ 191 Hz fullscreen at 280 Hz, ~650
+mistimed/min, `MsInPresentAPI` median 4.8 ms. Answer "can it be fixed, and how" before building Phases 3–4.
+Measure-only: no product behaviour, no upstream edits beyond H1/H4, mode held by `switcher.exe` (240 fixed) or 280.
+
+Hypotheses to test, cheapest first (each one knob change + one measure.ps1 run, windowed AND fullscreen):
+- S1 **Run at the real target first.** Everything so far was at 280 Hz. Repeat display-resample at a fixed 239.901
+  (mode set before start, so mpv reads it), windowed + fullscreen. Maybe 240 is enough headroom.
+- S2 **Render cost per refresh.** display-resample re-renders every refresh through gpu-next (spline36, deband, HDR
+  swapchain, tone mapping). Try cheaper settings one at a time (scale/cscale=bilinear, deband=no) and read nvidia-smi
+  clocks: the GPU sat at 210–465 MHz, so it may be the power state, not the load.
+- S3 **Swapchain / present queue.** mpv d3d11 options: `d3d11-flip`, `swapchain-depth`, `d3d11-sync-interval`,
+  `video-timing-offset`; compare `MsInPresentAPI` and PresentMon PresentMode.
+- S4 **Windowed-only collapse (≈ 6 Hz).** Occlusion/throttling by the full-size WebView2 overlay or DWM: check for
+  DXGI_STATUS_OCCLUDED-style throttling in the mpv log. Test with a measure-only native knob that hides the WebView2
+  child window for the run (no product change).
+- S5 **Other sync modes:** `display-vdrop`, `display-desync` (diagnostic) and `display-resample-vdrop`, to separate
+  "vsync measurement is wrong" from "presentation can't keep up".
+Mechanism: a generic measure-only knob `NUVIO_RR_MEASURE_OPTS="k=v;k=v"` (applied as mpv properties before load) plus,
+for S4, `NUVIO_RR_MEASURE_HIDE_OVERLAY=1`. Both need the owner's approval in the P2b criteria.
+Pass (the spike succeeds): some option set gives, at 239.901 in BOTH windowed and fullscreen, over 120 s:
+estimated display fps within 0.1 % of 239.901, mistimed + drops ≤ 1/min, no audio underruns, and PresentMon shows
+≥ 99 % of 23.976 frames at exactly 10 refreshes. Also record GPU power (Q8).
+Fail: documented cause + the options tried ⇒ owner decides: (a) proceed with the switch + audio sync only (smaller gain,
+measured above), (b) try a deeper fix (e.g. a libmpv render-API path — large, likely upstream-diff heavy), or (c) stop.
+Output: docs/research/10-display-resample-spike.md; PROGRESS measurements + decision. Verifier: ONE lean round
+(criteria table + evidence folder list only).
+
 **Phase 3 — Pure logic, tests first** · est. 250k
 FpsSnapper (standard rates, ±0.1%), ModeSelector (highest k·f within ratio tolerance, same resolution + bpc, else none), VFR/unknown ⇒ no switch, SessionStateMachine (idle/switching/switched/restoring; same-target skip; restore bookkeeping), FailSafePolicy (every API failure ⇒ stay at current rate, play). Tests use the measured mode list (279.961, 239.901, 143.973, 119.998, 100.000, 59.951).
 

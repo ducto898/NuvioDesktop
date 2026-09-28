@@ -8,7 +8,9 @@ The only memory between phases. Read it at the start of every phase; update it a
   Open: upstream `PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions` is **flaky under load**
   (QuickJs NPE `this.closed`; failed 4 of ~10 full runs today, passes alone 3/3 and in 2 later full runs, unrelated to the
   patch) — **added to the known-failure baseline (owner approved 2026-09-28)**; baseline is now 8 entries.
-- **Next:** Phase 3 (pure logic, tests first) in a fresh session: write P3 acceptance criteria into SPEC.md, stop at the
+- **Next (changed 2026-09-28, owner-approved, D11):** **Phase 2b — display-resample spike** BEFORE Phase 3, in a fresh
+  session: read docs/PLAN.md "Phase 2b", write P2b acceptance criteria into SPEC.md, stop at the gate. Then Phase 3.
+- **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
   (windowed ≈ 6 Hz vs fullscreen ≈ 191 Hz estimated display fps, present blocks ~4.8 ms) or fall back to audio sync at N×fps;
@@ -67,6 +69,9 @@ suite, ≈ 15 s with only the patch tests.
   pause/seek/controls (req. 9), VRR does not engage in Nuvio's player (measured windowed + fullscreen) and enabling it
   would need a global G-SYNC change, 23.976 is below the VRR floor (LFC), mpv has no VRR pacing mode.
 - D10: soak runs (Phase 7) use long stream-copied clips, not mpv `loop-file` (its EOF→seek restart hitches ~1–2 frames).
+- D11 (owner, 2026-09-28): insert **Phase 2b, a display-resample diagnosis spike, before Phase 3.** Reason: a fixed 240 Hz
+  with upstream audio sync is NOT smooth (measured below), so the project's value depends on display-synced timing,
+  which is currently broken in the embedded player. Find out if it's fixable before building Phases 3–4.
 - D8: `verify.ps1` runs Gradle with APPDATA/LOCALAPPDATA redirected to `NuvioRate\testprofile` and fails if the official
   `%APPDATA%\Nuvio` / `%LOCALAPPDATA%\Nuvio` changed (upstream desktopTests write through real storage).
 
@@ -121,6 +126,7 @@ suite, ≈ 15 s with only the patch tests.
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
+| 2b Resample spike | ~150–250k | |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |
@@ -168,6 +174,13 @@ suite, ≈ 15 s with only the patch tests.
   `MsInPresentAPI` median 4.8 ms (> 1 vsync). ⇒ still unusable as-is; Phase 5 diagnoses first.
 - **Loop (P2-7):** clip content seamless (measured: edge x 38→19→(0≡304) at N-1→0, 19 px/frame); owner saw a jump —
   explained by mpv `loop-file` (EOF, seek to 0, restart: ~50–90 ms gap). See D10.
+- **Fixed 240 Hz + audio sync (owner question "just set 240?", 10:31, `*fixed240`):** switcher held 239.901, clip
+  sdr-1080p-23.976, windowed, 90 s, PresentMon. mpv display-fps 239.901, 0 drops/delayed. Of 1964 frames: **10 refreshes
+  ×1476 (75 %), 11 ×250, 9 ×238** — the non-10 frames come as 11/9 pairs in **bursts starting every ~5–7 s and lasting
+  3–11 s** (14 bursts, ~60 of 80 s inside a burst). Cause [inferred]: audio-clock timing noise (~±1 ms) against a 4.17 ms
+  refresh while the 0.06 % rate mismatch drifts the frame phase across a refresh boundary. ⇒ A fixed 240 Hz alone is not
+  smooth; it trades the constant 11/12 wobble at 280 for bursts of ±4 ms 9/11 hitches. Display-synced timing is needed
+  for a clean 10/10 cadence (→ D11). All intervals on the 4.168 ms grid (max err 0.21 ms): fixed refresh, no VRR.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
