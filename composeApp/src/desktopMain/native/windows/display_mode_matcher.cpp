@@ -196,6 +196,7 @@ public:
         if (!started_) start(mpv, hwnd);
         if (!file_) return;
         if (event && event->event_id != MPV_EVENT_NONE) handleEvent(mpv, event, hwnd);
+        if (!loaded_) return;  // P2-3 samples only while a file is loaded (pre-load samples cost up to ~110 ms)
         double now = nowSeconds();
         if (now - lastSample_ >= 0.9) {  // events arrive at least every 0.5 s => sample starts <= 1.4 s apart
             lastSample_ = now;
@@ -208,6 +209,7 @@ private:
     bool started_ = false;
     bool switched_ = false;
     bool stopLogged_ = false;
+    bool loaded_ = false;
     double lastSample_ = 0.0;
     mpv_event_name_fn eventName_ = nullptr;
     std::shared_ptr<std::mutex> writeMutex_ = std::make_shared<std::mutex>();
@@ -265,6 +267,7 @@ private:
         const char *name = eventName_ ? eventName_(id) : nullptr;
         write(std::string("E ") + (name ? name : std::to_string(id).c_str()));
         if (id == kMpvEventFileLoaded) {
+            loaded_ = true;
             write("loaded: " + displayText(queryDisplay(hwnd)));
             const MeasureConfig &config = measureConfig();
             if (config.switchHz > 0 && !switched_) {
@@ -284,6 +287,7 @@ private:
                 }
             }
         } else if (id == kMpvEventEndFile || id == MPV_EVENT_SHUTDOWN) {
+            loaded_ = false;
             write("after: " + displayText(queryDisplay(hwnd)));
         }
         (void)mpv;
