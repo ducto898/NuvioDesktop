@@ -24,6 +24,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   ≤1e-6 accept test, `retarget` reason code, starts queued behind app exit are dropped — added to P3-20), 2 carried into
   Phase 4 below. verify -Full green (1397 tests, only baseline failures), upstream diff still 2 lines, not pushed.
   Mutation check: app exit without restore ⇒ the fuzz test fails. **Next: Phase 4** (write P4 criteria, stop at the gate).
+- **Phase 4 started 2026-09-28:** criteria P4-1..P4-21 in SPEC.md **approved** (Q14–Q16 yes). Implementation in progress.
 - **Phase 4 carry-overs from Phase 3:** `Step.reasons` are codes only. For one clear log line, Phase 4 takes the values
   from the event and the prior state (e.g. observed vs target on `verify-mismatch`). DisplayChanged is *ignored* (not
   deferred) while switching/restoring, so a monitor power cycle mid-switch is caught only by the switch verify or the
@@ -147,6 +148,11 @@ suite, ≈ 15 s with only the patch tests.
 - Q11 no container fps at file open (some HLS): **don't switch** (no mid-playback switch from `estimated-vf-fps`).
 - Q12 switched session + next video with no suitable rate: **restore 280** (P3-19).
 - Q13 mode dropped by a monitor off/on (case H): **re-switch to the target** (once per playback; P3-22).
+
+## Owner answers (Phase 4 gate, 2026-09-28)
+- P4-1..P4-21: **approved**. Q14 dev knob `NUVIO_RR_ENABLE=1` until Phase 6: **yes**. Q15 monitor move mid-playback ⇒
+  restore the old monitor, keep playing, no switch until the next video: **yes**. Q16 fault knob `NUVIO_RR_FAULT=<kind>` +
+  measure.ps1 `-Feature`/window-close runs: **yes**.
 
 ## Open questions for owner
 - Q10 (Phase 2b, 2026-09-28): (a) YES (rule added). (b) deferred to Phase 5 (no remote UAC). (c) Max Frame Rate: keep global off, or restore 200 and

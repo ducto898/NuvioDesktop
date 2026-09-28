@@ -297,5 +297,97 @@ instruction: display-sync(exact rate) or upstream (no mpv option change).
 **Verification:** `verify.ps1 -Full`, then ONE lean verifier round (this table + the two commit ids + test report path).
 No [HUMAN] items this phase.
 
+### Phase 4 — Native switching + wiring (written 2026-09-28, before code; owner-approved 2026-09-28 with Q14–Q16)
+Scope: wire the Phase 3 logic to Win32 and mpv. Switch, verify, settle, every restore path, races, fail-safe, log.
+**Not in Phase 4:** mpv timing (Phase 5 applies `Timing`; here it is logged only, so playback at 240 Hz still uses
+upstream audio sync, i.e. the "fixed 240" cadence measured in Phase 2), the settings toggle (Phase 6).
+Design (from PLAN.md, refined): native glue registers mpv's `on_preloaded` hook (mpv holds playback there, so no pause
+hack is needed) → a glue-owned worker reads fps + the display → JNI upcall into one Kotlin holder object → `decide()` +
+`step()` → the holder runs each `Command` through a `DisplayPort` interface (native `external fun`s in production, a
+fake in tests) and feeds the results back → the worker continues the hook. Kotlin events (screen gone, app exit,
+display watcher) go through the same holder on one thread.
+
+**Enable, footprint, tests first**
+- P4-1 — Dev enable knob until Phase 6: the feature runs only when the process starts with `NUVIO_RR_ENABLE=1`
+  (run-dev.ps1 / measure.ps1 `-Feature`). Unset ⇒ no mpv hook registered, no display API call, no thread started, no JNI
+  upcall, no log output, mpv options unchanged (upstream behaviour). The Phase 2 measure-only knobs keep working — auto
+  (code review: every entry returns first; a measure run without the knob shows 279.961 throughout and no `[nuvio-rr]`
+  feature lines)
+- P4-2 — Upstream diff ≤ 8 changed lines in total: `player_bridge.cpp` H1 + H4 (existing) + ≤ 2 new (hook registration
+  between `mpv_initialize` and `loadfile`; H5 cancel at the start of `shutdown()`); `PlayerEngine.desktop.kt` ≤ 2 (H6,
+  screen gone); `Main.kt` ≤ 1 (H8, window close). Each carries a `nuvio-rr fork hook Hn` comment. `NativePlayerController.kt`,
+  `NativePlayerBridge.kt`, the `create()` signature and all Gradle files untouched; no new dependency — auto (`verify.ps1 -Full`)
+- P4-3 — `verify.ps1 -Full` green with only the 8 known upstream failures; nothing written to either official folder;
+  nothing pushed — auto
+- P4-4 — Tests first for the Kotlin holder/orchestration (driving `step()`, running commands on a fake `DisplayPort`,
+  serialising events, timeouts): commit A = tests + stubs, red; commit B = implementation, green; same rules as P3-4.
+  The Phase 3 test files are unchanged — auto (`git diff`)
+
+**Win32 layer (native, `display_mode_matcher.cpp`)**
+- P4-5 — Display = the monitor hosting the player: `MonitorFromWindow(GetAncestor(container, GA_ROOT), NEAREST)` →
+  GDI device name, read at each start (so PiP / fullscreen on another monitor is followed). Mode list and current state
+  come from `QueryDisplayConfig` / DXGI as exact rationals with width, height, bpc, interlaced and HDR. On the owner's PC
+  the list is exactly the 6 measured rates at 2560x1440 10 bpc (PROGRESS Measurements) — auto (log line in a measure run)
+- P4-6 — Switch = only `ChangeDisplaySettingsExW(device, &dm, NULL, CDS_FULLSCREEN, NULL)` (DEVMODE Hz = the target's
+  rounded rate, the exact rational is checked afterwards); restore = only `ChangeDisplaySettingsExW(device, NULL, NULL,
+  0, NULL)`. No `CDS_UPDATEREGISTRY`, no `SetDisplayConfig`, no registry writes: the registry rate reads 280 before,
+  during and after every run — auto (grep + measure.ps1 `regHz`)
+- P4-7 — Every display API call checks its result and logs function, arguments, result and `GetLastError`/`DISP_CHANGE_*`
+  code; each failure maps to one `FailureKind` and goes through `step()`. No C++ exception or JNI exception escapes the
+  glue (caught ⇒ `unexpected-error`) — auto (code review + P4-19)
+- P4-8 — Settle: after a switch, poll mode + HDR every 100 ms until two consecutive reads agree; cap 4 s ⇒
+  `settle-timeout`; abort within 100 ms when the player stops ⇒ `stop-requested`. The observed state goes into
+  `SwitchFinished` (P3-21 verify). Measured switch-to-settled time is logged per switch — auto
+
+**mpv glue**
+- P4-9 — The hook is registered before `loadfile` (no race with the first file). At the hook the glue reads
+  `container-fps`, `estimated-vf-fps` and the current video track's image/album-art flag. The hook is continued exactly
+  once on every path (switch, no switch, failure, stop, exception) and never later than 5 s after it fired. The mpv event
+  thread never makes a display call, a JNI upcall or a wait (it only hands work to the worker) — auto (log timestamps in
+  measure runs + code review)
+- P4-10 — mpv starts at the new rate: `sdr-1080p-23.976` with the feature on ⇒ the switch line is logged before the
+  first video frame, Windows reads 239.901 during playback, and mpv's `display-fps` is 239.901 (± 0.01 %) from the first
+  stats line — auto (measure.ps1). Same for 25 fps ⇒ 100.000; 59.94 ⇒ 239.901; VFR clip ⇒ no switch, 279.961
+- P4-11 — No mpv timing change in Phase 4: the `Timing` result is logged, not applied; with the feature on, the only mpv
+  difference from upstream is the hook — auto (code review + options log)
+- P4-12 — Dispose mid-switch: `shutdown()` (H5) cancels the worker and waits ≤ 1 s for it to let go of the mpv handle,
+  so nothing touches mpv after `mpv_terminate_destroy` and the 3 s join (F7) is never hit. The session still gets its
+  `SwitchFinished` and restores if the screen is gone. Checked with 20 runs that close the window at random 0–1500 ms
+  after the switch starts (with the P4-19 slow-settle knob): no crash / WER report, exit normal, 279.961 after — auto
+
+**Kotlin holder and restore paths**
+- P4-13 — One process-global holder owns the `Session` and runs all events on one thread (`nuvio-rr`), so `step()` calls
+  never overlap and P3-17 holds for real. The EDT and the mpv event thread never wait on it, except window close, which
+  waits ≤ 2 s for its restore. The native player id is the `Long` handle — auto (unit tests with the fake port + review)
+- P4-14 — Restore paths: (a) player screen gone (H6, `DisposableEffect(host).onDispose`); (b) main window close (H8);
+  (c) a JVM shutdown hook in the holder (covers the `exitProcess` paths, ≤ 2 s); (d) crash/kill ⇒ Windows' revert (D7).
+  (b) and (d) auto via measure.ps1 (window close; `-Kill`): 279.961 within 1 s, registry 280 throughout. (a) [HUMAN]
+  performs (leave the player screen), log + Windows rate checked automatically
+- P4-15 — Next episode (same target, requirement 7): [HUMAN] performs (play an episode, go to the next); the log shows
+  one switch in total, `same-target` on the second start and no restore in between — auto from the log
+- P4-16 — Display watcher: while switched, the holder reads the owner's display once per second (off the EDT and the mpv
+  thread) and feeds `DisplayChanged`. Monitor off/on (case H) ⇒ one re-switch to 239.901 after the monitor returns
+  (`mode-lost`); a second off/on ⇒ stays at 279.961 (`mode-lost-again`). HDR toggle (Win+Alt+B) ⇒ `hdr-changed`, no
+  switch, playback continues. [HUMAN] performs; log + rate auto
+- P4-17 — Player window moves to another monitor mid-playback (drag, PiP or fullscreen on another monitor): see Q15.
+  The owner has one monitor ⇒ checked with the fake port only (documented as not hardware-tested) — auto
+- P4-18 — Sleep/resume and a driver reset (Win+Ctrl+Shift+B) during switched playback: no crash, playback continues,
+  the mode ends at 239.901 (re-switched) or 279.961, and a later exit leaves 279.961 — [HUMAN] performs; log + rate auto
+
+**Fail-safe and logging**
+- P4-19 — Fault injection, measure-only knob `NUVIO_RR_FAULT=<kind>` (enumerate, display-not-found, switch-api,
+  settle-timeout, slow-settle, verify-mismatch, restore-failed, unexpected): for every kind the video plays (time-pos
+  advances ≥ 10 s), no crash, and Windows is at 279.961 after the run (restore-failed: after process exit, D7) — auto
+  (one measure.ps1 run per kind)
+- P4-20 — Log: one line per decision, command and result, with the values behind the reason (fps in/snapped + source,
+  k, target, observed vs target, HDR/bpc, ms), via Kermit tag `RefreshRateMatch` and a native `[nuvio-rr]` sink. Also
+  written to `refresh-rate.log` in Nuvio's cache folder (dev runs: devprofile), ≤ 1 MB with one rotation — auto
+- P4-21 — [HUMAN] one checklist for the phase: 23.976 start (≈ 1 s black, no brightness pop, HDR still on); leave the
+  player (back to 280); next episode (no second black); monitor off/on; Win+Alt+B; Win+Ctrl+Shift+B; sleep/resume.
+  Judder is NOT expected to be fixed yet (Phase 5)
+
+**Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
+evidence folder list).
+
 ## 5. Upkeep limits
 - Upstream-file diff budget: _TBD_ lines (reported by `verify.ps1 -Full`).
