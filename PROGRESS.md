@@ -179,7 +179,7 @@ suite, ≈ 15 s with only the patch tests.
   `mode-lost` re-switch to 239.901 OK (monitor off/on or driver restart), exit restore OK. That session still ran with the
   slow-settle knob (Q19 window reused). **Not in the log:** Win+Alt+B under P4-22 (`hdr-toggled` never logged), sleep/resume,
   a second display reset, next episode ⇒ **carry into the Phase 7 matrix** (HDR toggle mid-playback, sleep/resume, driver
-  reset, next episode) with log evidence. P4-13 wording fix (player id = native counter): not explicitly acknowledged yet.
+  reset, next episode) with log evidence. P4-13 wording fix (player id = native counter): **acknowledged** by the owner.
 - Q17 follow-up (17:35): owner created a 250 Hz custom mode. It appears only in GDI EDS_RAWMODE (with 100 and 265),
   not in the normal GDI list or DXGI ⇒ the feature still does not see it; 25 fps stays at 280 (run `*p4-250check`).
 
