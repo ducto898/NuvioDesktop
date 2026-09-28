@@ -2,6 +2,7 @@ package com.nuvio.app.features.player.desktop.refreshrate
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -212,13 +213,72 @@ class SessionBehaviourTest {
         assertEquals(null, same.timing)
 
         val hdrOff = RefreshRateSession.step(switched, SessionEvent.DisplayChanged("A", DisplayState(MODE_240, hdr = false)))
-        assertEquals(switched, hdrOff.session)
+        // P4-22: the recorded original follows the user's HDR choice (was: session unchanged).
+        assertEquals(sessionIn(SessionState.Switched(CTX.copy(original = ORIG.copy(hdr = false)))), hdrOff.session)
         assertEquals(emptyList(), hdrOff.commands)
         assertTrue("hdr-changed" in hdrOff.reasons)
 
         val otherDisplay = RefreshRateSession.step(switched, SessionEvent.DisplayChanged("B", ORIG))
         assertEquals(switched, otherDisplay.session)
         assertEquals(emptyList(), otherDisplay.commands)
+    }
+
+    // P4-22 (owner, option B): Windows resets the temporary mode when HDR is toggled.
+    private val sdr280 = DisplayState(qhd(279961, 1000, bpc = 8), hdr = false)
+    private val sdr240 = DisplayState(qhd(239901, 1000, bpc = 8), hdr = false)
+    private val sdrOriginal = CTX.copy(original = sdr280.copy(mode = ORIG.mode.copy(bitsPerColor = 8)))
+
+    // P4-22
+    @Test
+    fun `an HDR toggle that drops the mode re-switches against the new HDR state`() {
+        val steps = run(switched, SessionEvent.DisplayChanged("A", sdr280), switchOk(sdr240))
+        assertEquals(listOf(Command.SwitchTo("A", MODE_240)), steps[0].commands)
+        assertTrue("hdr-toggled" in steps[0].reasons)
+        val ctx = assertIs<SessionState.Switching>(steps[0].session.state).context
+        assertEquals(false, ctx.original.hdr)
+        assertEquals(8, ctx.original.mode.bitsPerColor)
+        assertEquals(ORIG.mode.refresh, ctx.original.mode.refresh, "the rate to go back to is still the desktop's")
+        assertFalse(ctx.reswitchUsed, "an HDR toggle does not use the mode-lost re-switch")
+        assertIs<SessionState.Switched>(steps[1].session.state)
+        assertEquals(Timing.DisplaySync(MODE_240.refresh), steps[1].timing)
+        assertTrue("switched" in steps[1].reasons)
+    }
+
+    // P4-22
+    @Test
+    fun `HDR off then on re-switches both times and keeps the mode-lost allowance`() {
+        val steps = run(
+            switched,
+            SessionEvent.DisplayChanged("A", sdr280), switchOk(sdr240),
+            SessionEvent.DisplayChanged("A", ORIG), switchOk(AT_240),
+            SessionEvent.DisplayChanged("A", ORIG), // now a monitor off/on: HDR as recorded
+        )
+        assertTrue("hdr-toggled" in steps[2].reasons)
+        assertEquals(true, assertIs<SessionState.Switched>(steps[3].session.state).context.original.hdr)
+        assertTrue("mode-lost" in steps[4].reasons)
+        assertEquals(listOf(Command.SwitchTo("A", MODE_240)), steps[4].commands)
+    }
+
+    // P4-22
+    @Test
+    fun `HDR toggle re-switches are capped at three per playback`() {
+        val events = mutableListOf<SessionEvent>()
+        repeat(2) {
+            events += SessionEvent.DisplayChanged("A", sdr280); events += switchOk(sdr240)
+            events += SessionEvent.DisplayChanged("A", ORIG); events += switchOk(AT_240)
+        }
+        val steps = run(switched, *events.toTypedArray())
+        val toggled = steps.count { "hdr-toggled" in it.reasons }
+        assertEquals(3, toggled)
+        assertTrue("mode-lost" in steps[6].reasons, "the 4th loss falls back to P3-22: ${steps[6].reasons}")
+    }
+
+    // P4-22
+    @Test
+    fun `a new playback start resets the HDR toggle allowance`() {
+        val used = sessionIn(SessionState.Switched(sdrOriginal.copy(hdrReswitches = 3)))
+        val step = RefreshRateSession.step(used, start(2, SEL_ALREADY_240, current = sdr240))
+        assertEquals(0, assertIs<SessionState.Switched>(step.session.state).context.hdrReswitches)
     }
 
     // Verifier round 1, problem 5: nothing switches after app exit.

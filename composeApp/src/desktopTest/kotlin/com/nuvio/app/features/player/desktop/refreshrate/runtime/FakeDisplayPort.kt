@@ -54,7 +54,8 @@ internal class FakeDisplayPort(
         track("switch $display ${mode.refresh} p$playerId") {
             onSwitch?.invoke(display, mode, playerId) ?: run {
                 val current = states[display] ?: return@run SwitchOutcome.Failed(FailureKind.DISPLAY_NOT_FOUND)
-                val next = current.copy(mode = mode)
+                // Like the real monitor: the link bpc stays what it is (8 with HDR off, 10 with HDR on).
+                val next = current.copy(mode = mode.copy(bitsPerColor = current.mode.bitsPerColor))
                 states[display] = next
                 SwitchOutcome.Ok(next)
             }

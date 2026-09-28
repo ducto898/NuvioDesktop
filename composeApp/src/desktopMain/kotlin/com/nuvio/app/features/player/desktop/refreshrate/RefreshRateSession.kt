@@ -7,6 +7,8 @@ data class SessionContext(
     val original: DisplayState,
     val owner: Long,
     val reswitchUsed: Boolean = false,
+    /** HDR-toggle re-switches used in this playback (SPEC P4-22). */
+    val hdrReswitches: Int = 0,
 )
 
 sealed interface SessionState {

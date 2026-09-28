@@ -292,7 +292,8 @@ instruction: display-sync(exact rate) or upstream (no mpv option change).
   until verified, then display-sync), reason `mode-lost`. The original state recorded at the first switch is kept. At
   most one re-switch per playback start: a second loss in the same playback ⇒ idle, no restore, no re-switch, timing
   upstream, reason `mode-lost-again`. A failed re-switch follows P3-23. Same rate ⇒ no command (an HDR-only change is
-  reported, reason `hdr-changed`) — auto
+  reported, reason `hdr-changed`) — auto. **Amended by P4-22** (owner, option B): a change whose HDR or bpc differs from
+  the recorded original is an HDR toggle, handled before these rules.
 
 **Fail-safe (requirement 10: any failure ⇒ keep playing at the current rate)**
 - P3-23 — Failure kinds: enumerate failed, display not found, switch API error, settle timeout, stop requested during
@@ -400,6 +401,15 @@ display watcher) go through the same holder on one thread.
 - P4-21 — [HUMAN] one checklist for the phase: 23.976 start (≈ 1 s black, no brightness pop, HDR still on); leave the
   player (back to 280); next episode (no second black); monitor off/on; Win+Alt+B; Win+Ctrl+Shift+B; sleep/resume.
   Judder is NOT expected to be fixed yet (Phase 5)
+- P4-22 — (added 2026-09-28 after the owner's checklist: toggling Windows HDR resets the temporary mode to 280, measured
+  17:38 and 17:52; owner chose option B) While switched, a display change on that display whose HDR or bpc differs from the
+  recorded original ⇒ the recorded original takes the new HDR and bpc (so the later restore and every verify use the
+  user's current HDR choice), and, if the rate is no longer the target, **one re-switch to the same target**, reason
+  `hdr-toggled`, verified against the new HDR/bpc. HDR-toggle re-switches do not use the one `mode-lost` re-switch
+  (P3-22) and are capped at 3 per playback start (a 4th follows P3-22); a new playback start resets the count. Same rate +
+  HDR change ⇒ original updated, no command, `hdr-changed` — auto (tests first, Phase 3 test changes listed in the
+  commit) + [HUMAN] Win+Alt+B twice during a 23.976 playback ⇒ back at 239.901 each time, HDR as set (log: `hdr-toggled`,
+  `switched`)
 
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).

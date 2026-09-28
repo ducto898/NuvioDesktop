@@ -9,6 +9,7 @@ import com.nuvio.app.features.player.desktop.refreshrate.MODE_280
 import com.nuvio.app.features.player.desktop.refreshrate.SessionState
 import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
 import com.nuvio.app.features.player.desktop.refreshrate.Timing
+import com.nuvio.app.features.player.desktop.refreshrate.qhd
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -253,6 +254,21 @@ class RefreshRateControllerTest {
         assertEquals(emptyList(), port.callsNamed("switch"))
         assertEquals(1, lines.count { "hdr-changed" in it })
         assertIs<SessionState.Switched>(controller.session.state)
+    }
+
+    // P4-22 (owner, option B): Windows resets the temporary mode when HDR is toggled; switch back in the new HDR state.
+    @Test
+    fun `an HDR toggle that resets the mode is switched back to 239_901 in the new HDR state`() {
+        switched()
+        port.states["A"] = DisplayState(qhd(279961, 1000, bpc = 8), hdr = false)
+        controller.watch()
+        controller.watch()
+        assertEquals(listOf("switch A 239901/1000 p1"), port.callsNamed("switch"))
+        assertEquals(emptyList(), port.callsNamed("restore"))
+        assertTrue(logged("hdr-toggled"))
+        val ctx = assertIs<SessionState.Switched>(controller.session.state).context
+        assertEquals(false, ctx.original.hdr)
+        assertEquals(DisplayState(qhd(239901, 1000, bpc = 8), hdr = false), port.states["A"])
     }
 
     @Test
