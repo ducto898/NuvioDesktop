@@ -240,6 +240,13 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
+- Q29 (2026-09-28 ~23:55, owner report): **OLED flicker when scrolling/pointing on Nuvio's home/settings screens**,
+  fullscreen and windowed, dev build. Not the feature: the dev-profile refresh-rate.log shows no switch/restore (both
+  owner plays 23:50/23:51 already-at-target at 240) and nothing while browsing. Driver unchanged (VRR_MODE=1 fullscreen
+  only, VRR_APP_OVERRIDE=1, Windows VRROptimizeEnable=0). Hypothesis [inferred]: G-SYNC engages for the Compose UI,
+  which presents only on change ⇒ refresh follows frame rate ⇒ OLED gamma flicker (D9); windowed case doesn't fit
+  "fullscreen only". Asked owner: NVCP Program settings java.exe ⇒ Monitor Technology = Fixed Refresh, retest; and
+  whether the official app flickers too. If VRR: Phase 8 Nuvio-only profile (research 05 option c). If not: PresentMon.
 - Q28 (ANSWERED 2026-09-28: 5 samples, and log the recovered stretches for Phase 7): OK to amend P5-11 so the display-rate part needs 3 judged samples in a row (~3 s) instead of one?
   Reason: one 1.3 s stall dropped display sync for the rest of a video. A real breakage is still caught, ~2 s later.
 - Q27 (ANSWERED 23:15: keep 240): the monitor's Windows default is now 240 Hz (was 280 all day). Did you change it?
