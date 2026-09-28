@@ -10,6 +10,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   patch) — **added to the known-failure baseline (owner approved 2026-09-28)**; baseline is now 8 entries.
 - **Next (changed 2026-09-28, owner-approved, D11):** **Phase 2b — display-resample spike** BEFORE Phase 3, in a fresh
   session: read docs/PLAN.md "Phase 2b", write P2b acceptance criteria into SPEC.md, stop at the gate. Then Phase 3.
+  **2026-09-28: P2b-1..P2b-16 written into SPEC.md; waiting at the gate for owner approval** (incl. the two new
+  measure-only knobs `NUVIO_RR_MEASURE_OPTS` and `NUVIO_RR_MEASURE_HIDE_OVERLAY`).
 - **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
@@ -126,7 +128,7 @@ suite, ≈ 15 s with only the patch tests.
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
-| 2b Resample spike | ~150–250k | |
+| 2b Resample spike | ~150–250k | criteria ≈ 45k so far |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |

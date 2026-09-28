@@ -125,5 +125,68 @@ Everything new is gated by env `NUVIO_RR_MEASURE=1` (set only by `scripts/measur
 2. OSD refresh reading while paused in fullscreen (P2-17).
 3. One looped clip: seamless loop, frame counter readable (P2-7).
 
+### Phase 2b — Display-resample diagnosis spike (written 2026-09-28, before code; D11)
+Scope: find out whether `video-sync=display-resample` can be made to work in the embedded player, and how. Measure-only:
+no product behaviour, no upstream edits beyond H1/H4, the display mode is held by `switcher.exe` (239.901) or left at
+279.961. Every new knob is read only when `NUVIO_RR_MEASURE=1`. Base: `fe92d414` (rebase only if upstream moved, not required).
+
+**Knobs and tooling**
+- P2b-1 — New measure-only knob `NUVIO_RR_MEASURE_OPTS="k=v;k=v"`: each pair is set with `mpv_set_option_string`
+  before the file loads (same point as `NUVIO_RR_MEASURE_SYNC`), and each result code is written to the log
+  (`opt k=v rc=N`). A failed option is logged and skipped, never fatal. With the knob unset, nothing changes vs Phase 2
+  — auto (code review + log lines in every P2b run)
+- P2b-2 — New measure-only knob `NUVIO_RR_MEASURE_HIDE_OVERLAY=1`: after file load, hides the WebView2 overlay's
+  child window for the run: `EnumChildWindows(containerHwnd)`, every direct child whose class is not mpv's (`mpv`)
+  gets `ShowWindowAsync(SW_HIDE)` (async: the windows belong to the UI thread; the mpv event thread must not block).
+  Both mpv (`wid`, PB:1667) and the WebView2 controller (PB:1522) are children of `containerHwnd`, so no new upstream line.
+  The log records that it was found and hidden — auto (log + code review). If this needs an extra upstream line,
+  stop and ask the owner first (upstream diff stays exactly 2 lines otherwise)
+- P2b-3 — Upstream diff is still exactly the 2 Phase 2 lines (H1, H4); P2-2 still holds with `NUVIO_RR_MEASURE` unset
+  (no new side effect outside measure runs) — auto (`verify.ps1 -Full` diff report)
+- P2b-4 — `measure.ps1` gets `-Opts "<k=v;...>"` and `-HideOverlay`, recorded in `summary.json`, plus a
+  **cadence** section computed from the PresentMon CSV (java.exe display changes): refreshes-per-video-frame histogram
+  and % of frames at the ideal count (10 at 239.901, for 23.976 fps), std and mean |dev| of frame hold in ms. The
+  analysis reproduces the Phase 2 fixed-240 result from its CSV (`*-fixed240`: 10 ×1476 / 11 ×250 / 9 ×238, ±5)
+  — auto (run on the old folder)
+- P2b-5 — `summary.json` for a resample run also has: `estimated-display-fps` median, `vsync-jitter` median, drops +
+  mistimed per minute, audio underrun count (from the mpv log), median `MsInPresentAPI`, PresentMode histogram, and GPU
+  power/clock median when `-Power` — auto
+- P2b-6 — `verify.ps1 -Full` green with only the 8 known upstream failures; nothing written to the official profile
+  (both folders); nothing pushed — auto
+
+**Experiments (each: one knob set, one 120 s run of `sdr-1080p-23.976`, windowed AND fullscreen, PresentMon on)**
+- P2b-7 — S1: display-resample at a fixed 239.901 (mode set by `switcher.exe` before the app starts), default options
+  — auto (runs exist, numbers in the report)
+- P2b-8 — S2: render cost — at least `scale=bilinear;cscale=bilinear;dscale=bilinear`, `deband=no`, and both together,
+  with nvidia-smi clocks; if the GPU stays in a low power state, one run with a GPU-load-independent check of the
+  power-state question (e.g. an extra GPU load running alongside, noted) — auto
+- P2b-9 — S3: swapchain/present — at least `d3d11-flip=no`, `swapchain-depth=1` and `=2`, `d3d11-sync-interval=1`
+  (check the option exists in the bundled mpv first; an unknown option is recorded as such), `video-timing-offset=0`,
+  comparing `MsInPresentAPI` and PresentMode — auto
+- P2b-10 — S4: windowed collapse — `-HideOverlay` windowed run; mpv log searched for occlusion/throttle messages
+  (`occluded`, `DXGI_STATUS_OCCLUDED`, `Present` errors) — auto
+- P2b-11 — S5: `video-sync=display-vdrop`, `display-desync`, `display-resample-vdrop` at 239.901 — auto
+- P2b-12 — Stop rule: stop early at the first option set that meets P2b-13; stop and report to the owner if the spike
+  reaches ~250k tokens or ~40 runs without a pass — auto (report states tokens and run count)
+
+**Pass / fail (the spike's result, not a gate on the code)**
+- P2b-13 — **Spike PASS** if one option set gives, at 239.901, over 120 s, in BOTH windowed and fullscreen:
+  `estimated-display-fps` within 0.1 % of 239.901; drops + mistimed ≤ 1 per minute; 0 audio underruns after the first
+  5 s; PresentMon: ≥ 99 % of video frames held exactly 10 refreshes. Confirmed by one repeat run of the winning set
+  (same limits) and one run with `hdr-2160p-23.976` (same limits) with GPU power recorded (Q8) — auto
+- P2b-14 — If PASS: [HUMAN] one slow-motion video (iPhone Slo-mo, same setup as `IMG_3036`) of the winning set in
+  fullscreen, analysed with `scripts/rr-tools/slomo-analyze.py`; expected: clearly narrower hold spread than the
+  Phase 2 fixed-240 video (std 2.65 ms). Optional; the owner may waive it
+- P2b-15 — If FAIL: the report names the most likely cause with evidence and lists every option set tried with its
+  numbers; the owner chooses (a) switch + audio sync only, (b) a deeper fix (e.g. libmpv render API), or (c) stop
+- P2b-16 — Output: `docs/research/10-display-resample-spike.md` (table: option set × window mode × numbers, sourced vs
+  inferred marked); PROGRESS.md Measurements + a decision entry; if PASS, the winning options become the Phase 5 plan
+  input (PLAN.md Phase 5 line updated) — auto (files exist)
+
+**Verification:** ONE lean verifier round: this criteria table + the list of measurement folders + the diff. No
+second round unless it finds a real problem in the knobs (P2b-1..3).
+
+**[HUMAN] checklist for this phase:** click Yes on the PresentMon UAC prompts (one per run); optionally P2b-14.
+
 ## 5. Upkeep limits
 - Upstream-file diff budget: _TBD_ lines (reported by `verify.ps1 -Full`).
