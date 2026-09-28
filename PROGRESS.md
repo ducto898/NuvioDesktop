@@ -30,8 +30,13 @@ The only memory between phases. Read it at the start of every phase; update it a
   (native), `fe14ec08` (measure.ps1), fixes `34e64647` (app exit stops the health watch) and `1331ad4d` (health judges
   only a steady display at the target; found by the P5-8 run), each test-first. verify -Full green (1479 tests, 7 known
   failures), upstream diff still 6 lines, not pushed. 20 measure runs (`measurements/phase5-evidence.txt`): P5-5, P5-8,
-  P5-11, P5-12, P5-14 PASS. **Open:** lean verifier round; owner at the PC for P5-15/P5-16 (PresentMon, UAC) and the
-  P5-17 checklist (incl. P5-13 next episode). Then Phase 5 DONE ⇒ Phase 6.
+  P5-11, P5-12, P5-14 PASS. Lean verifier round (≈115k): **PASS** on every automatic criterion; flag 1 (1 Hz stats read
+  called mpv under the entry mutex that H5 takes on the UI thread ⇒ deadlock risk) fixed in `75ec3f57` (counters cached
+  by H4 on the mpv event thread; re-measured OK), verify -Full green again. Known limits, not fixed: NVAPI calls are
+  guarded by try/catch only (an access violation inside nvapi64.dll would not be caught; struct layouts match
+  drsprobe.cpp); under the `timing-set` fault knob a later revert also reports ok=0 (knob only).
+  **Open:** owner at the PC for P5-15/P5-16 (PresentMon, UAC) and the P5-17 checklist (incl. P5-13 next episode). Then
+  Phase 5 DONE ⇒ Phase 6.
   History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
@@ -234,7 +239,7 @@ suite, ≈ 15 s with only the patch tests.
 | 2b Resample spike | ~150–250k | ≈ 330k (criteria 45k + 33 runs/diagnosis ≈ 165k + verifier 117k) — ~30 % over the top estimate; the verifier again cost the most |
 | 3 Logic (TDD) | ~250k | ≈ 290k (main ≈ 175k incl. criteria + gate; verifier 114k) — ~15 % over, the verifier again the biggest single item |
 | 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
-| 5 mpv timing / OLED | ~400k | ≈ 330k so far (criteria + gate ≈ 140k, code + 20 runs ≈ 190k); verifier round and the owner's PresentMon/checklist session still to come ⇒ ~450k expected, ~10 % over |
+| 5 mpv timing / OLED | ~400k | ≈ 470k so far (criteria + gate ≈ 140k, code + 22 runs + fixes ≈ 215k, verifier 115k); the owner's PresentMon/checklist session still to come ⇒ ~500k, ~25 % over (verifier again the largest item) |
 | 6 Settings/JNI | ~200k | |
 | 7 Matrix + review | ~500k | |
 | 8 Upkeep | ~250k | |
