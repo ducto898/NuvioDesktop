@@ -454,7 +454,8 @@ foreach ($phase in 'before', 'after') {
     if ($summary.windows.$phase.regHz -ne 280) { $problems += "registry mode $phase the run: $($summary.windows.$phase.regHz) (expected 280)" }
 }
 $regDuring = @($summary.windows.during.distinctRegHz)
-if (-not $closedEarlyAt -and ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280)) {  # early close: no "during" window $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
+# Early close (-CloseAfterSwitchMs): no "during" window; observer.csv still has every reg_hz sample.
+if (-not $closedEarlyAt -and ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280)) { $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
 if (Test-Path "$out\power.csv") {
     $pw = Get-Content "$out\power.csv" | ForEach-Object { $c = $_ -split ',\s*'; [pscustomobject]@{ W = [double]$c[1]; Clock = [double]$c[2]; Util = [double]$c[4] } }
     $summary.power = [ordered]@{ samples = @($pw).Count; wattsMedian = Median ($pw.W); clockMedian = Median ($pw.Clock); utilMedian = Median ($pw.Util) }

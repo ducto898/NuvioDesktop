@@ -119,6 +119,7 @@ struct DisplayState {
     DWORD currentHz = 0, registryHz = 0;
     int width = 0, height = 0;
     bool interlaced = false;
+    std::string error;  // the first failing call, for the feature log (P4-7)
 };
 
 // GDI device name (\\.\DISPLAYn) of the monitor nearest to `hwnd`; empty if none.
@@ -132,7 +133,10 @@ std::wstring monitorName(HWND hwnd) {
 
 DisplayState queryDisplayByName(const std::wstring &device) {
     DisplayState state;
-    if (device.empty()) return state;
+    if (device.empty()) {
+        state.error = "no monitor for the window";
+        return state;
+    }
     state.gdiName = device;
 
     DEVMODEW dm = {};
@@ -141,16 +145,24 @@ DisplayState queryDisplayByName(const std::wstring &device) {
         state.currentHz = dm.dmDisplayFrequency;
         state.width = (int)dm.dmPelsWidth;
         state.height = (int)dm.dmPelsHeight;
+    } else {
+        state.error = "EnumDisplaySettingsW(CURRENT) failed err=" + std::to_string(GetLastError());
     }
     DEVMODEW reg = {};
     reg.dmSize = sizeof(reg);
     if (EnumDisplaySettingsW(device.c_str(), ENUM_REGISTRY_SETTINGS, &reg)) state.registryHz = reg.dmDisplayFrequency;
 
     UINT32 pathCount = 0, modeCount = 0;
-    if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != ERROR_SUCCESS) return state;
+    LONG rc = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount);
+    if (rc != ERROR_SUCCESS) {
+        state.error = "GetDisplayConfigBufferSizes rc=" + std::to_string(rc);
+        return state;
+    }
     std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
     std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
-    if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &pathCount, paths.data(), &modeCount, modes.data(), nullptr) != ERROR_SUCCESS) {
+    rc = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &pathCount, paths.data(), &modeCount, modes.data(), nullptr);
+    if (rc != ERROR_SUCCESS) {
+        state.error = "QueryDisplayConfig rc=" + std::to_string(rc);
         return state;
     }
     for (UINT32 i = 0; i < pathCount; ++i) {
@@ -182,14 +194,23 @@ DisplayState queryDisplayByName(const std::wstring &device) {
         color.header.size = sizeof(color);
         color.header.adapterId = path.targetInfo.adapterId;
         color.header.id = path.targetInfo.id;
-        if (DisplayConfigGetDeviceInfo(&color.header) == ERROR_SUCCESS) {
+        rc = DisplayConfigGetDeviceInfo(&color.header);
+        if (rc == ERROR_SUCCESS) {
             state.hdr = color.advancedColorEnabled ? 1 : 0;
             state.bpc = (int)color.bitsPerColorChannel;
+        } else if (state.error.empty()) {
+            state.error = "DisplayConfigGetDeviceInfo(ADVANCED_COLOR_INFO) rc=" + std::to_string(rc);
         }
         state.ok = true;
         break;
     }
+    if (!state.ok && state.error.empty()) state.error = "no active display path for the device";
     return state;
+}
+
+// The feature only acts on a full read: rate, size, HDR and bpc all known (an unknown HDR is not SDR).
+bool complete(const DisplayState &d) {
+    return d.ok && d.num > 0 && d.den > 0 && d.width > 0 && d.height > 0 && d.hdr >= 0 && d.bpc > 0;
 }
 
 DisplayState queryDisplay(HWND hwnd) {
@@ -739,8 +760,12 @@ std::vector<int64_t> switchMode(const std::wstring &device, int width, int heigh
         if (stopRequested(playerId)) return result(kStopRequested, "player stopped during settle");
         if (nowSeconds() - settleStart > kSettleCapSeconds) return result(kSettleTimeout, "settle timeout");
         DisplayState now = queryDisplayByName(device);
-        if (now.ok) last = now;
-        if (now.ok && !fault("settle-timeout") && sameRate(now.num, now.den, num, den) && sameState(previous, now)) {
+        if (complete(now)) {
+            last = now;
+        } else {
+            nlog("settle: incomplete read (" + now.error + ")");
+        }
+        if (complete(now) && !fault("settle-timeout") && sameRate(now.num, now.den, num, den) && sameState(previous, now)) {
             nlog(strf("settled in %.0f ms (switch call to two equal reads)", (nowSeconds() - callStart) * 1000.0));
             if (fault("verify-mismatch")) {
                 nlog("injected fault verify-mismatch: reporting HDR flipped");
@@ -1014,7 +1039,11 @@ JNIEXPORT jlongArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshr
             return nullptr;
         }
         nuvio_rr::DisplayState state = nuvio_rr::queryDisplayByName(nuvio_rr::fromJava(env, display));
-        return state.ok ? nuvio_rr::toJava(env, nuvio_rr::stateValues(state)) : nullptr;
+        if (!nuvio_rr::complete(state)) {
+            nuvio_rr::nlog(nuvio_rr::strf("query %ls failed: %s", state.gdiName.c_str(), state.error.c_str()));
+            return nullptr;
+        }
+        return nuvio_rr::toJava(env, nuvio_rr::stateValues(state));
     } catch (const std::exception &e) {
         nuvio_rr::throwJava(env, e.what());
     } catch (...) {
@@ -1033,7 +1062,11 @@ JNIEXPORT jlongArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshr
         std::wstring device = nuvio_rr::fromJava(env, display);
         nuvio_rr::DisplayState state = nuvio_rr::queryDisplayByName(device);
         std::vector<int64_t> modes;
-        if (!state.ok || !nuvio_rr::enumerateModes(device, state, modes)) return nullptr;
+        if (!nuvio_rr::complete(state)) {
+            nuvio_rr::nlog(nuvio_rr::strf("modes %ls: current state unreadable: %s", device.c_str(), state.error.c_str()));
+            return nullptr;
+        }
+        if (!nuvio_rr::enumerateModes(device, state, modes)) return nullptr;
         return nuvio_rr::toJava(env, modes);
     } catch (const std::exception &e) {
         nuvio_rr::throwJava(env, e.what());
