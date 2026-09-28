@@ -61,9 +61,11 @@ Everything new is gated by env `NUVIO_RR_MEASURE=1` (set only by `scripts/measur
   `mistimed-frame-count`, `vo-delayed-frame-count`, `video-sync`, `display-sync-active`, `hwdec-current`,
   `video-params/gamma`, `video-params/primaries`, plus the Windows mode of the player's monitor from
   `QueryDisplayConfig` (exact rational Hz, HDR on/off, bpc). Missing properties are logged as `na`, never crash — auto
-- P2-4 — Sampling runs on the existing mpv event thread only (no new thread, no blocking call > 50 ms) and stops
-  when that thread exits, so it cannot outlive the mpv handle — auto (code review) + auto (log: max gap between
-  samples ≤ 1.5 s during playback)
+- P2-4 — (reworded with owner approval 2026-09-28) Every sampler call on the mpv handle runs on the existing mpv
+  event thread; the sampler makes no mpv or Win32 call once the player is stopping, and its state ends with that
+  thread. The per-sample cost is logged (`cost_ms`) and stays ≤ 50 ms except right after a display mode change
+  (Windows display queries can stall then). The only extra thread is the measure-only switch knob's (P2-5), which
+  never touches mpv — auto (code review) + auto (log: max gap between sample starts ≤ 1.5 s during playback; `cost_ms`)
 - P2-5 — Measure-only knobs, each read only when `NUVIO_RR_MEASURE=1`: `NUVIO_RR_MEASURE_DIR=<dir>` (log folder;
   measure.ps1 uses the run folder), `NUVIO_RR_MEASURE_IPC=1` (mpv `input-ipc-server` on `\\.\pipe\nuvio-rr-<pid>`, so
   measure.ps1 can pause/seek; added 2026-09-28 after key injection proved unreliable), `NUVIO_RR_MEASURE_SYNC=<video-sync mode>`
