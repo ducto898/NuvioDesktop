@@ -24,7 +24,19 @@ The only memory between phases. Read it at the start of every phase; update it a
   ≤1e-6 accept test, `retarget` reason code, starts queued behind app exit are dropped — added to P3-20), 2 carried into
   Phase 4 below. verify -Full green (1397 tests, only baseline failures), upstream diff still 2 lines, not pushed.
   Mutation check: app exit without restore ⇒ the fuzz test fails. **Next: Phase 4** (write P4 criteria, stop at the gate).
-- **Phase 4 started 2026-09-28:** criteria P4-1..P4-21 in SPEC.md **approved** (Q14–Q16 yes). Implementation in progress.
+- **Phase 4 (2026-09-28): code done, automated checks done, waiting for the owner** (Q17–Q19 below + the [HUMAN]
+  checklist P4-21). Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
+  `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
+  PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
+  PASS except P4-5/P4-10 (environment: no 100 Hz; VFR header) and P4-12 (H5-mid-settle not reachable by a window close),
+  plus problem 1 (query failures unlogged, unknown HDR read as SDR) ⇒ fixed in `858b9620` and re-measured.
+  Known limits (verifier, documented, not fixed): H6 `onScreenGone()` restores whichever player owns the session (the
+  host effect spans episodes, F3, so it fires only when the screen is left); a window close during a settle times out
+  the 2 s wait and the restore then relies on the JVM shutdown hook or Windows' revert (D7).
+- **Phase 5 carry-overs from Phase 4:** apply `Timing` (it is computed and logged; hook worker in
+  display_mode_matcher.cpp `runHook`, "logged only in Phase 4"); a Q15 move / `mode-lost-again` / screen-gone restore
+  mid-playback must switch mpv back to upstream timing at runtime; audio sync at 240 shows a few drops at 59.94 and VFR
+  (5–6 per 30 s); the watcher logs "query failed" once per second while a monitor is absent (bounded by the 1 MB log).
 - **Phase 4 carry-overs from Phase 3:** `Step.reasons` are codes only. For one clear log line, Phase 4 takes the values
   from the event and the prior state (e.g. observed vs target on `verify-mismatch`). DisplayChanged is *ignored* (not
   deferred) while switching/restoring, so a monitor power cycle mid-switch is caught only by the switch verify or the
@@ -155,6 +167,20 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-Feature`/window-close runs: **yes**.
 
 ## Open questions for owner
+- Q17 (Phase 4, 2026-09-28): **100 Hz is gone from the monitor's normal mode list.** Today GDI (non-raw) and DXGI list
+  only 59.951/120 (12000/100, was 119.998)/143.973/239.901/279.961 at 1440p; 100 and a new 265 exist only with
+  EDS_RAWMODE (driver-pruned modes). Research 02 (a day earlier) saw 100 Hz in every API. switcher.exe refuses 100.
+  Result: 25/50 fps stay at 280 (`no-suitable-mode`, fail-safe). Did anything change (NVIDIA App reset, monitor OSD,
+  cable/DSC)? Options: (a) accept; (b) owner restores 100 Hz (e.g. NVCP custom resolution) — then it works with no code
+  change; (c) also consider raw modes — NOT recommended (a pruned mode can mean "no signal" while Windows reports success).
+- Q18 (Phase 4): the VFR test clip's container header says 60 fps and mpv has no estimate at on_preloaded, so it
+  switches to 239.901 (P4-10 expected no switch). Per Q11 there is no mid-playback switch. Options: (a) accept and amend
+  P4-10 (VFR with a plausible header switches; the after-start cross-check logs `fps-disagree`, Phase 5 decides timing);
+  (b) something stricter (would need Phase 3 logic changes). Recommended: (a).
+- Q19 (Phase 4): P4-12 (player shutdown during a running settle) cannot be reached by a window close (upstream disposes the
+  player ~1.8 s after the 2 s close wait). Proposed: prove it by hand in the P4-21 checklist (slow-settle knob, leave the
+  player within 3 s) and amend P4-12's "20 window-close runs" to "20 close runs (done: no crash, 279.961 after) + 1 manual
+  leave-during-settle". Also acknowledge the P4-13 wording fix (player id = native counter, not the JNI handle).
 - Q10 (Phase 2b, 2026-09-28): (a) YES (rule added). (b) deferred to Phase 5 (no remote UAC). (c) Max Frame Rate: keep global off, or restore 200 and
   plan a Nuvio-only driver profile (needs Phase 8 app identity/own exe; profile creation by Claude was blocked by the
   permission classifier)? (d) answered by D12.
@@ -172,7 +198,7 @@ suite, ≈ 15 s with only the patch tests.
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
 | 2b Resample spike | ~150–250k | ≈ 330k (criteria 45k + 33 runs/diagnosis ≈ 165k + verifier 117k) — ~30 % over the top estimate; the verifier again cost the most |
 | 3 Logic (TDD) | ~250k | ≈ 290k (main ≈ 175k incl. criteria + gate; verifier 114k) — ~15 % over, the verifier again the biggest single item |
-| 4 Native switching | ~500k | |
+| 4 Native switching | ~500k | ≈ 400k so far (main ≈ 285k incl. 36 measure runs; verifier 117k); the [HUMAN] checklist and any follow-ups remain |
 | 5 mpv timing / OLED | ~400k | |
 | 6 Settings/JNI | ~200k | |
 | 7 Matrix + review | ~500k | |
@@ -243,6 +269,15 @@ suite, ≈ 15 s with only the patch tests.
   VSYNCMODE application-controlled; no java.exe profile (`scripts/rr-tools/drsprobe.cpp`, read-only). PresentMon runs
   are therefore NOT representative for display-sync modes; use mpv counters + `dump-stats`. PresentMon 2.6 `--date_time`
   is +7 h off on this PC (measure.ps1 `-PresentMonCsv` calibrates it). A `d3d11-flip=no` run stalled PresentMon's output.
+- **Phase 4 feature runs (2026-09-28, `measurements/phase4-evidence.txt`, 20–60 s each, audio sync, windowed):**
+  23.976 1080p / 4K HDR ⇒ 239.901 during, mpv display-fps 239.901 from the first stats line, switch before file-loaded,
+  0–1 drops, HDR stays on; 59.94 ⇒ 239.901 (5 drops/30 s); 25 ⇒ no switch (no 100 Hz listed, Q17); VFR ⇒ 239.901 (Q18).
+  Switch call 84–192 ms, settle (call → two equal reads) 207–329 ms, mpv held at the hook 240–360 ms. Restore on window
+  close 51–155 ms; `-Kill` ⇒ 279.961 0.17 s after the kill (Windows revert). All 8 fault kinds ⇒ playback continues,
+  279.961 after (settle-timeout holds the hook 4.39 s < 5 s). 20 close-during-switch runs: no crash, 279.961 after,
+  registry 280 in all 9423 observer samples. Feature off ⇒ no feature activity, 279.961 throughout. Registry 280 in every run.
+  **Measurement caveat (new):** with the monitor asleep (Windows display timeout 15 min) every run shows ~500 drops +
+  audio underruns per 30 s, feature on or off; measure.ps1 now wakes the display (1 px mouse nudge) first.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
@@ -281,3 +316,8 @@ suite, ≈ 15 s with only the patch tests.
 - 2026-09-28 Phase 3: criteria P3-1..25 + Q11–Q13 approved; Kotlin package `...player.desktop.refreshrate` (5 files) with
   51 tests (table of all 24 state×event pairs, seeded fuzz 2×10 000). Red→green commits, lean verifier PASS, 4 small
   follow-ups fixed. No upstream change.
+- 2026-09-28 Phase 4: criteria P4-1..21 + Q14–Q16 approved. Runtime subpackage `refreshrate.runtime` (controller,
+  dispatcher, codec, native port, entry object; 40 new tests, red→green), native feature in display_mode_matcher.cpp
+  (on_preloaded hook worker, JNI upcall, DXGI/QDC/CDS, log sink, fault knob), 4 upstream hook lines (6 total).
+  36 measure runs; lean verifier round: 3 env/test-design issues to the owner (Q17–Q19), 1 logging fix. Stopped for the
+  owner's checklist.
