@@ -47,6 +47,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   Known limits (verifier, documented, not fixed): H6 `onScreenGone()` restores whichever player owns the session (the
   host effect spans episodes, F3, so it fires only when the screen is left); a window close during a settle times out
   the 2 s wait and the restore then relies on the JVM shutdown hook or Windows' revert (D7).
+- **Phase 6 DONE 2026-09-29** (owner approved the P6-12 checklist; details below). **Next: Phase 7** — write P7 criteria for
+  the 240 Hz default (Q27) incl. the Q28 `rate-off` data collection, stop at the gate.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -69,7 +71,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   weakening). 2 notes fixed: null-JNIEnv guard in both upcalls (commit after `ae2217e2`, verify -Fast green, native
   rebuilt); SPEC P5-11 text amended. **Q28 answered: 5 samples + log recovered stretches** ⇒ `8ee62087` (tests, red
   5/148), `c1623bc8` (green; controller logs `rate-off pN …, recovered`); docs/PLAN.md Phase 7 collects those lines and
-  sets the final count. **Waiting for the owner: the P6-12 checklist. Then Phase 6 DONE; next Phase 7** (write P7
+  sets the final count. **Owner checklist P6-12 approved 2026-09-29 ⇒ Phase 6 DONE 2026-09-29. Next: Phase 7** (write P7
   criteria for the 240 default, stop at the gate).
 - **Phase 5 carry-overs from Phase 4:** apply `Timing` (it is computed and logged; hook worker in
   display_mode_matcher.cpp `runHook`, "logged only in Phase 4"); a Q15 move / `mode-lost-again` / screen-gone restore
