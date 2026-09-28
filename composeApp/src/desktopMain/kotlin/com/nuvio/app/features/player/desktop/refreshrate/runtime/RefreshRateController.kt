@@ -18,6 +18,7 @@ import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
 import com.nuvio.app.features.player.desktop.refreshrate.Timing
 import com.nuvio.app.features.player.desktop.refreshrate.TimingSample
 import com.nuvio.app.features.player.desktop.refreshrate.describe
+import java.util.Locale
 
 /**
  * Runs the pure session (Phase 3) against a [DisplayPort] (SPEC P4-13). Not thread-safe:
@@ -165,6 +166,15 @@ class RefreshRateController(
         health = (timing as? Timing.DisplaySync)?.let { HealthWatch(playerId, display, it.rate) }
     }
 
+    /** Q28: every off-rate stretch that recovered by itself, so Phase 7 soaks show how long a stall bends the estimate. */
+    private fun newHealth(watch: HealthWatch) = ResampleHealth(watch.rate, clock()) { streak ->
+        val error = (streak.worstFps / watch.rate.toDouble() - 1.0) * 100.0
+        log(
+            "rate-off p${watch.playerId} ${streak.samples} samples, worst ${"%.3f".format(Locale.ROOT, streak.worstFps)} " +
+                "(${"%+.2f".format(Locale.ROOT, error)} %), recovered",
+        )
+    }
+
     /** One health tick (P5-11, Q21): clearly broken display-resample ⇒ upstream timing, the mode stays. */
     private fun checkHealth() {
         val watch = health ?: return
@@ -187,7 +197,7 @@ class RefreshRateController(
         val atTarget = state != null && relativeError(state.mode.refresh, watch.rate) <= RefreshRateSession.VERIFY_TOLERANCE
         if (!atTarget || state != watch.lastState) {
             watch.lastState = state
-            watch.health = ResampleHealth(watch.rate, clock()) // judge only a window on a steady display at the target
+            watch.health = newHealth(watch) // judge only a window on a steady display at the target
             return
         }
         val sample = TimingSample(clock(), stats.drops, stats.mistimed, stats.estimatedDisplayFps, stats.timePos, stats.paused)

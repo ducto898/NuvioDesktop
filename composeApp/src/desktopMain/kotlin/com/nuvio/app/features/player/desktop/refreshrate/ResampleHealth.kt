@@ -36,6 +36,7 @@ class ResampleHealth(
 
     /** Judged samples in a row whose rate estimate was off; one stall bends it for a sample or two. */
     private var rateErrors = 0
+    private var worstFps = 0.0
 
     /** Judges the 10 s window that ends at [sample]. */
     fun add(sample: TimingSample): HealthVerdict {
@@ -57,7 +58,13 @@ class ResampleHealth(
         val estimate = sample.estimatedDisplayFps
         val rate = target.toDouble()
         val rateOff = estimate != null && rate > 0.0 && kotlin.math.abs(estimate / rate - 1.0) > MAX_RATE_ERROR
-        rateErrors = if (rateOff) rateErrors + 1 else 0
+        if (rateOff) {
+            if (rateErrors == 0 || kotlin.math.abs(estimate!! - rate) > kotlin.math.abs(worstFps - rate)) worstFps = estimate!!
+            rateErrors++
+        } else {
+            if (rateErrors > 0) onRateStreak(RateStreak(rateErrors, worstFps))
+            rateErrors = 0
+        }
         if (rateOff && rateErrors >= RATE_ERROR_SAMPLES) {
             return HealthVerdict.Unhealthy(
                 "estimated-display-fps=${"%.3f".format(Locale.ROOT, estimate)} vs target ${"%.3f".format(Locale.ROOT, rate)} (max ${MAX_RATE_ERROR * 100} %)",
@@ -80,7 +87,7 @@ class ResampleHealth(
         /** A larger relative difference between mpv's measured display rate and the target is unhealthy. */
         const val MAX_RATE_ERROR = 0.01
 
-        /** ...in this many judged samples in a row (≈ 3 s at the 1 s watch). */
-        const val RATE_ERROR_SAMPLES = 3
+        /** ...in this many judged samples in a row (≈ 5 s at the 1 s watch; owner Q28). */
+        const val RATE_ERROR_SAMPLES = 5
     }
 }
