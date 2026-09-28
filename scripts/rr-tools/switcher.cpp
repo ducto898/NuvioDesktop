@@ -57,6 +57,12 @@ int wmain(int argc, wchar_t **argv) {
             end.c_str(), device.c_str());
     printState(L"before", before);
     if (before.registryHz != 280) wprintf(L"WARNING: registry mode is %lu Hz, expected 280\n", before.registryHz);
+    // Only the rates the kill test and plan use (SPEC P2-12); 280 is the desktop mode, restored by Windows.
+    long nominal = std::lround(hz);
+    if (nominal != 240 && nominal != 120 && nominal != 100) {
+        fwprintf(stderr, L"refusing: only 240, 120 or 100 Hz (got %.3f)\n", hz);
+        return 3;
+    }
     if (!listed(device, hz, before.width, before.height)) {
         fwprintf(stderr, L"refusing: %.3f Hz is not listed at %lux%lu\n", hz, before.width, before.height);
         return 3;

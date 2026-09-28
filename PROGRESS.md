@@ -4,9 +4,12 @@ The only memory between phases. Read it at the start of every phase; update it a
 
 ## Current state
 - **Phase:** 2 (Measure only) **IN PROGRESS 2026-09-28**. Rebased onto `upstream/Dev` `fe92d414` (local, backup
-  branch `backup/pre-rebase-phase2`). Phase 2 acceptance criteria P2-0..P2-19 written in SPEC.md.
-- **Next:** owner approval of the Phase 2 criteria ("before code" gate), then implement: sampler (H1+H4),
-  gen-testclips.ps1, measure.ps1, rr-tools + kill test A–J with the owner, baseline runs.
+  branch `backup/pre-rebase-phase2`). Criteria P2-0..P2-19 approved and implemented; kill test A–J done; baselines done.
+  Verifier round 1: FAIL on P2-4, P2-6 (VFR loop), P2-9 (fullscreen/actions), P2-12, P2-13, P2-15, P2-17 → fixed
+  except P2-4 (needs owner decision) and P2-17 fullscreen (needs a UAC click).
+- **Next (owner at the PC):** fullscreen PresentMon run + display-resample PresentMon run (UAC "Yes" each), loop check
+  (P2-7), decision on P2-4 wording, decision on the rewritten official `nuvio_continue_watching_enrichment.properties`.
+  Then verifier round 2, close Phase 2. Phase 3 next.
 - **Start new sessions from `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`** so the
   project's `.claude/settings.json` hook and `verifier` agent load.
 
@@ -51,6 +54,11 @@ suite, ≈ 15 s with only the patch tests.
 - D5: Fork tooling and docs go in their own commit(s), separate from the product patch commits, so
   the exported product patch stays minimal.
 - D6: Dev runs use an isolated profile (`scripts/run-dev.ps1`) until the Phase 8 app-identity work.
+- D7 (kill test, 2026-09-28): **rely on Windows' CDS_FULLSCREEN revert for crash/kill** (proven for exit, crash,
+  TerminateProcess, End task, real JVM) + explicit restore on every normal path. **No watchdog, no next-launch marker.**
+  Phase 4 must also handle a monitor power-cycle dropping the temporary mode (case H). Evidence: docs/research/09-kill-test.md.
+- D8: `verify.ps1` runs Gradle with APPDATA/LOCALAPPDATA redirected to `NuvioRate\testprofile` and fails if the official
+  `%APPDATA%\Nuvio` / `%LOCALAPPDATA%\Nuvio` changed (upstream desktopTests write through real storage).
 
 ## Incidents
 - 2026-09-27 23:52: the first `gradlew :composeApp:run` used the OFFICIAL profile for ~1 min before
@@ -113,8 +121,10 @@ suite, ≈ 15 s with only the patch tests.
   ⇒ Phase 5 "after" target: 23.976 @ 239.901 = constant 10 vsyncs/frame.
 - **Present mode / VRR (P2-17, windowed):** mpv swapchain (java.exe) = `Hardware Composed: Independent Flip` (MPO overlay
   plane, despite the WebView2 overlay), WebView/DWM = `Hardware: Legacy Flip`. Every `MsBetweenDisplayChange` is an integer
-  multiple of 3.5719 ms (±0.13 ms) through play, pause, seek and controls ⇒ **VRR not engaged, panel fixed at 279.961 Hz**.
-  Fullscreen: NOT yet measured (F11 via SendKeys doesn't reach the window; two manual tries hit a cancelled UAC prompt).
+  multiple of 3.5719 ms (±0.13 ms) **while playing** ⇒ **VRR not engaged during playback, panel fixed at 279.961 Hz**.
+  Correction (verifier): in that run the pause/seek keys never reached the player, so pause, seek and controls are
+  NOT yet proven. Actions now go through mpv IPC and fullscreen through a foreground fix (tested OK 09:28, no PresentMon).
+  Fullscreen: NOT yet measured with PresentMon.
 - **mpv does not re-detect display-fps** after an external switch in the embedded window (stayed 279.961 for 40 s at 239.901).
   When the mode is set BEFORE the player starts, mpv reads it correctly (239.901 / 119.998).
 - **display-resample is broken in the embedded player (new, blocks R8 as written):** at 280, 240 and 120 Hz, 1080p and
@@ -146,3 +156,8 @@ suite, ≈ 15 s with only the patch tests.
 - 2026-09-28 Phase 1 gate: owner answered Q5–Q8; G-SYNC mode measured read-only via NVAPI (full screen only).
   Overall plan written in plan mode and approved (docs/PLAN.md): Kotlin decision logic + native Win32/mpv glue,
   switch in on_preloaded on a worker, process-global session, kill test moved into Phase 2, ≤50-line upstream diff.
+- 2026-09-28 Phase 2: rebased onto fe92d414 (1 new upstream test failure, baseline-listed with approval). Built the
+  measure-only sampler (2 upstream lines), 32 test clips, measure.ps1, rr-tools. Kill test A–J with the owner → D7.
+  Baselines repeatable (P2-10 PASS). Findings: mpv misses external mode changes; display-resample broken in the embedded
+  player (est. display fps ≈ 6); VRR not engaged windowed; monitor off/on drops the temporary mode. Verifier round 1
+  found verify.ps1 tests writing the OFFICIAL profile (one cache file) → fixed (D8); other findings fixed as listed above.

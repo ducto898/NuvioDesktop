@@ -74,7 +74,8 @@ function New-Clip($rate, $size, [string]$range, [string]$file) {
     # Integer px/frame (~480 px/s at 1080p), period = 16 steps, frame count a multiple of 16 (300 for VFR).
     $step = [int][math]::Round(480 / $fps) * $size.Scale
     $period = 16 * $step
-    $unit = if ($vfr) { 300 } else { 16 }
+    # VFR: whole 60/48 blocks (300 source frames) AND whole pattern periods (16 steps) => lcm = 1200.
+    $unit = if ($vfr) { 1200 } else { 16 }
     $frames = $unit * [int][math]::Round($fps * $Seconds / $unit)
     $duration = $frames / $fps
     $pattern = Get-Pattern $size.W $size.H $period $range
@@ -130,7 +131,17 @@ function New-Clip($rate, $size, [string]$range, [string]$file) {
 
 function Test-Clip($rate, $size, [string]$range, [string]$file) {
     $problems = @()
-    $json = & ffprobe -v error -select_streams v:0 -show_streams -show_format -of json $file | ConvertFrom-Json
+    $json = & ffprobe -v error -select_streams v:0 -count_packets -show_streams -show_format -of json $file | ConvertFrom-Json
+    # Seamless loop: the pan moves 1 step per SOURCE frame and a period is 16 steps, so the source frame count
+    # must be a multiple of 16. CFR: source frames = packets. VFR: source is 60 fps => duration x 60.
+    $s0 = $json.streams[0]
+    $sourceFrames = if ($rate.Name -eq 'vfr') {
+        # last frame's source index = round(pts x 60) (ms-rounded pts); the design keeps the last source frame.
+        $lastPts = & ffprobe -v error -select_streams v:0 -show_entries packet=pts_time -of csv=p=0 -read_intervals '99999%' $file |
+            ForEach-Object { [double]$_ } | Sort-Object | Select-Object -Last 1
+        [int][math]::Round($lastPts * 60) + 1
+    } else { [int]$s0.nb_read_packets }
+    if ($sourceFrames % 16 -ne 0) { $problems += "loop not seamless: $sourceFrames source frames (not a multiple of 16)" }
     $s = $json.streams[0]
     if ($s.codec_name -ne 'hevc') { $problems += "codec $($s.codec_name)" }
     if ($s.profile -ne 'Main 10') { $problems += "profile $($s.profile)" }

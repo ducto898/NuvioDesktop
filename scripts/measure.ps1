@@ -65,7 +65,11 @@ if ($Compare) {
     $spread = ($dfps | Measure-Object -Maximum -Minimum)
     if ($spread.Maximum - $spread.Minimum -gt 0.05) { $fail += "display-fps spread $($spread.Maximum - $spread.Minimum)" }
     foreach ($k in 'frameDrops', 'decoderDrops', 'mistimed', 'delayed') {
-        $v = $runs | ForEach-Object { [double]$_.mpv.counters.$k }
+        $raw = @($runs | ForEach-Object { $_.mpv.counters.$k })
+        $nulls = @($raw | Where-Object { $null -eq $_ }).Count
+        if ($nulls -eq $raw.Count) { Write-Host "    $k : na in all runs (property unavailable in this sync mode)"; continue }
+        if ($nulls -gt 0) { $fail += "$k is na in $nulls of $($raw.Count) runs"; continue }
+        $v = $raw | ForEach-Object { [double]$_ }
         $m = $v | Measure-Object -Maximum -Minimum
         $allowed = [math]::Max(2, 0.2 * $m.Maximum)
         if ($m.Maximum - $m.Minimum -gt $allowed) { $fail += "$k differs: $($v -join ' / ') (allowed $allowed)" }
@@ -117,6 +121,7 @@ $envSet = @{
     NUVIO_RR_MEASURE = '1'; NUVIO_RR_MEASURE_DIR = $out
     NUVIO_RR_MEASURE_SYNC = $Sync; NUVIO_RR_MEASURE_SWITCH_HZ = $(if ($SwitchHz) { "$SwitchHz" } else { '' })
     NUVIO_DESKTOP_SMOKE_PLAYER_URL = 'file:///' + ($clipPath -replace '\\', '/')
+    NUVIO_RR_MEASURE_IPC = $(if ($Actions) { '1' } else { '' })
 }
 foreach ($k in $envSet.Keys) { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envSet[$k]) }
 try {
@@ -145,14 +150,38 @@ $powerProc = $null; $pmProc = $null
 if ($loadedAt -and $app) {
     Write-Host "file loaded (pid $appPid); playing $Seconds s"
     $shell = New-Object -ComObject WScript.Shell
+    if (-not ('RrWin' -as [type])) {
+        Add-Type -Namespace '' -Name RrWin -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+[DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+'@
+    }
+    # Windows refuses SetForegroundWindow from a background process unless it just "had input": a synthetic
+    # Alt press satisfies that rule, then the window can be activated and F11 goes to it.
+    $focusApp = {
+        $app.Refresh()
+        [RrWin]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [RrWin]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+        [void][RrWin]::SetForegroundWindow($app.MainWindowHandle); Start-Sleep -Milliseconds 300
+    }
+    # Pause/seek go to mpv's JSON IPC pipe (NUVIO_RR_MEASURE_IPC), not as keys: keys never reached the player.
+    $pipeName = "nuvio-rr-$appPid"
+    $mpvCommand = {
+        param([string]$json)
+        try {
+            $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+            $pipe.Connect(2000)
+            $w = New-Object System.IO.StreamWriter($pipe); $w.AutoFlush = $true; $w.WriteLine($json)
+            $reply = (New-Object System.IO.StreamReader($pipe)).ReadLine(); $pipe.Dispose(); return $reply
+        } catch { return "ipc error: $($_.Exception.Message)" }
+    }
     if ($Fullscreen) {
         Start-Sleep -Seconds 2
-        [void]$shell.AppActivate($appPid); Start-Sleep -Milliseconds 300; $shell.SendKeys('{F11}')
+        & $focusApp; $shell.SendKeys('{F11}')
         Start-Sleep -Seconds 2
     }
     if ($Power) {
         # One-shot query per second from a helper shell (nvidia-smi -lms buffers and loses data when stopped).
-        $powerLoop = "while (-not (Test-Path '$out\power.stop')) { nvidia-smi --query-gpu=timestamp,power.draw,clocks.gr,clocks.mem,utilization.gpu,pstate --format=csv,noheader,nounits | Add-Content '$out\power.csv'; Start-Sleep -Milliseconds 1000 }"
+        $powerLoop = "`$next = Get-Date; while (-not (Test-Path '$out\power.stop')) { nvidia-smi --query-gpu=timestamp,power.draw,clocks.gr,clocks.mem,utilization.gpu,pstate --format=csv,noheader,nounits | Add-Content '$out\power.csv'; `$next = `$next.AddSeconds(1); `$w = (`$next - (Get-Date)).TotalMilliseconds; if (`$w -gt 0) { Start-Sleep -Milliseconds `$w } }"
         $powerProc = Start-Process pwsh -ArgumentList '-NoProfile', '-Command', $powerLoop -PassThru -WindowStyle Hidden
     }
     if ($PresentMon) {
@@ -175,12 +204,12 @@ if ($loadedAt -and $app) {
         $elapsed = ((Get-Date) - $loadedAt).TotalSeconds
         foreach ($step in $plan | Where-Object { -not $_.Done -and $_.At -le $elapsed }) {
             $step.Done = $true
-            [void]$shell.AppActivate($appPid); Start-Sleep -Milliseconds 200
+            $result = ''
             switch ($step.Key) {
-                'space' { $shell.SendKeys(' ') }
-                'right' { $shell.SendKeys('{RIGHT}') }
-                'left' { $shell.SendKeys('{LEFT}') }
-                'f11' { $shell.SendKeys('{F11}') }
+                'space' { $result = & $mpvCommand '{"command":["cycle","pause"]}' }
+                'right' { $result = & $mpvCommand '{"command":["seek",10,"relative"]}' }
+                'left' { $result = & $mpvCommand '{"command":["seek",-10,"relative"]}' }
+                'f11' { & $focusApp; $shell.SendKeys('{F11}') }
                 'mouse' {
                     $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
                     for ($i = 0; $i -lt 10; $i++) {
@@ -189,7 +218,7 @@ if ($loadedAt -and $app) {
                     }
                 }
             }
-            Add-Content "$out\actions.txt" ("{0} {1}@{2:n1}s" -f (Get-Date -Format 'HH:mm:ss.fff'), $step.Key, $elapsed)
+            Add-Content "$out\actions.txt" ("{0} {1}@{2:n1}s {3}" -f (Get-Date -Format 'HH:mm:ss.fff'), $step.Key, $elapsed, $result)
         }
         Start-Sleep -Milliseconds 200
     }
@@ -277,8 +306,19 @@ $summary = [ordered]@{
             frameDrops = Delta 'frame-drop-count'; decoderDrops = Delta 'decoder-frame-drop-count'
             mistimed = Delta 'mistimed-frame-count'; delayed = Delta 'vo-delayed-frame-count'
         }
+        sampleCostMs = [ordered]@{ median = Median (Nums 'cost_ms'); max = (@(Nums 'cost_ms') | Measure-Object -Maximum).Maximum }
+        pausedSamples = @($samples | Where-Object { $_.pause -eq 'yes' }).Count
     }
 }
+$perMin = [ordered]@{}
+foreach ($k in $summary.mpv.counters.Keys) {
+    $c = $summary.mpv.counters[$k]
+    $perMin[$k] = if ($null -eq $c -or $minutes -le 0) { $null } else { [math]::Round($c / $minutes, 2) }
+}
+$summary.mpv.countersPerMinute = $perMin
+if ($Fullscreen -and $summary.mpv.fullscreen -notcontains 'yes') { $problems += 'fullscreen requested but no sample had fs=yes' }
+$regDuring = @($summary.windows.during.distinctRegHz)
+if ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280) { $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
 if (Test-Path "$out\power.csv") {
     $pw = Get-Content "$out\power.csv" | ForEach-Object { $c = $_ -split ',\s*'; [pscustomobject]@{ W = [double]$c[1]; Clock = [double]$c[2]; Util = [double]$c[4] } }
     $summary.power = [ordered]@{ samples = @($pw).Count; wattsMedian = Median ($pw.W); clockMedian = Median ($pw.Clock); utilMedian = Median ($pw.Util) }

@@ -44,7 +44,7 @@ Everything new is gated by env `NUVIO_RR_MEASURE=1` (set only by `scripts/measur
 
 **Rebase**
 - P2-0 — Branch rebased (not merged) onto `upstream/Dev` `fe92d414`; `verify.ps1 -Full` green with only the
-  6 known upstream failures; nothing pushed (`git status -sb` shows no upstream tracking on origin) — auto
+  known upstream failures (7: the original 6 + `HomeHeroSectionTest`, owner-approved 2026-09-28); nothing pushed (`git status -sb` shows no upstream tracking on origin) — auto
 
 **Measurement sampler (native, new file)**
 - P2-1 — New file `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` (`namespace nuvio_rr`).
@@ -64,7 +64,9 @@ Everything new is gated by env `NUVIO_RR_MEASURE=1` (set only by `scripts/measur
 - P2-4 — Sampling runs on the existing mpv event thread only (no new thread, no blocking call > 50 ms) and stops
   when that thread exits, so it cannot outlive the mpv handle — auto (code review) + auto (log: max gap between
   samples ≤ 1.5 s during playback)
-- P2-5 — Measure-only knobs, each read only when `NUVIO_RR_MEASURE=1`: `NUVIO_RR_MEASURE_SYNC=<video-sync mode>`
+- P2-5 — Measure-only knobs, each read only when `NUVIO_RR_MEASURE=1`: `NUVIO_RR_MEASURE_DIR=<dir>` (log folder;
+  measure.ps1 uses the run folder), `NUVIO_RR_MEASURE_IPC=1` (mpv `input-ipc-server` on `\\.\pipe\nuvio-rr-<pid>`, so
+  measure.ps1 can pause/seek; added 2026-09-28 after key injection proved unreliable), `NUVIO_RR_MEASURE_SYNC=<video-sync mode>`
   (sets `video-sync` for the power check) and `NUVIO_RR_MEASURE_SWITCH_HZ=<hz>` (switches the player's monitor with
   `ChangeDisplaySettingsExW(..., CDS_FULLSCREEN)` after file load, never `CDS_UPDATEREGISTRY`; used only for kill
   test J and the display-fps re-detection check). The registry mode stays 280 Hz throughout — auto (registry read

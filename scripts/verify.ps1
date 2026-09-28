@@ -39,6 +39,20 @@ $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
+# --- Isolate the tests from the OFFICIAL Nuvio profile ------------------------------------------
+# Upstream storage resolves %APPDATA% / %LOCALAPPDATA% at runtime (DesktopStorage.kt,
+# ContinueWatchingEnrichmentStorage.desktop.kt), and some desktopTests write through it. Found
+# 2026-09-28: a -Full run rewrote %APPDATA%\Nuvio\nuvio_continue_watching_enrichment.properties.
+# Gradle hands the client's environment to its daemon and test workers, so redirecting here
+# covers every Gradle call below. The official folders are then checked for writes at the end.
+$officialDirs = @((Join-Path $env:APPDATA 'Nuvio'), (Join-Path $env:LOCALAPPDATA 'Nuvio'))
+$verifyStart = Get-Date
+$testProfile = Join-Path (Split-Path -Parent $repo) 'testprofile'
+$savedAppData = $env:APPDATA; $savedLocalAppData = $env:LOCALAPPDATA   # restored before exit (caller's shell)
+$env:APPDATA = Join-Path $testProfile 'Roaming'
+$env:LOCALAPPDATA = Join-Path $testProfile 'Local'
+New-Item -ItemType Directory -Force $env:APPDATA, $env:LOCALAPPDATA | Out-Null
+
 function Invoke-Gradle([string[]]$GradleArgs, [string]$Label) {
     Write-Host "==> $Label" -ForegroundColor Cyan
     Write-Host "    gradlew $($GradleArgs -join ' ')"
@@ -176,6 +190,14 @@ if ($Full) {
 
 $total.Stop()
 Write-Host ''
+$touched = @($officialDirs | Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem $_ -Recurse -File -ErrorAction SilentlyContinue } |
+    Where-Object { $_.LastWriteTime -gt $verifyStart })
+if ($touched.Count) {
+    $failures.Add("official Nuvio profile written during verify: $($touched.FullName -join ', ')")
+}
+
+$env:APPDATA = $savedAppData; $env:LOCALAPPDATA = $savedLocalAppData
+
 if ($failures.Count -gt 0) {
     Write-Host "VERIFY FAILED in $([int]$total.Elapsed.TotalSeconds)s:" -ForegroundColor Red
     $failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
