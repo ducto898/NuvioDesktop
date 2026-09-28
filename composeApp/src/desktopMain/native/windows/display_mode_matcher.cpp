@@ -867,6 +867,10 @@ int upcallFeatureEnabled(std::string &why) {
         }
         attached = true;
     }
+    if (!env) {  // GetEnv answered neither OK nor EDETACHED (JNI_EVERSION)
+        why = "getenv-failed";
+        return -1;
+    }
     int code = -1;
     const MatchMethods &match = matchMethods(env);
     jmethodID method = match.enabled;
@@ -953,6 +957,7 @@ std::string upcallStart(int64_t playerId, const std::wstring &display, const Sta
         if (vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) return "attach-failed";
         attached = true;
     }
+    if (!env) return "getenv-failed";
     std::string result;
     const MatchMethods &match = matchMethods(env);
     jclass matchClass = match.type;
