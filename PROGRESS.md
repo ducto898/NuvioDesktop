@@ -99,9 +99,36 @@ suite, ≈ 15 s with only the patch tests.
 ## Measurements
 - 2026-09-28 (read-only enumeration, 02-mode-enumeration.md): 2560x1440 modes 279.961 (current+registry),
   239.901, 143.973, 119.998, 100.000, 59.951 Hz; HDR on, 10 bpc. No 1000/1001 timings.
-- Baseline playback numbers: Phase 2.
-- Note for Phase 2: the app's stdout contains NO player/mpv lines. Find where the native bridge and mpv
-  log (stderr? a log file? the `log-file` mpv option?) before building measure.ps1. run-dev.ps1 captures stdout only.
+- **Phase 2 baseline, 2026-09-28** (feature absent, upstream audio sync, windowed/maximized 2576x1408, desktop 279.961 Hz,
+  HDR on; `measurements/*-baseline-r{1,2,3}`, 120 s each; P2-10 `measure.ps1 -Compare` PASS for all three):
+
+  | Clip (SDR 1080p) | runs | display-fps | drops / dec-drops / delayed | Windows Hz before/during/after |
+  |---|---|---|---|---|
+  | 23.976 | 3 | 279.961 (all) | 0 / 0 / 0 | 279.961 / 279.961 / 279.961 |
+  | 25     | 3 | 279.961 | 0 / 0 / 0 | same |
+  | 59.94  | 3 | 279.961 | 0 / 0 / 0 | same |
+
+  mpv's counters stay 0 in audio sync even though motion judders; the judder is only visible in PresentMon cadence:
+  23.976 @ 279.961 (windowed, `*pm-windowed`): frames held 11 vsyncs ×463, 12 ×782, 13 ×50, 10 ×8, 14 ×3 (ideal 11.68 avg).
+  ⇒ Phase 5 "after" target: 23.976 @ 239.901 = constant 10 vsyncs/frame.
+- **Present mode / VRR (P2-17, windowed):** mpv swapchain (java.exe) = `Hardware Composed: Independent Flip` (MPO overlay
+  plane, despite the WebView2 overlay), WebView/DWM = `Hardware: Legacy Flip`. Every `MsBetweenDisplayChange` is an integer
+  multiple of 3.5719 ms (±0.13 ms) through play, pause, seek and controls ⇒ **VRR not engaged, panel fixed at 279.961 Hz**.
+  Fullscreen: NOT yet measured (F11 via SendKeys doesn't reach the window; two manual tries hit a cancelled UAC prompt).
+- **mpv does not re-detect display-fps** after an external switch in the embedded window (stayed 279.961 for 40 s at 239.901).
+  When the mode is set BEFORE the player starts, mpv reads it correctly (239.901 / 119.998).
+- **display-resample is broken in the embedded player (new, blocks R8 as written):** at 280, 240 and 120 Hz, 1080p and
+  2160p alike: `estimated-display-fps` ≈ 6 Hz, `vsync-jitter` ≈ 47–55, ~1 drop + ~1 mistimed per video frame
+  (≈ 2700 each per 120 s), 12–47 audio underruns + mpv's "A/V desync" warning. GPU nearly idle (465 MHz). Cause unknown
+  (candidate: present/vsync feedback of the embedded MPO swapchain). ⇒ Phase 5 must diagnose (PresentMon in resample mode)
+  or fall back to audio sync at the N×fps rate.
+- **GPU power (P2-19, hdr-2160p-23.976, 120 s, median nvidia-smi):** audio sync @280 = 15.3 W (210 MHz); display-resample
+  @240 = 18.4 W (465 MHz); display-resample @120 = 12.2 W (345 MHz). Small either way; but the resample numbers come from the
+  broken mode above (it presented far fewer frames than intended), so re-measure in Phase 5 once resample works.
+- Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
+  temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
+- Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
+- SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
 - 2026-09-27 Phase 0: cloned the fork, added upstream, created the branch. Existing-work search found

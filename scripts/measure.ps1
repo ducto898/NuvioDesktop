@@ -151,8 +151,9 @@ if ($loadedAt -and $app) {
         Start-Sleep -Seconds 2
     }
     if ($Power) {
-        $powerProc = Start-Process nvidia-smi -ArgumentList '--query-gpu=timestamp,power.draw,clocks.gr,clocks.mem,utilization.gpu,pstate',
-            '--format=csv,noheader,nounits', '-lms', '1000', '-f', "`"$out\power.csv`"" -PassThru -WindowStyle Hidden
+        # One-shot query per second from a helper shell (nvidia-smi -lms buffers and loses data when stopped).
+        $powerLoop = "while (-not (Test-Path '$out\power.stop')) { nvidia-smi --query-gpu=timestamp,power.draw,clocks.gr,clocks.mem,utilization.gpu,pstate --format=csv,noheader,nounits | Add-Content '$out\power.csv'; Start-Sleep -Milliseconds 1000 }"
+        $powerProc = Start-Process pwsh -ArgumentList '-NoProfile', '-Command', $powerLoop -PassThru -WindowStyle Hidden
     }
     if ($PresentMon) {
         $pmSeconds = [math]::Max(10, $Seconds - 8)
@@ -209,7 +210,10 @@ if ($Kill -and $app -and -not $app.HasExited) {
 if (-not $launcher.HasExited) { [void]$launcher.WaitForExit(30000) }
 if (-not $launcher.HasExited) { Stop-Process -Id $launcher.Id -Force }
 if ($pmProc -and -not $pmProc.HasExited) { [void]$pmProc.WaitForExit(15000) }
-if ($powerProc -and -not $powerProc.HasExited) { Stop-Process -Id $powerProc.Id -Force }
+if ($powerProc) {
+    New-Item -ItemType File "$out\power.stop" -Force | Out-Null
+    if (-not $powerProc.WaitForExit(5000)) { Stop-Process -Id $powerProc.Id -Force }
+}
 Start-Sleep -Seconds 3
 Stop-Process -Id $observer.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 300
