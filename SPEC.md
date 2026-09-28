@@ -414,5 +414,115 @@ display watcher) go through the same holder on one thread.
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
+### Phase 5 — mpv timing + OLED stability (written 2026-09-28, before code; awaiting owner approval, Q20–Q22)
+Scope: apply the `Timing` that Phase 3/4 already compute, i.e. display-synced mpv timing for every playback we switched,
+and upstream timing everywhere else. Switch mpv back to its own timing at runtime when a session ends mid-playback. Keep
+the panel rate constant (req. 9). Make the driver preconditions from Phase 2b visible.
+**Not in Phase 5:** the settings toggle (Phase 6; the `NUVIO_RR_ENABLE=1` dev knob stays), Nuvio-only driver profiles
+(need Phase 8's own exe, Q10c), the full matrix (Phase 7: audio device change, DV/HDR10+, sleep/resume, soaks).
+Design: the hook worker applies `DisplaySync(rate)` as mpv properties before it continues `on_preloaded` (before VO
+init). For timing changes outside the hook (watcher, window move), the controller calls a new `DisplayPort.setTiming(player,
+timing)` → native `external fun` → mpv properties on that player. Native saves the three properties' values before the
+first change on a player and puts exactly those back on revert.
+
+**Footprint and tests first**
+- P5-1 — Upstream diff unchanged: still the 6 Phase 4 lines (H1, H2, H4, H5, H6, H8). Everything new goes in
+  `display_mode_matcher.cpp` and the `refreshrate` packages. No Gradle change, no new dependency (the NVAPI read in P5-9
+  uses `nvapi_QueryInterface` IDs as `drsprobe.cpp` does, no SDK) — auto (`verify.ps1 -Full` diff report)
+- P5-2 — `verify.ps1 -Full` green with only the known upstream failures; nothing written to either official folder;
+  nothing pushed — auto
+- P5-3 — Tests first for every Kotlin change (timing routing in the controller, P5-9 frame-cap rule, P5-11 health rule):
+  commit A = tests + stubs, red; commit B = implementation, green, with an empty test diff between A and B. Changed Phase
+  3/4 tests are listed in commit A's message with the reason — auto (`git diff`)
+- P5-4 — Feature off (`NUVIO_RR_ENABLE` unset) ⇒ still no hook and no mpv property set by the feature (P4-1 holds).
+  Feature on but `Timing.Upstream` at the hook (no switch, same rate, fail-safe) ⇒ **zero** mpv property calls for
+  that player — auto (code review + the options line in the mpv log of a 25 fps run equals a feature-off run)
+
+**Applying display-synced timing (native)**
+- P5-5 — `DisplaySync(rate)` at the hook ⇒ before `mpv_hook_continue`, the worker sets on that player
+  `video-sync=display-resample`, `interpolation=no` and `display-fps-override=<rate as decimal, ≥ 6 digits after the point>`,
+  with the values read just before saved first. Each set is logged with its mpv result code. A failed set ⇒ revert what was
+  already set, log `timing-failed`, continue the hook: playback continues with upstream timing (fail-safe, req. 10). The
+  hook still continues exactly once and within 5 s (P4-9) — auto (log + code review; fault knob kind `timing-set` added to
+  P4-19's list, one run: plays ≥ 10 s, no crash, 279.961 after exit)
+- P5-6 — New `DisplayPort.setTiming(playerId, Timing): Boolean` + native export. `DisplaySync` ⇒ as P5-5 (a changed rate
+  after a re-switch updates `display-fps-override` only). `Upstream` ⇒ if this player has our change, put the saved values
+  back; otherwise do nothing. A player that is gone or stopping ⇒ `false`, no mpv call (the handle is checked under the
+  entry lock that H5 takes, so no call after shutdown) — auto (code review + P5-8 runs)
+- P5-7 — Controller routing: every `Timing` a step returns goes to the session owner, not only the hook's. Hook start ⇒
+  returned to the worker (as now). Watcher, window-move and screen-gone steps ⇒ `setTiming(owner, …)` on the `nuvio-rr`
+  thread (never on the EDT or the mpv event thread). Unit tests with the fake port: `mode-lost` re-switch OK ⇒
+  `DisplaySync`; `mode-lost-again` ⇒ `Upstream`; `hdr-toggled` re-switch OK ⇒ `DisplaySync`, 4th HDR change ⇒ `Upstream`;
+  verify-mismatch on a re-switch ⇒ `Upstream`; window moved (Q15) ⇒ `Upstream` on the old owner; screen gone ⇒ no call
+  needed (the player is leaving); a `setTiming` failure or exception ⇒ logged, session unchanged — auto (tests)
+- P5-8 — Runtime changes work in the real player: new fault kind `drop-mode` (measure-only, part of `NUVIO_RR_FAULT`)
+  drops the temporary mode natively at 20 s and again at 50 s, as a monitor off/on would. `sdr-1080p-23.976`, feature
+  on, windowed, 90 s ⇒ log: 1st drop `mode-lost` re-switch ⇒ `setTiming display-sync ok`; 2nd drop `mode-lost-again` ⇒
+  `setTiming upstream ok`, mpv reports the saved `video-sync` value (upstream: `audio`); playback continues to the end with
+  no audio underruns and 0 drops in the last 30 s; 279.961 after exit — auto (measure.ps1)
+
+**Driver preconditions (Phase 2b, D12)**
+- P5-9 — At each playback start the native side reads, read-only, the NVIDIA driver settings that apply to this process:
+  Max Frame Rate (`FRL_FPS` 0x10835002) and Power management mode (`PREFERRED_PSTATE` 0x1057EB71) — the app's own profile
+  if one matches the exe, else the global profile. Only `NvAPI_Initialize`, `DRS_CreateSession/LoadSettings/
+  GetBaseProfile/FindApplicationByName/GetSetting`, `DestroySession`; never `SetSetting`/`SaveSettings`. Logged as
+  `driver frl=<fps|off|unknown> power=<mode|unknown> profile=<global|app> ms=<n>`. No NVIDIA GPU / nvapi missing / any
+  error ⇒ `unknown`, never fatal. It runs on the hook worker (≤ 200 ms, measured) — auto (log; grep: no Set/Save IDs)
+- P5-10 — Frame-cap rule (pure, in `decide()`, tests first; see **Q20**): a known Max Frame Rate below 1.05 × the chosen
+  target rate ⇒ `NoSwitch("frame-cap")` (stay at 280 with upstream timing: a capped display-resample collapses to ≈ 6 Hz,
+  Phase 2b). `off` or `unknown` ⇒ unchanged behaviour. Checked on hardware only if the owner sets the cap back (Q10c);
+  otherwise by the unit tests — auto
+- P5-11 — Health fallback (see **Q21**; drop this criterion if the owner says no): while `DisplaySync` is applied, the
+  watcher reads that player's mpv counters once per second (new native read: `frame-drop-count`, `mistimed-frame-count`,
+  `estimated-display-fps`, `time-pos`, `paused`; values only, no display call). Pure rule `ResampleHealth` (tests first):
+  ignore the first 5 s after the hook and any 10 s window in which playback advanced < 8 s (pause, seek, buffering);
+  a 10 s window with drops + mistimed > 20, or `estimated-display-fps` off the target by > 1 %, ⇒ `setTiming(Upstream)`,
+  reason `resample-unhealthy`, at most once per playback start; the display stays at the target (no extra switch). Healthy
+  runs (P5-12) never trigger it — auto (tests + P5-12 logs + one run with `-Opts` forcing a known-bad setup, e.g. the
+  2b `d3d11-sync-interval=0` set, which must trigger it)
+
+**Measurements (feature on, `-Feature`, 120 s each unless stated; counted after the first 5 s, P2b-13 rule)**
+- P5-12 — Pass limits for every switched run below: Windows at the target during playback and 279.961 after; mpv
+  `video-sync=display-resample`, `display-fps` = the override (± 0.001 Hz); `estimated-display-fps` within 0.1 % of the
+  target; drops + mistimed ≤ 1 per minute; 0 audio underruns; `video-speed-correction` and `audio-speed-correction` within
+  ± 0.2 %; registry 280 throughout. Runs: `sdr-1080p-23.976` windowed, fullscreen, and a repeat of each;
+  `hdr-2160p-23.976` fullscreen with GPU power (max-performance power set, D12); `sdr-1080p-24`, `sdr-1080p-29.97`,
+  `sdr-1080p-59.94` windowed; `sdr-1080p-vfr` windowed (switches by its header, Q18; for VFR the limit is 0 audio
+  underruns and no A/V desync warning; drop/mistime counts are recorded, not judged — see **Q22**). `sdr-1080p-25`
+  ⇒ no switch, upstream timing, no feature property set (Q17: no 100 Hz listed) — auto (measure.ps1 summary.json)
+- P5-13 — Next episode with the same target (`same-target`): the second player also gets `DisplaySync` at its hook and
+  meets P5-12. Checked by a measure.ps1 run with two consecutive files (new `-Clip a,b` or a second `loadfile`, whichever
+  keeps the upstream diff at 6 lines), or by the owner in the P5-17 checklist — auto or [HUMAN]
+- P5-14 — GPU power (Q8, re-measured now that resample works): median `nvidia-smi` power and clocks for
+  `sdr-1080p-23.976` and `hdr-2160p-23.976`, fullscreen, feature on vs off (280 Hz audio sync), with the power mode
+  recorded. Reported, not judged; the owner decides if it's material — auto
+- P5-15 — PresentMon re-check (the deferred P2b-13 clause; needs the owner for the UAC click): one fullscreen and one
+  windowed `sdr-1080p-23.976` feature-on run with PresentMon ⇒ ≥ 99 % of video frames held exactly 10 refreshes, and all
+  display intervals on the 4.168 ms grid (VRR not engaged). The same run's mpv counters must also meet P5-12; if they
+  don't (PresentMon perturbs timing, as with the 200 fps cap), the run is recorded as perturbed and P5-16's slow-mo video
+  replaces the cadence check — auto + [HUMAN] UAC click
+
+**OLED stability (req. 9)**
+- P5-16 — Constant panel rate under display-resample at 239.901: in the P5-15 PresentMon runs (or, if PresentMon
+  perturbs, a separate one used only for this), with pause 20 s, seek ±10 s, controls shown/hidden and fullscreen toggle
+  driven through mpv IPC (`-Actions`): every display interval of java.exe is a whole multiple of 4.168 ms (± 0.25 ms),
+  including the pause. Phase 2 found VRR not engaged at 280 in audio sync; this confirms it under the feature. If VRR
+  does engage: stop and report (a keep-alive mitigation would be a new owner decision), no global driver change — auto
+  + [HUMAN] UAC click
+- P5-17 — [HUMAN] one checklist: (1) 23.976 fullscreen slow pan with the feature on: judder gone? (optional: iPhone
+  slow-mo video, analysed with `slomo-analyze.py`; expected std clearly below the Phase 2 fixed-240 2.65 ms); (2) pause,
+  seek, show the controls: any flicker or brightness pumping?; (3) 4K HDR clip: colours and brightness look the same as
+  feature off; (4) next episode: no second black, still smooth; (5) monitor off/on mid-playback: comes back at 240 and
+  smooth (log: `mode-lost` ⇒ `setTiming display-sync`)
+- P5-18 — Docs: SPEC §1/§3 updated; FORK.md gets a "driver settings" section: Max Frame Rate off (or ≥ 1.05 × 240) and
+  "Prefer maximum performance" for 4K HDR, how to set them (NVIDIA App / Control Panel, global or per app), how to read
+  the `driver` log line, and that a capped setup makes the feature skip the switch (P5-10). PROGRESS updated with the
+  measurements — auto (files exist)
+- P5-19 — Phase 4 carry-over: the watcher's `query failed` line is logged once per change of the failure state (first
+  failure, then recovery), not once per second — auto (unit test with the fake port)
+
+**Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
+evidence folder list).
+
 ## 5. Upkeep limits
 - Upstream-file diff budget: _TBD_ lines (reported by `verify.ps1 -Full`).

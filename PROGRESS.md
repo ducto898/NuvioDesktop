@@ -25,6 +25,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   Phase 4 below. verify -Full green (1397 tests, only baseline failures), upstream diff still 2 lines, not pushed.
   Mutation check: app exit without restore ⇒ the fuzz test fails. **Next: Phase 4** (write P4 criteria, stop at the gate).
 - **Phase 4 DONE 2026-09-28 (owner accepted 18:15).** Next: **Phase 5** (write P5 criteria, stop at the gate).
+- **Phase 5 criteria written 2026-09-28 (SPEC P5-1..P5-19), waiting at the gate** for the owner's approval + Q20–Q22
+  (Open questions). No Phase 5 code yet.
   History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
@@ -184,6 +186,17 @@ suite, ≈ 15 s with only the patch tests.
   not in the normal GDI list or DXGI ⇒ the feature still does not see it; 25 fps stays at 280 (run `*p4-250check`).
 
 ## Open questions for owner
+- Q20 (Phase 5 gate): Max Frame Rate set below ~252 fps (e.g. the old 200 cap) makes display-resample collapse. Then:
+  (a) **don't switch at all** (stay 280, upstream timing; log `frame-cap`) — recommended: at 240 without display sync the
+  motion is no smoother than at 280 (Phase 2 fixed-240 run) and you'd get the black flash for nothing; or (b) switch
+  anyway with audio sync.
+- Q21 (Phase 5 gate): add a health fallback (P5-11)? If display-resample is clearly broken during playback (> 20 drops +
+  mistimed in 10 s, or the measured display rate > 1 % off), mpv goes back to its own audio timing and the display stays
+  at 240. Catches driver changes after an update (e.g. power mode back to Normal for 4K HDR). Recommended: **yes** (small,
+  pure logic, tested). No = P5-11 removed.
+- Q22 (Phase 5 gate): VFR clips (header says 60 ⇒ 240 Hz, Q18) under display-resample: judge only "no underruns, no A/V
+  desync" and record drops/mistimes, since mpv's display sync can't be exact for truly variable frame times? Recommended:
+  **yes**.
 - Q17 (Phase 4, 2026-09-28): **100 Hz is gone from the monitor's normal mode list.** Today GDI (non-raw) and DXGI list
   only 59.951/120 (12000/100, was 119.998)/143.973/239.901/279.961 at 1440p; 100 and a new 265 exist only with
   EDS_RAWMODE (driver-pruned modes). Research 02 (a day earlier) saw 100 Hz in every API. switcher.exe refuses 100.
