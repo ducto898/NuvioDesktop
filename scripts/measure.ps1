@@ -32,6 +32,8 @@ param(
     [string]$Actions = '',
     [string]$Label = '',
     [string[]]$Compare,
+    # Live rate expected before/after. Only for runs where switcher.exe holds a mode around the run (P2-19);
+    # the registry mode must still be 280 before/during/after in every run.
     [double]$ExpectHz = 279.961
 )
 $ErrorActionPreference = 'Stop'
@@ -111,10 +113,23 @@ if (-not (Test-Path $ignore)) { Set-Content -Encoding ascii $ignore "*`n!.gitign
 Write-Host "run: $runName"
 
 $officialProfile = Join-Path $env:APPDATA 'Nuvio'
+$officialLocal = Join-Path $env:LOCALAPPDATA 'Nuvio'   # incl. WebView2 (see run-dev.ps1)
 $startTime = Get-Date
 $observer = Start-Process (Join-Path $rrTools 'observer.exe') -ArgumentList "`"$out\observer.csv`"" -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput "$out\observer.txt"
 Start-Sleep -Milliseconds 800
+
+# Start in the requested window mode: the app restores fullscreen from the DEV profile's window-state
+# file, and F11 cannot leave a restored fullscreen. Only the dev profile (run-dev.ps1 default) is edited.
+$windowState = Join-Path $root 'devprofile\Roaming\Nuvio\nuvio_window_state.properties'
+$wantFs = if ($Fullscreen) { 'true' } else { 'false' }
+if (Test-Path $windowState) {
+    $lines = @(Get-Content $windowState | Where-Object { $_ -notmatch '^was_fullscreen=' }) + "was_fullscreen=$wantFs"
+    Set-Content -Encoding ascii $windowState $lines
+} else {
+    New-Item -ItemType Directory -Force (Split-Path $windowState) | Out-Null
+    Set-Content -Encoding ascii $windowState "was_fullscreen=$wantFs"
+}
 
 $savedEnv = @{}
 $envSet = @{
@@ -174,9 +189,13 @@ if ($loadedAt -and $app) {
             $reply = (New-Object System.IO.StreamReader($pipe)).ReadLine(); $pipe.Dispose(); return $reply
         } catch { return "ipc error: $($_.Exception.Message)" }
     }
-    if ($Fullscreen) {
-        Start-Sleep -Seconds 2
+    # The app remembers fullscreen from its last exit, so force the requested mode (it changes mpv's timing:
+    # display-resample measured ~6 Hz windowed vs ~191 Hz fullscreen). Current mode = latest sample's fs=.
+    Start-Sleep -Seconds 2
+    $fsNow = (Select-String -Path $log.FullName -Pattern '^\S+ S .* fs=(yes|no)' | Select-Object -Last 1).Matches.Groups[1].Value
+    if (($fsNow -eq 'yes') -ne [bool]$Fullscreen) {
         & $focusApp; $shell.SendKeys('{F11}')
+        Add-Content "$out\actions.txt" "$(Get-Date -Format 'HH:mm:ss.fff') F11 (window was fs=$fsNow, requested fullscreen=$([bool]$Fullscreen))"
         Start-Sleep -Seconds 2
     }
     if ($Power) {
@@ -316,7 +335,12 @@ foreach ($k in $summary.mpv.counters.Keys) {
     $perMin[$k] = if ($null -eq $c -or $minutes -le 0) { $null } else { [math]::Round($c / $minutes, 2) }
 }
 $summary.mpv.countersPerMinute = $perMin
-if ($Fullscreen -and $summary.mpv.fullscreen -notcontains 'yes') { $problems += 'fullscreen requested but no sample had fs=yes' }
+$lastFs = if ($samples.Count) { $samples[-1].fs } else { 'na' }   # first ~2 s may predate the F11 toggle
+$summary.mpv.fullscreenAtEnd = $lastFs
+if (($lastFs -eq 'yes') -ne [bool]$Fullscreen) { $problems += "window mode at end fs=$lastFs, requested fullscreen=$([bool]$Fullscreen)" }
+foreach ($phase in 'before', 'after') {
+    if ($summary.windows.$phase.regHz -ne 280) { $problems += "registry mode $phase the run: $($summary.windows.$phase.regHz) (expected 280)" }
+}
 $regDuring = @($summary.windows.during.distinctRegHz)
 if ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280) { $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
 if (Test-Path "$out\power.csv") {
@@ -339,7 +363,8 @@ if (Test-Path "$out\presentmon.csv") {
 }
 
 # Official profile must be untouched (P2-11).
-$touched = if (Test-Path $officialProfile) { @(Get-ChildItem $officialProfile -Recurse -File | Where-Object { $_.LastWriteTime -gt $startTime }) } else { @() }
+$touched = @($officialProfile, $officialLocal | Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem $_ -Recurse -File -ErrorAction SilentlyContinue } |
+    Where-Object { $_.LastWriteTime -gt $startTime })
 $summary.officialProfileWrites = @($touched | ForEach-Object { $_.FullName })
 if ($touched.Count) { $problems += "official profile written: $($touched.Count) file(s)" }
 

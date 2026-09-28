@@ -5,7 +5,10 @@
 
 .DESCRIPTION
   Upstream resolves its data dirs from %APPDATA% / %LOCALAPPDATA% (DesktopStorage.kt). This
-  script redirects both for the app process only (no code change). The permanent fix (a distinct
+  script redirects both for the app process only (no code change), plus WEBVIEW2_USER_DATA_FOLDER,
+  because the native bridge finds the WebView2 folder through the Windows known-folder API, which
+  ignores the LOCALAPPDATA variable (until 2026-09-28 dev runs wrote the official
+  %LOCALAPPDATA%\Nuvio\WebView2). measure.ps1 checks both official folders. The permanent fix (a distinct
   app identity and data folder) is requirement 20, Phase 8.
   Uses --no-daemon so the app JVM inherits exactly this environment.
 
@@ -35,6 +38,12 @@ $local = Join-Path $ProfileRoot 'Local'
 New-Item -ItemType Directory -Force $roaming, $local | Out-Null
 $env:APPDATA = $roaming
 $env:LOCALAPPDATA = $local
+# The bridge picks the WebView2 user-data folder with SHGetKnownFolderPath(FOLDERID_LocalAppData)
+# (player_bridge.cpp webViewUserDataDirectory), which IGNORES the LOCALAPPDATA variable, so without
+# this the player overlay wrote into the OFFICIAL %LOCALAPPDATA%\Nuvio\WebView2 (found 2026-09-28).
+# WebView2's own environment override redirects it without an upstream code change.
+$env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $local 'Nuvio\WebView2'
+New-Item -ItemType Directory -Force $env:WEBVIEW2_USER_DATA_FOLDER | Out-Null
 Write-Host "Dev profile: $ProfileRoot (APPDATA/LOCALAPPDATA redirected for this process)"
 
 Set-Location $repo

@@ -5,11 +5,11 @@ The only memory between phases. Read it at the start of every phase; update it a
 ## Current state
 - **Phase:** 2 (Measure only) **IN PROGRESS 2026-09-28**. Rebased onto `upstream/Dev` `fe92d414` (local, backup
   branch `backup/pre-rebase-phase2`). Criteria P2-0..P2-19 approved and implemented; kill test A–J done; baselines done.
-  Verifier round 1: FAIL on P2-4, P2-6 (VFR loop), P2-9 (fullscreen/actions), P2-12, P2-13, P2-15, P2-17 → fixed
-  except P2-4 (needs owner decision) and P2-17 fullscreen (needs a UAC click).
-- **Next (owner at the PC):** fullscreen PresentMon run + display-resample PresentMon run (UAC "Yes" each), loop check
-  (P2-7), decision on P2-4 wording, decision on the rewritten official `nuvio_continue_watching_enrichment.properties`.
-  Then verifier round 2, close Phase 2. Phase 3 next.
+  Verifier round 1: 7 FAILs → fixed (P2-4 reworded with owner approval). Owner runs done: fullscreen PresentMon,
+  resample PresentMon, loop check. Official enrichment file restored (owner). Verifier round 2: FAIL on P2-4 (pre-load
+  sample 110 ms) and P2-17 (not written up) + WebView2 official-profile leak → all fixed 09:53 (see Incidents).
+- **Next:** verifier round 3 (last allowed), then close Phase 2 → Phase 3 (pure logic, tests first). Phase 5 must
+  diagnose display-resample (windowed ≈ 6 Hz vs fullscreen ≈ 191 Hz estimated display fps).
 - **Start new sessions from `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`** so the
   project's `.claude/settings.json` hook and `verifier` agent load.
 
@@ -53,10 +53,17 @@ suite, ≈ 15 s with only the patch tests.
 - D4: Gradle configuration cache off in scripts (upstream's bridge task is incompatible; CI does the same).
 - D5: Fork tooling and docs go in their own commit(s), separate from the product patch commits, so
   the exported product patch stays minimal.
-- D6: Dev runs use an isolated profile (`scripts/run-dev.ps1`) until the Phase 8 app-identity work.
+- D6: Dev runs use an isolated profile (`scripts/run-dev.ps1`) until the Phase 8 app-identity work. Corrected
+  2026-09-28: isolation needs `WEBVIEW2_USER_DATA_FOLDER` too (the bridge's WebView2 folder ignores LOCALAPPDATA);
+  proven 09:53 (0 official writes, overlay data in devprofile\Local\Nuvio\WebView2). Phase 8 identity work must fix
+  `webViewUserDataDirectory()` properly.
 - D7 (kill test, 2026-09-28): **rely on Windows' CDS_FULLSCREEN revert for crash/kill** (proven for exit, crash,
   TerminateProcess, End task, real JVM) + explicit restore on every normal path. **No watchdog, no next-launch marker.**
   Phase 4 must also handle a monitor power-cycle dropping the temporary mode (case H). Evidence: docs/research/09-kill-test.md.
+- D9 (owner, 2026-09-28): **stick with mode switching; no VRR-based frame pacing.** Reasons: OLED VRR gamma flicker on
+  pause/seek/controls (req. 9), VRR does not engage in Nuvio's player (measured windowed + fullscreen) and enabling it
+  would need a global G-SYNC change, 23.976 is below the VRR floor (LFC), mpv has no VRR pacing mode.
+- D10: soak runs (Phase 7) use long stream-copied clips, not mpv `loop-file` (its EOF→seek restart hitches ~1–2 frames).
 - D8: `verify.ps1` runs Gradle with APPDATA/LOCALAPPDATA redirected to `NuvioRate\testprofile` and fails if the official
   `%APPDATA%\Nuvio` / `%LOCALAPPDATA%\Nuvio` changed (upstream desktopTests write through real storage).
 
@@ -65,6 +72,14 @@ suite, ≈ 15 s with only the patch tests.
   being stopped. It wrote `nuvio_updater.properties` (content: `update_channel=all`),
   `nuvio_meta_screen_settings.properties` and `nuvio_continue_watching_enrichment.properties`.
   Watch progress was untouched. Backup taken right after: `NuvioRate\profile-backup-2026-09-27`.
+- 2026-09-28 (found by verifier round 1): `verify.ps1` desktopTests rewrote the OFFICIAL
+  `%APPDATA%\Nuvio\nuvio_continue_watching_enrichment.properties` (6785 → 59 bytes, header only) and wrote 18 files to
+  the official `%LOCALAPPDATA%\Nuvio\Cache\gif-cache` (07:41–09:11). Fixed by D8. Enrichment file restored from the
+  backup at 09:32 (owner decision, hash verified). gif-cache files: a cache, left as is.
+- 2026-09-27/28 (found by verifier round 2): every dev/measure player run wrote the OFFICIAL
+  `%LOCALAPPDATA%\Nuvio\WebView2\EBWebView` (player overlay's browser profile: Local/Session Storage, caches): 11 files
+  on 09-27 night, 76 on 09-28. No backup of that folder exists. Fixed in run-dev.ps1 (D6 correction); measure.ps1 now
+  checks both official folders. Owner to decide whether anything needs doing about the official WebView2 folder.
 
 ## Owner answers (2026-09-28)
 - Q1 known-upstream-failure baseline (D3): **approved**.
@@ -135,6 +150,15 @@ suite, ≈ 15 s with only the patch tests.
 - **GPU power (P2-19, hdr-2160p-23.976, 120 s, median nvidia-smi):** audio sync @280 = 15.3 W (210 MHz); display-resample
   @240 = 18.4 W (465 MHz); display-resample @120 = 12.2 W (345 MHz). Small either way; but the resample numbers come from the
   broken mode above (it presented far fewer frames than intended), so re-measure in Phase 5 once resample works.
+- **Fullscreen present mode (P2-17, 09:33, `*pm-fullscreen-auto`):** java.exe `Hardware Composed: Independent Flip`, fs=yes;
+  all 1486 intervals on the 3.5719 ms grid (max err 0.195 ms), incl. the 20 s pause (5595 vsyncs exactly), ±10 s seeks and
+  controls ⇒ **VRR not engaged in fullscreen either**; no Phase 5 VRR mitigation needed. Monitor OSD can't show Hz.
+- **display-resample re-measured (09:36 with PresentMon, 09:37 without):** est. display fps ≈ 191 (not ≈ 6 as 08:55–09:03).
+  **The difference is the window mode:** all ≈ 6 Hz runs were windowed (fs=no), both ≈ 191 Hz runs fullscreen (fs=yes; the
+  app had restored fullscreen from the previous run — measure.ps1 now forces the requested mode). Fullscreen: jitter 0.8, drops ≈ 80/min, mistimed ≈ 650/min; mpv presents ~191/s at 280 Hz,
+  `MsInPresentAPI` median 4.8 ms (> 1 vsync). ⇒ still unusable as-is; Phase 5 diagnoses first.
+- **Loop (P2-7):** clip content seamless (measured: edge x 38→19→(0≡304) at N-1→0, 19 px/frame); owner saw a jump —
+  explained by mpv `loop-file` (EOF, seek to 0, restart: ~50–90 ms gap). See D10.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
