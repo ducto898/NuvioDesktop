@@ -15,6 +15,11 @@
 
   -Kill ends the run with a hard kill of the app process (java.exe) instead of a normal close.
   -Compare <dir,dir,...> instead compares summary.json files for repeatability (SPEC P2-10).
+  -Cadence <dir> instead recomputes the PresentMon cadence section of an existing run folder (SPEC P2b-4).
+
+  Phase 2b spike knobs: -Opts "k=v;k=v" (NUVIO_RR_MEASURE_OPTS, mpv options set before the file loads) and
+  -HideOverlay (NUVIO_RR_MEASURE_HIDE_OVERLAY=1, hides the WebView2 controls overlay for the run).
+  -PresentMonCsv <csv> slices this run (app pid, file-loaded + 6 s .. close - 1 s) out of one long elevated capture.
 
 .PARAMETER Actions
   Comma list of key@second (seconds after file-loaded): space (pause toggle), right/left (seek),
@@ -32,6 +37,12 @@ param(
     [string]$Actions = '',
     [string]$Label = '',
     [string[]]$Compare,
+    [string]$Opts = '',
+    [switch]$HideOverlay,
+    [string]$Cadence = '',
+    # A long-running elevated PresentMon capture (--process_name java.exe --date_time) to slice this run out of,
+    # instead of one UAC prompt per run (Phase 2b).
+    [string]$PresentMonCsv = '',
     # Live rate expected before/after. Only for runs where switcher.exe holds a mode around the run (P2-19);
     # the registry mode must still be 280 before/during/after in every run.
     [double]$ExpectHz = 279.961
@@ -53,6 +64,65 @@ function Pct([double[]]$v, [double]$p) {
     if (-not $v -or $v.Count -eq 0) { return $null }
     $s = $v | Sort-Object
     return $s[[int][math]::Min($s.Count - 1, [math]::Floor($p * $s.Count))]
+}
+
+# PresentMon cadence of the player's swapchain (java.exe), SPEC P2b-4. Two present patterns exist:
+#  per-frame  (audio sync: one present per video frame) => MsBetweenDisplayChange = how long each frame was held;
+#  per-refresh (display-sync modes: one present per refresh, the same frame repeated) => every interval should be
+#   exactly 1 refresh; each longer interval is a missed refresh that lengthens one frame (and mpv then shortens
+#   another), so frames-at-ideal >= 1 - 2 * missedRefreshEvents / frames (a bound, combined with mpv's counters).
+function Get-Cadence([string]$csvPath, [double]$refreshHz, [double]$fps) {
+    $rows = @(Import-Csv $csvPath | Where-Object { $_.Application -eq 'java.exe' })
+    if ($rows.Count -lt 10 -or $refreshHz -le 0 -or $fps -le 0) { return $null }
+    $period = 1000.0 / $refreshHz
+    $frameMs = 1000.0 / $fps
+    $ideal = [int][math]::Round($frameMs / $period)
+    $dc = @($rows | Where-Object { $_.MsBetweenDisplayChange -and $_.MsBetweenDisplayChange -ne 'NA' } |
+        ForEach-Object { [double]$_.MsBetweenDisplayChange } | Where-Object { $_ -gt 0 })
+    $seconds = if ($rows[0].PSObject.Properties['TimeInMs']) { ([double]$rows[-1].TimeInMs - [double]$rows[0].TimeInMs) / 1000.0 } else {
+        $parse = { param($v) $d = $v.LastIndexOf('.'); if ($d -gt 0 -and $v.Length - $d -gt 8) { $v = $v.Substring(0, $d + 8) }; [datetime]::Parse($v) }
+        ((& $parse $rows[-1].TimeInDateTime) - (& $parse $rows[0].TimeInDateTime)).TotalSeconds
+    }
+    $presentRate = if ($seconds -gt 0) { $rows.Count / $seconds } else { 0 }
+    $hist = [ordered]@{}
+    $dc | ForEach-Object { [int][math]::Round($_ / $period) } | Group-Object | Sort-Object { [int]$_.Name } |
+        ForEach-Object { $hist["$($_.Name)"] = $_.Count }
+    $inPresent = @($rows | Where-Object { $_.MsInPresentAPI -and $_.MsInPresentAPI -ne 'NA' } | ForEach-Object { [double]$_.MsInPresentAPI })
+    $result = [ordered]@{
+        refreshHz = $refreshHz; fps = $fps; idealRefreshesPerFrame = $ideal; seconds = [math]::Round($seconds, 1)
+        presentsPerSecond = [math]::Round($presentRate, 2); displayChanges = $dc.Count; histogramRefreshes = $hist
+        msInPresentApiMedian = Median $inPresent; msInPresentApiP95 = Pct $inPresent 0.95
+        presentModes = [ordered]@{}
+    }
+    $rows | Group-Object PresentMode | ForEach-Object { $result.presentModes[$_.Name] = $_.Count }
+    if ($presentRate -gt 2 * $fps) {
+        $result.pattern = 'per-refresh'
+        $missedEvents = @($dc | Where-Object { [math]::Round($_ / $period) -gt 1 }).Count
+        $missedRefreshes = ($dc | ForEach-Object { [math]::Max(0, [math]::Round($_ / $period) - 1) } | Measure-Object -Sum).Sum
+        $frames = $seconds * $fps
+        $result.missedRefreshEvents = $missedEvents
+        $result.missedRefreshes = [int]$missedRefreshes
+        $result.pctIntervalsOneRefresh = [math]::Round(100.0 * ($dc.Count - $missedEvents) / [math]::Max(1, $dc.Count), 3)
+        $result.pctFramesAtIdealLowerBound = [math]::Round([math]::Max(0, 100.0 * (1 - 2 * $missedEvents / [math]::Max(1, $frames))), 3)
+    } else {
+        $result.pattern = 'per-frame'
+        $atIdeal = @($dc | Where-Object { [math]::Round($_ / $period) -eq $ideal }).Count
+        $mean = ($dc | Measure-Object -Average).Average
+        $std = [math]::Sqrt((($dc | ForEach-Object { ($_ - $mean) * ($_ - $mean) } | Measure-Object -Sum).Sum) / $dc.Count)
+        $result.pctFramesAtIdeal = [math]::Round(100.0 * $atIdeal / $dc.Count, 2)
+        $result.holdMsMean = [math]::Round($mean, 3); $result.holdMsStd = [math]::Round($std, 3)
+        $result.holdMsMeanAbsDev = [math]::Round(($dc | ForEach-Object { [math]::Abs($_ - $frameMs) } | Measure-Object -Average).Average, 3)
+    }
+    return $result
+}
+
+# ---------------------------------------------------------------- cadence mode (P2b-4)
+if ($Cadence) {
+    $dir = if (Test-Path $Cadence) { $Cadence } else { Join-Path $measureRoot $Cadence }
+    $sum = Get-Content (Join-Path $dir 'summary.json') -Raw | ConvertFrom-Json
+    $hz = Median (@(Import-Csv (Join-Path $dir 'observer.csv') | Where-Object { $_.event -eq 'tick' } | ForEach-Object { [double]$_.hz }))
+    Get-Cadence (Join-Path $dir 'presentmon.csv') $hz ([double]$sum.mpv.containerFps) | ConvertTo-Json -Depth 4
+    exit 0
 }
 
 # ---------------------------------------------------------------- compare mode (P2-10)
@@ -137,6 +207,7 @@ $envSet = @{
     NUVIO_RR_MEASURE_SYNC = $Sync; NUVIO_RR_MEASURE_SWITCH_HZ = $(if ($SwitchHz) { "$SwitchHz" } else { '' })
     NUVIO_DESKTOP_SMOKE_PLAYER_URL = 'file:///' + ($clipPath -replace '\\', '/')
     NUVIO_RR_MEASURE_IPC = $(if ($Actions) { '1' } else { '' })
+    NUVIO_RR_MEASURE_OPTS = $Opts; NUVIO_RR_MEASURE_HIDE_OVERLAY = $(if ($HideOverlay) { '1' } else { '' })
 }
 foreach ($k in $envSet.Keys) { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envSet[$k]) }
 try {
@@ -298,7 +369,7 @@ for ($i = 1; $i -lt $times.Count; $i++) { $gaps += ($times[$i] - $times[$i - 1])
 
 $summary = [ordered]@{
     run = $runName; clip = $clipName; seconds = $Seconds; fullscreenRequested = [bool]$Fullscreen; sync = $Sync; switchHz = $SwitchHz
-    actions = $Actions; forcedClose = $forced
+    actions = $Actions; forcedClose = $forced; opts = $Opts; hideOverlay = [bool]$HideOverlay
     windows = [ordered]@{
         before = & $winState $first
         during = [ordered]@{
@@ -335,6 +406,18 @@ foreach ($k in $summary.mpv.counters.Keys) {
     $perMin[$k] = if ($null -eq $c -or $minutes -le 0) { $null } else { [math]::Round($c / $minutes, 2) }
 }
 $summary.mpv.countersPerMinute = $perMin
+$summary.mpv.dropsPlusMistimedPerMinute = if ($null -ne $perMin.frameDrops -and $null -ne $perMin.mistimed) { $perMin.frameDrops + $perMin.mistimed } else { $null }
+# Audio underruns after the first 5 s of playback (P2b-13), occlusion/present messages (P2b-10), knob results (P2b-1/2).
+$loadWall = ($lines | Where-Object { $_ -match '\bE file-loaded\b' } | Select-Object -First 1)
+$underrunLines = @($lines | Where-Object { $_ -match 'Audio device underrun detected' })
+$lateUnderruns = if ($loadWall) {
+    $t0 = & $toTime ($loadWall.Substring(0, 12))
+    @($underrunLines | Where-Object { ((& $toTime ($_.Substring(0, 12))) - $t0).TotalSeconds -gt 5 }).Count
+} else { $null }
+$summary.mpv.audioUnderruns = [ordered]@{ total = $underrunLines.Count; afterFirst5s = $lateUnderruns }
+$summary.mpv.occlusionOrPresentMessages = @($lines | Where-Object { $_ -match '^\S+ M ' -and $_ -match '(?i)occlu|DXGI_STATUS|present.*(fail|error)|device (lost|removed)' } |
+    Select-Object -First 20)
+$summary.mpv.knobLines = @($lines | Where-Object { $_ -match '^\S+ (opt |hide-overlay: |knob: )' } | Select-Object -First 40 | ForEach-Object { $_.Substring(13) })
 $lastFs = if ($samples.Count) { $samples[-1].fs } else { 'na' }   # first ~2 s may predate the F11 toggle
 $summary.mpv.fullscreenAtEnd = $lastFs
 if (($lastFs -eq 'yes') -ne [bool]$Fullscreen) { $problems += "window mode at end fs=$lastFs, requested fullscreen=$([bool]$Fullscreen)" }
@@ -346,6 +429,38 @@ if ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280) { $problems += "registry m
 if (Test-Path "$out\power.csv") {
     $pw = Get-Content "$out\power.csv" | ForEach-Object { $c = $_ -split ',\s*'; [pscustomobject]@{ W = [double]$c[1]; Clock = [double]$c[2]; Util = [double]$c[4] } }
     $summary.power = [ordered]@{ samples = @($pw).Count; wattsMedian = Median ($pw.W); clockMedian = Median ($pw.Clock); utilMedian = Median ($pw.Util) }
+}
+if ($PresentMonCsv -and $appPid -and $loadedAt -and (Test-Path $PresentMonCsv) -and (Get-Item $PresentMonCsv).LastWriteTime -ge $loadedAt) {  # stale capture => no slice (pids get reused)
+    $from = $loadedAt.AddSeconds(6); $to = $closeAt.AddSeconds(-1)
+    $fs = [IO.File]::Open($PresentMonCsv, 'Open', 'Read', 'ReadWrite')
+    $reader = New-Object IO.StreamReader($fs)
+    $header = $reader.ReadLine().TrimStart([char]0xFEFF)
+    $cols = $header -split ','
+    $pidIdx = [array]::IndexOf($cols, 'ProcessID')
+    $timeIdx = [array]::FindIndex($cols, [Predicate[string]] { param($c) $c -like 'CPUStart*' })
+    $mine = New-Object System.Collections.Generic.List[object]
+    while ($null -ne ($row = $reader.ReadLine())) {
+        $c = $row -split ','
+        if ($c.Count -le $timeIdx -or $c[$pidIdx] -ne "$appPid") { continue }
+        $ts = $c[$timeIdx]
+        $dot = $ts.LastIndexOf('.'); if ($dot -gt 0 -and $ts.Length - $dot -gt 8) { $ts = $ts.Substring(0, $dot + 8) }  # ns -> 100 ns
+        $t = [datetime]::MinValue
+        if ([datetime]::TryParse($ts, [ref]$t)) { $mine.Add([pscustomobject]@{ T = $t; Row = $row }) }
+    }
+    $reader.Dispose()
+    # PresentMon 2.6 --date_time is off by a whole timezone offset on this PC (measured +7 h = UTC+7 applied twice).
+    # Calibrate per run: the app's last present is just before its close; round the difference to 15 min.
+    $offset = [timespan]::Zero
+    if ($mine.Count) {
+        $diffMin = ($mine[$mine.Count - 1].T - $closeAt).TotalMinutes
+        $offset = [timespan]::FromMinutes(15 * [math]::Round($diffMin / 15))
+    }
+    $kept = New-Object System.Collections.Generic.List[string]
+    $kept.Add($header)
+    foreach ($m in $mine) { $t = $m.T - $offset; if ($t -ge $from -and $t -le $to) { $kept.Add($m.Row) } }
+    $kept | Set-Content -Encoding utf8 "$out\presentmon.csv"
+    $summary.presentMonSlice = [ordered]@{ source = $PresentMonCsv; rows = $kept.Count - 1; from = $from.ToString('HH:mm:ss.fff'); to = $to.ToString('HH:mm:ss.fff'); timeColumn = $cols[$timeIdx]; clockOffsetMinutes = $offset.TotalMinutes }
+    if ($kept.Count -lt 100) { $problems += "PresentMon slice has only $($kept.Count - 1) rows (capture not running or not flushed?)" }
 }
 if (Test-Path "$out\presentmon.csv") {
     $pm = Import-Csv "$out\presentmon.csv"
@@ -359,6 +474,10 @@ if (Test-Path "$out\presentmon.csv") {
         presentModes = $modes
         javaMsBetweenDisplayChange = [ordered]@{ count = $javaDc.Count; median = Median $javaDc; p05 = Pct $javaDc 0.05; p95 = Pct $javaDc 0.95
             offVsyncGridOver0_5ms = $offGrid; vsyncPeriodMs = [math]::Round($period, 4) }
+    }
+    $duringHz = Median (@($during | ForEach-Object { [double]$_.hz }))
+    if ($duringHz -and $summary.mpv.containerFps) {
+        $summary.cadence = Get-Cadence "$out\presentmon.csv" $duringHz ([double]$summary.mpv.containerFps)
     }
 }
 

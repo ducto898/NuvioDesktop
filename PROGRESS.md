@@ -10,8 +10,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   patch) — **added to the known-failure baseline (owner approved 2026-09-28)**; baseline is now 8 entries.
 - **Next (changed 2026-09-28, owner-approved, D11):** **Phase 2b — display-resample spike** BEFORE Phase 3, in a fresh
   session: read docs/PLAN.md "Phase 2b", write P2b acceptance criteria into SPEC.md, stop at the gate. Then Phase 3.
-  **2026-09-28: P2b-1..P2b-16 written into SPEC.md; waiting at the gate for owner approval** (incl. the two new
-  measure-only knobs `NUVIO_RR_MEASURE_OPTS` and `NUVIO_RR_MEASURE_HIDE_OVERLAY`).
+  2026-09-28: P2b criteria approved ("ok"). **Spike run (21 runs, 11:04–13:28): NOT PASS yet, cause narrowed**
+  (docs/research/10-display-resample-spike.md). The NVIDIA global profile has **Max Frame Rate = 200** (read-only probe);
+  display-resample either collapses (Present with vsync blocks ~235 ms ⇒ est. display fps ≈ 6.5, at 240 AND 120 Hz,
+  windowed AND fullscreen) or, with `d3d11-sync-interval=0`, runs into the 200/s cap. **Waiting for the owner (Q9 below).**
 - **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
@@ -120,7 +122,10 @@ suite, ≈ 15 s with only the patch tests.
   while paused: impossible on this monitor → **waived**, PresentMon grid evidence (resume lands on the 280 Hz grid) accepted.
 
 ## Open questions for owner
-(none)
+- Q9 (Phase 2b, 2026-09-28): approve ONE driver-profile experiment: a new NVIDIA application profile for `java.exe` with
+  Max Frame Rate = Off (the global 200 cap untouched), re-run S1 at 239.901 windowed + fullscreen, then delete the profile?
+  (Alternative: the owner turns global Max Frame Rate off in the NVIDIA App for the test and back on after.)
+  If it still fails ⇒ choose (a) switch + audio sync only, (b) deeper fix (libmpv render API), (c) stop.
 
 ## Effort / token budget (rough)
 | Phase | Estimate | Actual |
@@ -128,7 +133,7 @@ suite, ≈ 15 s with only the patch tests.
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
-| 2b Resample spike | ~150–250k | criteria ≈ 45k so far |
+| 2b Resample spike | ~150–250k | ≈ 175k so far (criteria 45k + 21 runs/diagnosis ≈ 130k); verifier round not yet run |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |
@@ -193,6 +198,14 @@ suite, ≈ 15 s with only the patch tests.
   1.79 ms; fixed 240 std 2.08 ms / mean |dev| 1.05 ms ⇒ same total unevenness, different shape (constant fine wobble vs
   mostly-perfect with ±4.2 ms bursts). Owner also reports edges look smeared by eye: sample-and-hold blur, 640 px/s × 41.7 ms
   ≈ 27 px, inherent to 24 fps (not changed by refresh rate). Reference "before" for Phase 2b.
+- **Phase 2b spike (2026-09-28, docs/research/10):** correction to the Phase 2 display-resample notes: the ≈ 6 Hz vs
+  ≈ 191 Hz split was **not** windowed vs fullscreen but **whether a PresentMon (ETW) trace was consuming**. With no
+  trace, display-resample collapses (est. ≈ 6.5, `video-flip` median 235 ms) windowed and fullscreen, at 240 and 120 Hz,
+  overlay hidden or not. `d3d11-sync-interval=0` or an active trace give ≈ 200 presents/s, flips exactly every 5.000 ms,
+  ≈ 450 mistimed/min at 240 Hz. NVIDIA global DRS: `FRL_FPS` (Max Frame Rate) = 200, user-set; VRR_MODE 1; VRR_APP_OVERRIDE 1;
+  VSYNCMODE application-controlled; no java.exe profile (`scripts/rr-tools/drsprobe.cpp`, read-only). PresentMon runs
+  are therefore NOT representative for display-sync modes; use mpv counters + `dump-stats`. PresentMon 2.6 `--date_time`
+  is +7 h off on this PC (measure.ps1 `-PresentMonCsv` calibrates it). A `d3d11-flip=no` run stalled PresentMon's output.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
@@ -219,3 +232,6 @@ suite, ≈ 15 s with only the patch tests.
   Baselines repeatable (P2-10 PASS). Findings: mpv misses external mode changes; display-resample broken in the embedded
   player (est. display fps ≈ 6); VRR not engaged windowed; monitor off/on drops the temporary mode. Verifier round 1
   found verify.ps1 tests writing the OFFICIAL profile (one cache file) → fixed (D8); other findings fixed as listed above.
+- 2026-09-28 Phase 2b: criteria P2b-1..16 approved. Knobs OPTS/HIDE_OVERLAY + measure.ps1 -Opts/-HideOverlay/-Cadence/
+  -PresentMonCsv built (upstream diff still 2 lines). 21 runs: overlay ruled out (S4), render cost ruled out, sync modes
+  and swapchain options don't fix it; found the driver's 200 fps limiter. Stopped for Q9 (driver-profile change needs approval).

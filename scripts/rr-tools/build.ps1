@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Build the refresh-rate kill-test tools (observer, switcher, restore) with MSVC.
+  Build the refresh-rate kill-test tools (observer, switcher, restore) and the read-only drsprobe with MSVC.
   Output: <NuvioRate>\tools\rr-tools\*.exe (outside the repo). Fork tooling, SPEC P2-12.
 #>
 param([string]$OutDir = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) 'tools\rr-tools'))
@@ -18,7 +18,7 @@ if (-not $vcvars) {
 if (-not $vcvars) { throw 'vcvars64.bat not found (see FORK.md toolchain)' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $src = $PSScriptRoot
-$cmds = foreach ($tool in 'observer', 'switcher', 'restore') {
+$cmds = foreach ($tool in 'observer', 'switcher', 'restore', 'drsprobe') {
     "cl /nologo /EHsc /O2 /W4 /DUNICODE /D_UNICODE /Fe:`"$OutDir\$tool.exe`" /Fo:`"$OutDir\\`" `"$src\$tool.cpp`" user32.lib || exit /b 1"
 }
 $bat = Join-Path $OutDir 'build.bat'
