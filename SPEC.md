@@ -68,7 +68,7 @@ Everything new is gated by env `NUVIO_RR_MEASURE=1` (set only by `scripts/measur
   never touches mpv — auto (code review) + auto (log: max gap between sample starts ≤ 1.5 s during playback; `cost_ms`)
 - P2-5 — Measure-only knobs, each read only when `NUVIO_RR_MEASURE=1`: `NUVIO_RR_MEASURE_DIR=<dir>` (log folder;
   measure.ps1 uses the run folder), `NUVIO_RR_MEASURE_IPC=1` (mpv `input-ipc-server` on `\\.\pipe\nuvio-rr-<pid>`, so
-  measure.ps1 can pause/seek; added 2026-09-28 after key injection proved unreliable), `NUVIO_RR_MEASURE_SYNC=<video-sync mode>`
+  measure.ps1 can pause/seek; DIR and IPC added 2026-09-28 after key injection proved unreliable, owner-approved), `NUVIO_RR_MEASURE_SYNC=<video-sync mode>`
   (sets `video-sync` for the power check) and `NUVIO_RR_MEASURE_SWITCH_HZ=<hz>` (switches the player's monitor with
   `ChangeDisplaySettingsExW(..., CDS_FULLSCREEN)` after file load, never `CDS_UPDATEREGISTRY`; used only for kill
   test J and the display-fps re-detection check). The registry mode stays 280 Hz throughout — auto (registry read

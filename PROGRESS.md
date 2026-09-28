@@ -94,14 +94,20 @@ suite, ≈ 15 s with only the patch tests.
   only); G-SYNC enabled. Value meanings from NVIDIA/nvapi `NvApiDriverSettings.h`. ⇒ the favourable case for R11;
   still to be confirmed per present mode in Phase 2 (app fullscreen is borderless, not exclusive).
 - Q6 a short black screen when switching: **fine**.
-- Q7 PresentMon (portable, `NuvioRate	ools`): **OK**.
+- Q7 PresentMon (portable, `NuvioRate\tools`): **OK**.
 - Q8 highest multiple: **yes, if no downside** (smoother UI). Known potential downside: GPU power at 240 presents/s
   under display-resample (esp. with RTX VSR) ⇒ Phase 2 measures GPU power at 240 vs 120 Hz; revisit only if material.
 
 ## Owner answers (Phase 2 gate, 2026-09-28)
 - Phase 2 criteria P2-0..P2-19 **approved**, incl. P2-5 (measure-only in-app switch knob) and P2-12 (kill-test tools committed).
 - `HomeHeroSectionTest` (upstream 660→640 dp mismatch) added to the known-upstream-failure baseline: **approved**.
-- PresentMon portable download into `NuvioRate	ools` + UAC prompt: **approved**.
+- PresentMon portable download into `NuvioRate\tools` + UAC prompt: **approved**.
+- (later, 2026-09-28) Restore the official enrichment file from backup: **yes** (done). P2-4 rewording: **approved**.
+  Extra ~100k tokens for Phase 2: **OK**. Mode switching, not VRR pacing (D9): **decided**.
+- Official `%LOCALAPPDATA%\Nuvio\WebView2` written by dev runs: **leave it** (no restore).
+- Extra measure-only knobs `NUVIO_RR_MEASURE_DIR` and `NUVIO_RR_MEASURE_IPC` (mpv IPC pipe, only in measure runs): **approved**.
+- P2-13 per-case blank notes: owner's collective note (≈ 1 s per switch, no brightness pop) **accepted**. P2-17 OSD reading
+  while paused: impossible on this monitor → **waived**, PresentMon grid evidence (resume lands on the 280 Hz grid) accepted.
 
 ## Open questions for owner
 (none)
