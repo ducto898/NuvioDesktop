@@ -19,8 +19,9 @@
   Extra Gradle arguments (e.g. -Pnuvio.desktop.smokePlayerUrl=...).
 
 .PARAMETER Feature
-  Turn refresh-rate matching on (NUVIO_RR_ENABLE=1, the dev knob until the Phase 6 setting). Its log is
-  <ProfileRoot>\Local\Nuvio\Cache\refresh-rate.log.
+  Force refresh-rate matching on (NUVIO_RR_ENABLE=1, the dev/measure override of the "Match display refresh rate"
+  setting in Settings > Playback > Display; NUVIO_RR_ENABLE=0 forces it off). Without -Feature and without the
+  variable, the dev profile's setting decides. Its log is <ProfileRoot>\Local\Nuvio\Cache\refresh-rate.log.
 #>
 param(
     [string]$ProfileRoot = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'devprofile'),

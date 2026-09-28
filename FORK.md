@@ -8,14 +8,16 @@ Behaviour and acceptance criteria: [`SPEC.md`](SPEC.md). Status: [`PROGRESS.md`]
 > update runbook, conflict hot spots, updater, app identity).
 
 ## 1. What the patch does
-_Being built (Phases 3–6)._ See SPEC.md §1. State after Phase 4: with `NUVIO_RR_ENABLE=1` (dev knob;
-`scripts/run-dev.ps1 -Feature`) the player switches the monitor to the best integer multiple of the video fps before
+_Being built (Phases 3–8)._ See SPEC.md §1. **Turn it on:** Settings → Playback → Display → "Match display refresh
+rate" (Windows only, default off, stored per PC in `nuvio_refresh_rate.properties`, not synced to other devices or
+profiles; applies from the next video). Override for dev/measure runs: `NUVIO_RR_ENABLE=1` forces it on
+(`scripts/run-dev.ps1 -Feature`, `measure.ps1 -Feature`), `NUVIO_RR_ENABLE=0` forces it off (measure.ps1's default
+for baseline runs), unset = the setting. When on, the player switches the monitor to the best integer multiple of the video fps before
 mpv creates its video output, verifies it, and restores it when the player screen goes away, the window closes or the
 JVM exits (Windows itself reverts it on a crash or kill). Since Phase 5 a switched playback also gets display-synced
 mpv timing (`video-sync=display-resample`, `interpolation=no`, `display-fps-override=<exact rate>`), set before the
 video starts. If the session ends mid-playback (the monitor lost the mode twice, the window moved) or display sync is
-clearly broken (health check), mpv goes back to its own timing while it keeps playing. There is no settings toggle yet
-(Phase 6). Log: `%LOCALAPPDATA%\Nuvio\Cache\refresh-rate.log` (dev profile in dev runs). Driver requirements: §9.
+clearly broken (health check), mpv goes back to its own timing while it keeps playing. Log: `%LOCALAPPDATA%\Nuvio\Cache\refresh-rate.log` (dev profile in dev runs). Driver requirements: §9.
 
 ## 2. Files and hooks touched
 SPEC.md §2 (hook lines, each tagged `nuvio-rr fork hook Hn`) and §3 (new files). `scripts/verify.ps1 -Full` prints
@@ -82,7 +84,12 @@ pwsh -File scripts/run-dev.ps1        # run the dev build with an ISOLATED profi
 _TBD (Phase 8)._
 
 ## 5. Known conflict hot spots
-_TBD._
+_Partial; completed in Phase 8._
+- `PlaybackSettingsPage.kt`, the `if (isWindows)` "NVIDIA RTX Video" section: H9 sits on the line right after it.
+  If upstream moves or removes that section, keep H9 at the same level (inside `PlaybackSettingsSection`), below RTX.
+- `values/strings.xml` around `settings_playback_nvidia_rtx_super_resolution_desc` (H10, 3 lines).
+- `player_bridge.cpp` `startMpv()` / `drainMpvEvents()` / `shutdown()` (H2, H4, H5) and `PlayerEngine.desktop.kt`
+  `DisposableEffect(host)` (H6), `Main.kt` `onCloseRequest` (H8).
 
 ## 6. Verifying after an update
 _TBD._ Includes: re-run `scripts/measure.ps1` after **every NVIDIA driver update**, not only

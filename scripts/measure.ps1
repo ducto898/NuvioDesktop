@@ -29,6 +29,13 @@
   corrections, and the timing options mpv reports.
   -CloseAfterSwitchMs <ms> closes the window <ms> after the feature's switch call (dispose-mid-switch, P4-12).
 
+  Phase 6 (the setting): NUVIO_RR_ENABLE is the override ("1" on, "0" off, unset = the "Match display refresh rate"
+  setting). -Feature passes "1"; -Setting on|off writes the setting into the DEV profile's nuvio_refresh_rate store
+  before launch and leaves NUVIO_RR_ENABLE unset (-Setting absent deletes that store: the fresh-profile case); with neither, "0" is passed, so a baseline run stays off whatever
+  the dev profile holds. -EnableEnv 0|1 passes that value explicitly (e.g. -EnableEnv 0 -Setting on, P6-7).
+  Fault kind enable-upcall: the H2 upcall fails, so the player must play without the feature (P6-10).
+  summary.json "enable" = the env passed, the store file after the run, the enable/upcall lines of the log.
+
 .PARAMETER Actions
   Comma list of key@second (seconds after file-loaded): space (pause toggle), right/left (seek),
   mouse (wiggle the cursor over the window so the controls show), f11. Example: 'space@40,space@60'.
@@ -56,7 +63,9 @@ param(
     [double]$ExpectHz = 279.961,
     [switch]$Feature,
     [string]$Fault = '',
-    [int]$CloseAfterSwitchMs = -1
+    [int]$CloseAfterSwitchMs = -1,
+    [ValidateSet('', 'on', 'off', 'absent')][string]$Setting = '',
+    [ValidateSet('', '0', '1')][string]$EnableEnv = ''
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -221,6 +230,16 @@ if (Test-Path $windowState) {
     Set-Content -Encoding ascii $windowState "was_fullscreen=$wantFs"
 }
 
+# Phase 6 (P6-8): the setting goes into the DEV profile's store only (never the official one).
+$settingStore = Join-Path $root 'devprofile\Roaming\Nuvio\nuvio_refresh_rate.properties'
+if ($Setting -eq 'absent') {
+    Remove-Item $settingStore -ErrorAction SilentlyContinue   # fresh-profile case (P6-5)
+} elseif ($Setting) {
+    New-Item -ItemType Directory -Force (Split-Path $settingStore) | Out-Null
+    Set-Content -Encoding ascii $settingStore "match_display_refresh_rate=$(if ($Setting -eq 'on') { 'true' } else { 'false' })"
+}
+$enableValue = if ($EnableEnv) { $EnableEnv } elseif ($Feature) { '1' } elseif ($Setting) { '' } else { '0' }
+
 $savedEnv = @{}
 $envSet = @{
     NUVIO_RR_MEASURE = '1'; NUVIO_RR_MEASURE_DIR = $out
@@ -228,7 +247,7 @@ $envSet = @{
     NUVIO_DESKTOP_SMOKE_PLAYER_URL = 'file:///' + ($clipPath -replace '\\', '/')
     NUVIO_RR_MEASURE_IPC = $(if ($Actions) { '1' } else { '' })
     NUVIO_RR_MEASURE_OPTS = $Opts; NUVIO_RR_MEASURE_HIDE_OVERLAY = $(if ($HideOverlay) { '1' } else { '' })
-    NUVIO_RR_ENABLE = $(if ($Feature) { '1' } else { '' }); NUVIO_RR_FAULT = $Fault
+    NUVIO_RR_ENABLE = $enableValue; NUVIO_RR_FAULT = $Fault
 }
 foreach ($k in $envSet.Keys) { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envSet[$k]) }
 try {
@@ -536,8 +555,18 @@ if (Test-Path "$out\presentmon.csv") {
     }
 }
 
+# Phase 6 enable evidence (P6-5..P6-10).
+$enableLines = if (Test-Path $featureLog) { @(Get-Content $featureLog | Where-Object { $_ -match 'player p\d+ created|enable upcall' }) } else { @() }
+$summary.enable = [ordered]@{
+    env = $enableValue; setting = $Setting
+    storeAfter = if (Test-Path $settingStore) { @(Get-Content $settingStore | Where-Object { $_ -notmatch '^#' }) } else { $null }
+    featureLogExists = Test-Path $featureLog
+    lines = $enableLines
+    upcallMs = @($enableLines | ForEach-Object { if ($_ -match '(?:upcall |\) in )([\d.]+) ms') { [double]$Matches[1] } })
+}
+
 # Phase 4 feature log (P4-10, P4-19, P4-20) and crash evidence (P4-12).
-if ($Feature) {
+if ($Feature -or $Setting -eq 'on' -or $EnableEnv -eq '1') {
     $fl = if (Test-Path $featureLog) { @(Get-Content $featureLog) } else { @() }
     $ms = { param($pattern) @($fl | ForEach-Object { if ($_ -match $pattern) { [double]$Matches[1] } }) }
     $firstSwitch = $fl | Where-Object { $_ -match 'CDS_FULLSCREEN\) = ' } | Select-Object -First 1

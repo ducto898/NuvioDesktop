@@ -51,6 +51,19 @@ The only memory between phases. Read it at the start of every phase; update it a
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
   H7 line is not needed. Upstream diff target: 7 code lines + 3 string lines.
+  **Code 2026-09-28 (resumed 22:45 after the hook hang, see Incidents):** A `1949ae5b` (tests + stubs, red 10/144),
+  B `2fd4c5e7` (Kotlin + UI + H9/H10, green, test diff A→B empty), C `1f71038c` (native per-player enable upcall,
+  fault `enable-upcall`). No Phase 3–5 test changed. Deviation from the SPEC wording: `nativeFeatureEnabled()` returns
+  an Int (0 off / 1 env / 2 setting / -1 error) instead of Boolean, so the log names the source (SPEC Design note added).
+  measure.ps1: `-Setting on|off|absent`, `-EnableEnv 0|1`, default env `0`; summary `enable` section. Docs: SPEC §1–3,
+  FORK §1/§5, run-dev/measure help (P6-13). verify -Fast green; **verify -Full not run yet.**
+  **Measure runs BLOCKED 23:09 (Q27):** the Windows default mode is now **240 Hz** (registry 240 before the first run,
+  feature off, no feature log; restore.exe falls back to 240). All runs up to 20:14 ended at 280, and no code in either
+  session switches modes, so most likely it was changed by hand after 20:14. Batch stopped after run 1
+  (`*-p6-default-off-fs`: invalid for P6-5, but it shows the setting absent ⇒ no refresh-rate.log, sync=audio).
+  Also seen: one extra mpv line `Set property: volume=100` vs p5-off-fs (to check; likely the dev profile's volume, not
+  the feature). Next once 280 is back: one batch of 7 runs (60 s, sdr-1080p-23.976) (P6-5 absent+fs, P6-9 off/on/off, P6-7 env0+on,
+  env1+off, P6-10 fault enable-upcall), then verify -Full, lean verifier round, owner checklist P6-12.
 - **Phase 5 carry-overs from Phase 4:** apply `Timing` (it is computed and logged; hook worker in
   display_mode_matcher.cpp `runHook`, "logged only in Phase 4"); a Q15 move / `mode-lost-again` / screen-gone restore
   mid-playback must switch mpv back to upstream timing at runtime; audio sync at 240 shows a few drops at 59.94 and VFR
@@ -218,6 +231,10 @@ suite, ≈ 15 s with only the patch tests.
 - P6-1..P6-13 **approved**; Q23 per PC **yes**; Q24 env override **yes**; Q25 next video **yes**; Q26 wording **OK**.
 
 ## Open questions for owner
+- Q27 (Phase 6, 2026-09-28 23:09): the monitor's Windows default is now 240 Hz (was 280 all day). Did you change it?
+  Phase 6 runs need 280 as the default (every criterion compares against 279.961). Set it back to 280 in Windows
+  display settings (I won't change a Windows default myself), or say if 240 is the new normal (then the P6 limits
+  need rewriting: at 240 the feature finds "already at target" for 24 fps).
 - Q23 (Phase 6, ANSWERED yes): setting stored **per PC** (one value for every Nuvio profile, not synced to other devices)? It is about
   this monitor, so recommended **yes**. Alternative: per Nuvio profile like the RTX VSR switch.
 - Q24 (Phase 6, ANSWERED yes): keep `NUVIO_RR_ENABLE` as a dev/measure override (`1` forces on, `0` forces off, unset = the setting)?

@@ -6,7 +6,11 @@ re-verifying the patch after an upstream update. Keep it in sync with the code.
 Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `083921cf` (2026-09-27).
 
 ## 1. Behaviour
-State after Phase 5 (details in §4 per phase; the toggle is Phase 6, until then `NUVIO_RR_ENABLE=1`):
+State after Phase 6 (details in §4 per phase):
+- On/off: the setting **"Match display refresh rate"** (Settings → Playback → Display, Windows only, default OFF, per
+  PC in `nuvio_refresh_rate.properties`, not synced). Read once per player at H2, so a change applies from the next
+  video. `NUVIO_RR_ENABLE` is a dev/measure override: `1` forces on, `0` forces off, unset = the setting. Off ⇒ no mpv
+  hook, no log, no thread (= upstream).
 - At mpv's `on_preloaded` hook (before VO init) the glue reads the fps and the NVIDIA driver's Max Frame Rate, Kotlin
   decides (`decide()`: highest k·fps mode, 1000/1001 tolerance, same resolution + bpc; none ⇒ no switch; a frame cap
   below 1.05 × target ⇒ no switch), switches with `CDS_FULLSCREEN`, settles, verifies.
@@ -35,11 +39,19 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | same | H5 `nuvio_rr::onPlayerShutdown(this)` first line of `shutdown()` | 1 |
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt` | H6 `RefreshRateMatch.onScreenGone()` (fully qualified, no import) first line of `DisposableEffect(host).onDispose` | 1 |
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt` | H8 `RefreshRateMatch.onAppExit()` (fully qualified) first line of `onCloseRequest` | 1 |
+| `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/PlaybackSettingsPage.kt` | H9 `RefreshRateMatchSettingsSection(isTablet = isTablet)` (fully qualified) right after the `if (isWindows)` "NVIDIA RTX Video" section | 1 |
+| `composeApp/src/commonMain/composeResources/values/strings.xml` | H10 3 strings after `settings_playback_nvidia_rtx_super_resolution_desc` (`settings_playback_display_section`, `settings_playback_match_refresh_rate`, `settings_playback_match_refresh_rate_desc`), XML comment on each; other locales fall back to English | 3 |
+
+H7 (a Kotlin line pushing the setting to native) was planned but is not needed: H2 asks Kotlin itself (Phase 6).
 
 ## 3. New files
 | File | Purpose |
 |---|---|
-| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`; closes/reopens its anonymous namespace for `<dxgi1_2.h>` and the JNI exports; `#pragma comment(lib, "dxgi.lib")`). Phase 2/2b: measure-only sampler + knobs. Phase 4: feature config (`NUVIO_RR_ENABLE`, `NUVIO_RR_FAULT`), `refresh-rate.log` sink, player registry, `on_preloaded` hook worker + JNI upcall, Win32 port (QDC query, DXGI modes, CDS switch + settle, restore), JNI exports for `NativeDisplayPort`. Phase 5: timing apply/revert with saved values (`applyDisplaySyncLocked`, `setTiming`), `timingStats`, read-only NVAPI DRS read (`readDriverSettings`), fault kinds `timing-set`/`drop-mode`, query-failure log once per change |
+| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`; closes/reopens its anonymous namespace for `<dxgi1_2.h>` and the JNI exports; `#pragma comment(lib, "dxgi.lib")`). Phase 2/2b: measure-only sampler + knobs. Phase 4: feature config (`NUVIO_RR_ENABLE`, `NUVIO_RR_FAULT`), `refresh-rate.log` sink, player registry, `on_preloaded` hook worker + JNI upcall, Win32 port (QDC query, DXGI modes, CDS switch + settle, restore), JNI exports for `NativeDisplayPort`. Phase 5: timing apply/revert with saved values (`applyDisplaySyncLocked`, `setTiming`), `timingStats`, read-only NVAPI DRS read (`readDriverSettings`), fault kinds `timing-set`/`drop-mode`, query-failure log once per change. Phase 6: per-player enable at H2 through the `nativeFeatureEnabled` upcall (`upcallFeatureEnabled`, `gFeatureUsed` gates H4/H5), fault kind `enable-upcall` |
+| `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSetting.kt` + `.desktop.kt`/`.android.kt`/`.ios.kt` | `expect object RefreshRateMatchSetting` (`available`, `enabled`, `setEnabled`); desktop: store `nuvio_refresh_rate`, key `match_display_refresh_rate`, `RefreshRateMatchPreference`; android/iOS: unavailable no-op (P6-3, P6-4) |
+| `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSettingsSection.kt` | the "Display" section with the switch, nothing when unavailable (P6-11) |
+| `.../refreshrate/runtime/RefreshRateEnablement.kt` | the enable rule: env override, else the setting; native codes 0/1/2, -1 on error (P6-3, P6-7) |
+| `composeApp/src/desktopTest/kotlin/.../refreshrate/runtime/RefreshRateEnablementTest.kt`, `RefreshRateMatchSettingTest.kt` | Phase 6 tests |
 | `.../refreshrate/ResampleHealth.kt` | pure health rule for display-synced timing (P5-11) |
 | `composeApp/src/desktopTest/kotlin/.../refreshrate/ResampleHealthTest.kt`, `.../runtime/RefreshRateTimingTest.kt` | Phase 5 tests (P5-7, P5-10, P5-11) |
 | `.../refreshrate/runtime/DisplayPort.kt` | `DisplayPort` interface (the Win32 side) + `StartInput` (P4-5..P4-9) |
@@ -47,7 +59,7 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | `.../refreshrate/runtime/RefreshRateDispatcher.kt` | one daemon thread `nuvio-rr`, bounded waits, 1 s watcher (P4-13, P4-16) |
 | `.../refreshrate/runtime/NativeCodec.kt` | `long[]` layouts across JNI |
 | `.../refreshrate/runtime/NativeDisplayPort.kt` | `external` functions implemented in `display_mode_matcher.cpp` |
-| `.../refreshrate/runtime/RefreshRateMatch.kt` | process-global entry points: native upcall, H6, H8, JVM shutdown hook; Kermit tag `RefreshRateMatch` |
+| `.../refreshrate/runtime/RefreshRateMatch.kt` | process-global entry points: native upcalls (`nativeFeatureEnabled` at H2, `nativePlaybackStart` at the hook), H6, H8, JVM shutdown hook; Kermit tag `RefreshRateMatch` |
 | `composeApp/src/desktopTest/kotlin/.../refreshrate/runtime/*Test.kt`, `FakeDisplayPort.kt` | Phase 4 controller, dispatcher and codec tests |
 | `composeApp/src/desktopMain/kotlin/.../player/desktop/refreshrate/RefreshRateModels.kt` | `Rational` (exact rates), `DisplayMode`, `DisplayState` |
 | `.../refreshrate/FpsSnapper.kt` | fps → standard rate, container first / estimate fallback, cross-check (P3-6..P3-9) |
@@ -554,7 +566,8 @@ Design:
   by ONE fully qualified line in `PlaybackSettingsPage.kt` right after the "NVIDIA RTX Video" section (H9). Its 3 strings
   go in `values/strings.xml` only (H10; other locales fall back to English).
 - Enable path: the native H2 (`onMpvInitialized`) asks Kotlin per player through a new JNI upcall
-  `RefreshRateMatch.nativeFeatureEnabled(): Boolean`, using the existing attach helper. Kotlin answers: env
+  `RefreshRateMatch.nativeFeatureEnabled()`, using the existing attach helper. (Built as `(): Int` — 0 off, 1 on by the
+  env, 2 on by the setting, -1 error — so the native log can name the source, P6-6/P6-7; anything but 1/2 is off.) Kotlin answers: env
   `NUVIO_RR_ENABLE=1` ⇒ on, `=0` ⇒ off (dev/measure override, **Q24**), otherwise the stored setting. So the value is
   read at each playback start and no upstream Kotlin line pushes it (the planned H7 is not needed).
 - A change takes effect at the next playback start (**Q25**); a running session is left alone and restores as usual.
