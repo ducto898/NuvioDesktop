@@ -47,7 +47,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   Known limits (verifier, documented, not fixed): H6 `onScreenGone()` restores whichever player owns the session (the
   host effect spans episodes, F3, so it fires only when the screen is left); a window close during a settle times out
   the 2 s wait and the restore then relies on the JVM shutdown hook or Windows' revert (D7).
-- **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); waiting at the gate for Q23–Q26.** Design: per-PC store
+- **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
   H7 line is not needed. Upstream diff target: 7 code lines + 3 string lines.
@@ -144,6 +144,11 @@ suite, ≈ 15 s with only the patch tests.
   `%LOCALAPPDATA%\Nuvio\WebView2\EBWebView` (player overlay's browser profile: Local/Session Storage, caches): 11 files
   on 09-27 night, 76 on 09-28. No backup of that folder exists. Fixed in run-dev.ps1 (D6 correction); measure.ps1 now
   checks both official folders. Owner to decide whether anything needs doing about the official WebView2 folder.
+- 2026-09-28 20:33–22:41: the Phase 6 session hung 2 h right after writing its first stub. Cause (reproduced 22:44):
+  with no Gradle daemon running, the edit hook's `gradlew` started a new daemon that inherited the hook's stdout pipe,
+  so Claude Code waited for EOF forever (hook itself exited 0). Fixed in `scripts/hook-verify-fast.ps1`: verify runs in
+  a ShellExecute'd process (no inherited handles, output to a temp file) with a 270 s kill. Re-tested: no daemon ⇒ 15 s,
+  compile error ⇒ exit 2 with the error. Nothing else was affected (only the stub file had been written).
 
 ## Owner answers (2026-09-28)
 - Q1 known-upstream-failure baseline (D3): **approved**.
@@ -209,13 +214,16 @@ suite, ≈ 15 s with only the patch tests.
   at 2560x1440): normal list 59/60/120/144/240/280; 100, 250, 265 only with EDS_RAWMODE (unchanged) ⇒ still invisible to
   the feature; 25/50 stay at 280. Told the owner.
 
+## Owner answers (Phase 6 gate, 2026-09-28)
+- P6-1..P6-13 **approved**; Q23 per PC **yes**; Q24 env override **yes**; Q25 next video **yes**; Q26 wording **OK**.
+
 ## Open questions for owner
-- Q23 (Phase 6): setting stored **per PC** (one value for every Nuvio profile, not synced to other devices)? It is about
+- Q23 (Phase 6, ANSWERED yes): setting stored **per PC** (one value for every Nuvio profile, not synced to other devices)? It is about
   this monitor, so recommended **yes**. Alternative: per Nuvio profile like the RTX VSR switch.
-- Q24 (Phase 6): keep `NUVIO_RR_ENABLE` as a dev/measure override (`1` forces on, `0` forces off, unset = the setting)?
+- Q24 (Phase 6, ANSWERED yes): keep `NUVIO_RR_ENABLE` as a dev/measure override (`1` forces on, `0` forces off, unset = the setting)?
   measure.ps1 needs it so baseline runs stay off. Recommended **yes**.
-- Q25 (Phase 6): a change applies from the next video; a video already playing is left alone. Recommended **yes**.
-- Q26 (Phase 6): wording. Section "Display", switch "Match display refresh rate", description "Switch the monitor to a
+- Q25 (Phase 6, ANSWERED yes): a change applies from the next video; a video already playing is left alone. Recommended **yes**.
+- Q26 (Phase 6, ANSWERED yes): wording. Section "Display", switch "Match display refresh rate", description "Switch the monitor to a
   multiple of the video's frame rate while playing (e.g. 240 Hz for 24 fps), then back." OK or other text?
 - Q20 (ANSWERED, see Phase 5 gate answers): Max Frame Rate set below ~252 fps (e.g. the old 200 cap) makes display-resample collapse. Then:
   (a) **don't switch at all** (stay 280, upstream timing; log `frame-cap`) — recommended: at 240 without display sync the

@@ -539,7 +539,7 @@ first change on a player and puts exactly those back on revert.
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
-### Phase 6 — Settings toggle + plumbing (written 2026-09-28, before code; awaiting owner approval, Q23–Q26)
+### Phase 6 — Settings toggle + plumbing (written 2026-09-28, before code; owner-approved 2026-09-28 with Q23–Q26 yes)
 Scope: replace the `NUVIO_RR_ENABLE=1` dev knob with a user setting **"Match display refresh rate"** in Playback
 settings, Windows only, default OFF. The feature's behaviour (Phases 3–5) is unchanged.
 **Not in Phase 6:** the test matrix (Phase 7), app identity / updater / Sentry (Phase 8), Nuvio-only driver profiles.
