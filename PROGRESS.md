@@ -35,10 +35,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   by H4 on the mpv event thread; re-measured OK), verify -Full green again. Known limits, not fixed: NVAPI calls are
   guarded by try/catch only (an access violation inside nvapi64.dll would not be caught; struct layouts match
   drsprobe.cpp); under the `timing-set` fault knob a later revert also reports ok=0 (knob only).
-  **Owner session 19:45–20:05:** PresentMon runs + checklist "all OK" (owner). P5-15 PASS, P5-16 PASS on substance (see
-  Measurements; strict ±0.25 ms wording missed by jittered pairs ⇒ owner to accept), P5-13 PASS from the log, P5-17
-  owner-attested; monitor off/on not in the log ⇒ Phase 7 matrix. **Phase 5 DONE 2026-09-28 except one fullscreen-pause
-  PresentMon run (P5-16, see Measurements follow-up). Next: Phase 6** (write P6 criteria, stop at the gate).
+  **Owner session 19:45–20:05:** PresentMon runs + checklist "all OK" (owner). P5-15 PASS, P5-16 PASS after the follow-up (see
+  Measurements: fullscreen pause on the grid; residual jitter ≤ 0.36 ms p99.9, larger only at seeks), P5-13 PASS from the log, P5-17
+  owner-attested; monitor off/on not in the log ⇒ Phase 7 matrix. **Phase 5 DONE 2026-09-28 (P5-16 closed by the
+  fullscreen-pause run 20:14). Next: Phase 6** (write P6 criteria, stop at the gate).
   History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
@@ -357,6 +357,16 @@ suite, ≈ 15 s with only the patch tests.
   steady 239.9 fps presenter looks the same under VRR and under a fixed 240 Hz, so the pm-fs run alone can't tell them apart. The test is a
   fullscreen pause (a VRR panel would slow down and the resume would land off the grid). Phase 2 proved this at 280 in audio sync
   (20 s pause = 5595 vsyncs exactly), not under the feature at 240. ⇒ one more owner PresentMon run needed.
+  **Fullscreen pause run (owner UAC, 20:14–20:17, `*201454*-p5-pm-fs-pause`, fullscreen throughout, pause 20 s, seek ±,
+  controls): P5-16 PASS.** Resume after the 19.929 s fullscreen pause = 4781.0104 refreshes, **0.044 ms off the grid** ⇒ the
+  panel kept 240 Hz with no presents ⇒ **VRR not engaged in fullscreen either**. Grid fitted from the display times: 239.8979 Hz
+  (= mpv's estimated-display-fps) in this run and in `*p5-pm-fs`; phase residuals p99 0.24 ms / p99.9 0.36 ms in both
+  (so the earlier interval counts overstated this run's jitter). Bigger residuals (≤ 1.73 ms) only in the 10 s bins with the two
+  seeks (one display 1.45 ms after the previous one, then back on the same grid phase, no re-phasing ⇒ a timestamp oddity
+  of superseded flips, not VRR). mpv counters: 1 mistimed at the pause resume, 1 at the seek, 0 drops, 0 underruns.
+  Tooling to fix before Phase 7: after5s deltas go negative across a seek (mpv resets mistimed/delayed on seek) ⇒ sum the
+  positive increments; grid checks must fit the period (not the 280 Hz constant or nominal 239.901); f11 toggle
+  unreliable in -Actions.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
