@@ -595,6 +595,7 @@ MpvApi &mpvApi() {
     return api;
 }
 
+#include "display_mode_matcher.cpp"  // nuvio-rr fork hook H1
 class WindowsMpvWebPlayer;
 LRESULT CALLBACK messageWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK containerWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -1896,6 +1897,7 @@ private:
             }
 
             mpv_event *event = mpvApi().waitEvent(current, 0.5);
+            nuvio_rr::onMpvEvent(current, event, containerHwnd);  // nuvio-rr fork hook H4
             if (!event) continue;
             if (event->event_id == MPV_EVENT_SHUTDOWN) {
                 return;
