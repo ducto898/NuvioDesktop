@@ -6,7 +6,18 @@ re-verifying the patch after an upstream update. Keep it in sync with the code.
 Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `083921cf` (2026-09-27).
 
 ## 1. Behaviour
-_TBD after Phase 1 research and plan approval._ Summary of intent:
+State after Phase 5 (details in §4 per phase; the toggle is Phase 6, until then `NUVIO_RR_ENABLE=1`):
+- At mpv's `on_preloaded` hook (before VO init) the glue reads the fps and the NVIDIA driver's Max Frame Rate, Kotlin
+  decides (`decide()`: highest k·fps mode, 1000/1001 tolerance, same resolution + bpc; none ⇒ no switch; a frame cap
+  below 1.05 × target ⇒ no switch), switches with `CDS_FULLSCREEN`, settles, verifies.
+- Switched (or already at the target) ⇒ `video-sync=display-resample`, `interpolation=no`,
+  `display-fps-override=<exact rate>` on that player before the hook continues; otherwise no mpv option is touched.
+- Mid-playback: monitor off/on ⇒ re-switch once (HDR toggles: up to 3), timing re-applied; given up / window moved ⇒
+  restore and put the saved mpv values back (playback continues); display-resample clearly broken (health check) ⇒
+  mpv's own timing, the mode stays.
+- Restore on player screen gone, window close, JVM exit; Windows reverts on crash/kill (D7).
+
+Original summary of intent:
 - Opt-in setting "Match display refresh rate" (Playback settings, Windows), default OFF.
   OFF ⇒ identical to upstream.
 - On playback start: fps → target mode (integer multiple, 1000/1001 tolerance, same
@@ -28,7 +39,9 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 ## 3. New files
 | File | Purpose |
 |---|---|
-| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`; closes/reopens its anonymous namespace for `<dxgi1_2.h>` and the JNI exports; `#pragma comment(lib, "dxgi.lib")`). Phase 2/2b: measure-only sampler + knobs. Phase 4: feature config (`NUVIO_RR_ENABLE`, `NUVIO_RR_FAULT`), `refresh-rate.log` sink, player registry, `on_preloaded` hook worker + JNI upcall, Win32 port (QDC query, DXGI modes, CDS switch + settle, restore), JNI exports for `NativeDisplayPort` |
+| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`; closes/reopens its anonymous namespace for `<dxgi1_2.h>` and the JNI exports; `#pragma comment(lib, "dxgi.lib")`). Phase 2/2b: measure-only sampler + knobs. Phase 4: feature config (`NUVIO_RR_ENABLE`, `NUVIO_RR_FAULT`), `refresh-rate.log` sink, player registry, `on_preloaded` hook worker + JNI upcall, Win32 port (QDC query, DXGI modes, CDS switch + settle, restore), JNI exports for `NativeDisplayPort`. Phase 5: timing apply/revert with saved values (`applyDisplaySyncLocked`, `setTiming`), `timingStats`, read-only NVAPI DRS read (`readDriverSettings`), fault kinds `timing-set`/`drop-mode`, query-failure log once per change |
+| `.../refreshrate/ResampleHealth.kt` | pure health rule for display-synced timing (P5-11) |
+| `composeApp/src/desktopTest/kotlin/.../refreshrate/ResampleHealthTest.kt`, `.../runtime/RefreshRateTimingTest.kt` | Phase 5 tests (P5-7, P5-10, P5-11) |
 | `.../refreshrate/runtime/DisplayPort.kt` | `DisplayPort` interface (the Win32 side) + `StartInput` (P4-5..P4-9) |
 | `.../refreshrate/runtime/RefreshRateController.kt` | runs `decide()`/`step()` against a `DisplayPort`, every command to its result; fail-safe; watcher with two-read debounce; monitor move (Q15) (P4-13..P4-17) |
 | `.../refreshrate/runtime/RefreshRateDispatcher.kt` | one daemon thread `nuvio-rr`, bounded waits, 1 s watcher (P4-13, P4-16) |

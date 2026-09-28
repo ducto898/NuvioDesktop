@@ -25,7 +25,13 @@ The only memory between phases. Read it at the start of every phase; update it a
   Phase 4 below. verify -Full green (1397 tests, only baseline failures), upstream diff still 2 lines, not pushed.
   Mutation check: app exit without restore ⇒ the fuzz test fails. **Next: Phase 4** (write P4 criteria, stop at the gate).
 - **Phase 4 DONE 2026-09-28 (owner accepted 18:15).** Next: **Phase 5** (write P5 criteria, stop at the gate).
-- **Phase 5 criteria written 2026-09-28 (SPEC P5-1..P5-19); owner answered Q20–Q22 ⇒ taken as approval.** Implementing.
+- **Phase 5 criteria written 2026-09-28 (SPEC P5-1..P5-19); owner answered Q20–Q22 ⇒ taken as approval.**
+  Code + automated checks DONE (19:30): commits A `fb812615` (tests red 22/129), B `26f6c4db` (green), C `6bc9059f`
+  (native), `fe14ec08` (measure.ps1), fixes `34e64647` (app exit stops the health watch) and `1331ad4d` (health judges
+  only a steady display at the target; found by the P5-8 run), each test-first. verify -Full green (1479 tests, 7 known
+  failures), upstream diff still 6 lines, not pushed. 20 measure runs (`measurements/phase5-evidence.txt`): P5-5, P5-8,
+  P5-11, P5-12, P5-14 PASS. **Open:** lean verifier round; owner at the PC for P5-15/P5-16 (PresentMon, UAC) and the
+  P5-17 checklist (incl. P5-13 next episode). Then Phase 5 DONE ⇒ Phase 6.
   History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
@@ -228,7 +234,7 @@ suite, ≈ 15 s with only the patch tests.
 | 2b Resample spike | ~150–250k | ≈ 330k (criteria 45k + 33 runs/diagnosis ≈ 165k + verifier 117k) — ~30 % over the top estimate; the verifier again cost the most |
 | 3 Logic (TDD) | ~250k | ≈ 290k (main ≈ 175k incl. criteria + gate; verifier 114k) — ~15 % over, the verifier again the biggest single item |
 | 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
-| 5 mpv timing / OLED | ~400k | |
+| 5 mpv timing / OLED | ~400k | ≈ 330k so far (criteria + gate ≈ 140k, code + 20 runs ≈ 190k); verifier round and the owner's PresentMon/checklist session still to come ⇒ ~450k expected, ~10 % over |
 | 6 Settings/JNI | ~200k | |
 | 7 Matrix + review | ~500k | |
 | 8 Upkeep | ~250k | |
@@ -307,6 +313,20 @@ suite, ≈ 15 s with only the patch tests.
   registry 280 in all 9423 observer samples. Feature off ⇒ no feature activity, 279.961 throughout. Registry 280 in every run.
   **Measurement caveat (new):** with the monitor asleep (Windows display timeout 15 min) every run shows ~500 drops +
   audio underruns per 30 s, feature on or off; measure.ps1 now wakes the display (1 px mouse nudge) first.
+- **Phase 5 feature runs (2026-09-28 18:46–19:27, `measurements/phase5-evidence.txt`, feature on, 120 s unless noted,
+  counted after the first 5 s):** display-resample at 239.901 with `display-fps-override=239.901000`, mpv
+  `estimated-display-fps` 239.8979 (0.001 % off), **0 drops, 0 mistimed, 0 audio underruns** in every switched run:
+  23.976 windowed ×3, fullscreen ×2, 4K HDR fullscreen, 24, 29.97, 59.94. Speed corrections: video 1.000587 (23.976/
+  29.97/59.94) / 0.999587 (24), audio 0.99934–1.00184. VFR (Q22): 0 underruns, no desync warning; speed corrections
+  0.9935–1.0011 (recorded). 25 fps: no switch, video-sync=audio, no feature property set. Driver line on every start:
+  `frl=off(global) power=1(global) exe=java.exe app_profile=no`, read in 150–160 ms.
+  Faults: `timing-set` ⇒ reverted, upstream timing, plays, 279.961 after; `drop-mode` (rerun after fix `1331ad4d`) ⇒
+  20 s `mode-lost` re-switch + `setTiming display-sync ok`, 50 s `mode-lost-again` + `setTiming upstream ok`, 0 drops
+  after 51 s, 0 underruns; forced `d3d11-sync-interval=0` ⇒ `resample-unhealthy mistimed=240 in 10 s` ⇒ upstream timing
+  ~16 s after the hook (5 s ignored + one 10 s window + the first steady read), mode kept. **GPU power (P5-14, fullscreen, max-performance power on):** 1080p 23.976 feature on 38.2 W vs off
+  (280 Hz audio sync) 37.8 W; 4K HDR 40.1 W vs 40.2 W ⇒ no material difference.
+  Tooling note: samples from the close request on are now excluded (the first run counted the restore to 280 as 3 drops +
+  4 mistimed).
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
@@ -353,3 +373,7 @@ suite, ≈ 15 s with only the patch tests.
 - 2026-09-28 Phase 4 gate: Q17 (no 100 Hz; owner's 250 Hz custom mode also only in EDS_RAWMODE ⇒ 25/50 fps stay at 280),
   Q18 accepted, P4-22 added on the owner's request (option B, HDR toggle ⇒ re-switch in the new HDR state), Q19 proven by
   hand (stop during settle), checklist accepted by the owner. **Phase 4 DONE.**
+- 2026-09-28 Phase 5: criteria P5-1..19 + Q20 (a)/Q21/Q22 approved; 250 Hz custom mode still raw-only (Q17). Tests-first
+  commits A/B (Kotlin: timing routing, frame-cap rule, ResampleHealth), C (native timing apply/revert, setTiming/stats,
+  NVAPI read, faults). 20 measure runs: display-resample clean at 239.901 for every rate; two health-check bugs found by
+  the runs and fixed test-first. Waiting for the verifier round and the owner's PresentMon + checklist session.
