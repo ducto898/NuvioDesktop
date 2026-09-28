@@ -252,4 +252,24 @@ class RefreshRateTimingTest {
         play(3)
         assertTrue(logged("unexpected-error"))
     }
+
+    // Found in the first Phase 5 run: after the app-exit restore the display is back at 280, so mpv's rate
+    // estimate drops and the health check must not judge (or touch) the closing player.
+    @Test
+    fun `app exit and screen gone stop the health watch`() {
+        switched()
+        controller.appExit()
+        port.calls.clear()
+        play(30) { stats(est = 226.0) }
+        assertEquals(emptyList(), port.callsNamed("timingStats"), "after app exit")
+        assertEquals(emptyList(), timingCalls())
+
+        val port2 = FakeDisplayPort()
+        val c2 = RefreshRateController(port2) {}.also { it.clock = { now } }
+        c2.playbackStart(startInput(1))
+        c2.screenGone()
+        port2.calls.clear()
+        repeat(30) { now += 1.0; port2.stats[1] = stats(est = 226.0); c2.watch() }
+        assertEquals(emptyList(), port2.callsNamed("timingStats"), "after screen gone")
+    }
 }

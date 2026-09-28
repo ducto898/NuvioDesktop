@@ -87,6 +87,7 @@ class RefreshRateController(
     fun appExit() {
         if (exited) return
         exited = true
+        health = null // the restore makes mpv's rate estimate fall; never judge the closing player
         log("app-exit")
         apply(SessionEvent.AppExit)
     }
