@@ -13,3 +13,7 @@ com.nuvio.app.features.updater.LinuxUpdateInstallTest#an app image replaces itse
 com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedImageDoesNotRequireAFileExtension[desktop]
 com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedGifStillPlaysOnHover[desktop]
 com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedWebpPlaysOnHoverAndRestoresCoverOnExit[desktop]
+
+# Added 2026-09-28 at upstream Dev fe92d414 (owner approved): upstream 50c5e321 changed the hero max height
+# 660dp -> 640dp without updating the test ("Expected <660.0> ... actual <640.0>"). Platform-independent.
+com.nuvio.app.features.home.components.HomeHeroSectionTest#desktop hero keeps the existing full bleed layout at sixteen by nine[desktop]

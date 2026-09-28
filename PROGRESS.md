@@ -75,6 +75,11 @@ suite, ≈ 15 s with only the patch tests.
 - Q8 highest multiple: **yes, if no downside** (smoother UI). Known potential downside: GPU power at 240 presents/s
   under display-resample (esp. with RTX VSR) ⇒ Phase 2 measures GPU power at 240 vs 120 Hz; revisit only if material.
 
+## Owner answers (Phase 2 gate, 2026-09-28)
+- Phase 2 criteria P2-0..P2-19 **approved**, incl. P2-5 (measure-only in-app switch knob) and P2-12 (kill-test tools committed).
+- `HomeHeroSectionTest` (upstream 660→640 dp mismatch) added to the known-upstream-failure baseline: **approved**.
+- PresentMon portable download into `NuvioRate	ools` + UAC prompt: **approved**.
+
 ## Open questions for owner
 (none)
 
