@@ -18,8 +18,17 @@ The only memory between phases. Read it at the start of every phase; update it a
   win/fs/repeat + 4K HDR full quality with max-performance power: 0 drops+mistimed/min after 5 s). Next: one lean
   verifier round DONE (P2b-16 fixed after it) ⇒ **Phase 2b DONE 2026-09-28. Next: Phase 3** (write P3 criteria, stop at the gate). Phase 5 must plan the two driver settings
   (FRL off, Prefer max performance) as Nuvio-only or documented manual steps.
-- **Phase 3 (2026-09-28):** P3-1..P3-25 criteria written into SPEC.md and **approved by the owner**. Q11–Q13 answered
-  (see "Owner answers (Phase 3 gate)"); P3-22 rewritten for Q13. Next: tests (red commit) → logic (green commit). Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
+- **Phase 3 DONE 2026-09-28.** P3-1..P3-25 approved (Q11–Q13, P3-22 rewritten for Q13). Tests-first: commit A `6d9c6de8`
+  (tests + TODO stubs, red 47/48), commit B `65d306cf` (logic, green, test diff A→B empty), then a post-verifier fix
+  commit. One lean verifier round: **PASS all 25**, 6 non-blocking notes: 4 fixed tests-first (tie-break test,
+  ≤1e-6 accept test, `retarget` reason code, starts queued behind app exit are dropped — added to P3-20), 2 carried into
+  Phase 4 below. verify -Full green (1397 tests, only baseline failures), upstream diff still 2 lines, not pushed.
+  Mutation check: app exit without restore ⇒ the fuzz test fails. **Next: Phase 4** (write P4 criteria, stop at the gate).
+- **Phase 4 carry-overs from Phase 3:** `Step.reasons` are codes only. For one clear log line, Phase 4 takes the values
+  from the event and the prior state (e.g. observed vs target on `verify-mismatch`). DisplayChanged is *ignored* (not
+  deferred) while switching/restoring, so a monitor power cycle mid-switch is caught only by the switch verify or the
+  next display change. The pure API is `ModeSelector.decide()` → `RefreshRateSession.step()`; hold the session in one
+  process-global place, and apply only `Command`s and `Timing`. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5: display-resample works once the driver's
   Max Frame Rate is off (Phase 2b); it needs "Prefer maximum performance" for 4K HDR at full quality (D12); re-check the
   deferred PresentMon cadence clause with the owner present;
@@ -156,7 +165,7 @@ suite, ≈ 15 s with only the patch tests.
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
 | 2b Resample spike | ~150–250k | ≈ 330k (criteria 45k + 33 runs/diagnosis ≈ 165k + verifier 117k) — ~30 % over the top estimate; the verifier again cost the most |
-| 3 Logic (TDD) | ~250k | |
+| 3 Logic (TDD) | ~250k | ≈ 290k (main ≈ 175k incl. criteria + gate; verifier 114k) — ~15 % over, the verifier again the biggest single item |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |
 | 6 Settings/JNI | ~200k | |
@@ -263,3 +272,6 @@ suite, ≈ 15 s with only the patch tests.
   Phase 5 line not updated) ⇒ fixed; drsfrl.cpp (driver-profile writer; only its `backup` ran, `create` was blocked) removed
   as scope creep. Driver-profile backup kept at NuvioRate\drs-backup-2026-09-28.nip. Owner's global FRL 0 + PSTATE 1 still set
   (Q10c open; owner changes them via Cowork).
+- 2026-09-28 Phase 3: criteria P3-1..25 + Q11–Q13 approved; Kotlin package `...player.desktop.refreshrate` (5 files) with
+  51 tests (table of all 24 state×event pairs, seeded fuzz 2×10 000). Red→green commits, lean verifier PASS, 4 small
+  follow-ups fixed. No upstream change.

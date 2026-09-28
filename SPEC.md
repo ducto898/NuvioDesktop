@@ -268,7 +268,8 @@ instruction: display-sync(exact rate) or upstream (no mpv option change).
   while idle ⇒ no command, timing display-sync — auto
 - P3-20 — Restore bookkeeping: switched always records the display, the original state (rate, HDR, bpc) and the owner.
   Screen gone from the owner ⇒ restore; from a non-owner ⇒ ignored (two players, P3-18 ownership). App exit while
-  switched or switching ⇒ restore (after the in-flight switch, P3-17). After restore finished (ok or failed) ⇒ idle,
+  switched or switching ⇒ restore (after the in-flight switch, P3-17); playback starts still queued behind the exit are
+  dropped, so nothing switches after exit (added after verifier round 1). After restore finished (ok or failed) ⇒ idle,
   nothing recorded — auto
 - P3-21 — Switch verification: switch finished ok is accepted only if the observed rate equals the target (relative
   difference ≤ 1e-6) and HDR and bpc equal the original; otherwise restore + timing upstream, reason `verify-mismatch`
