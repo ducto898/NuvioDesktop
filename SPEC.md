@@ -171,8 +171,11 @@ no product behaviour, no upstream edits beyond H1/H4, the display mode is held b
 
 **Pass / fail (the spike's result, not a gate on the code)**
 - P2b-13 — **Spike PASS** if one option set gives, at 239.901, over 120 s, in BOTH windowed and fullscreen:
-  `estimated-display-fps` within 0.1 % of 239.901; drops + mistimed ≤ 1 per minute; 0 audio underruns after the first
-  5 s; PresentMon: ≥ 99 % of video frames held exactly 10 refreshes. Confirmed by one repeat run of the winning set
+  `estimated-display-fps` within 0.1 % of 239.901; drops + mistimed ≤ 1 per minute **counted after the first 5 s of
+  playback** (owner-approved change 2026-09-28: every mistime in the clean runs falls in the first ~1.2 s, see
+  docs/research/10 "startup mistimed frame(s)"); 0 audio underruns after the first
+  5 s; PresentMon: ≥ 99 % of video frames held exactly 10 refreshes (**deferred 2026-09-28**: needs a UAC click, owner not
+  at the PC; PresentMon also perturbs display-sync timing here ⇒ re-check in Phase 5 with the owner present). Confirmed by one repeat run of the winning set
   (same limits) and one run with `hdr-2160p-23.976` (same limits) with GPU power recorded (Q8) — auto
 - P2b-14 — If PASS: [HUMAN] one slow-motion video (iPhone Slo-mo, same setup as `IMG_3036`) of the winning set in
   fullscreen, analysed with `scripts/rr-tools/slomo-analyze.py`; expected: clearly narrower hold spread than the

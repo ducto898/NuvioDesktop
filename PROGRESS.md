@@ -13,11 +13,16 @@ The only memory between phases. Read it at the start of every phase; update it a
   2026-09-28: P2b criteria approved. **Spike result: cause found = NVIDIA global Max Frame Rate 200 fps.** With the owner's
   global FRL off (13:45): display-resample at 239.901, 1080p windowed + fullscreen + repeat: est. 239.898, jitter 0.00025,
   0 drops, 1 mistimed (at startup) per 120 s, 0 underruns. 4K HDR needs cheaper scalers (bilinear ⇒ same numbers; upstream
-  spline36+deband ⇒ −0.8 %, 38 mistimed, GPU stuck at 210 MHz). **Waiting for owner (Q10) before the verifier round.**
+  spline36+deband ⇒ −0.8 %, 38 mistimed, GPU stuck at 210 MHz). Q10 answered: startup-exclusion rule added to P2b-13 (owner-approved); PresentMon clause deferred to Phase 5 (owner
+  can't accept UAC remotely); owner resets the NVIDIA settings themselves via Cowork. **Spike PASS on mpv counters** (1080p
+  win/fs/repeat + 4K HDR full quality with max-performance power: 0 drops+mistimed/min after 5 s). Next: one lean
+  verifier round, then Phase 3 (write P3 criteria, stop at the gate). Phase 5 must plan the two driver settings
+  (FRL off, Prefer max performance) as Nuvio-only or documented manual steps.
 - **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
-  the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
-  (windowed ≈ 6 Hz vs fullscreen ≈ 191 Hz estimated display fps, present blocks ~4.8 ms) or fall back to audio sync at N×fps;
+  the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5: display-resample works once the driver's
+  Max Frame Rate is off (Phase 2b); it needs "Prefer maximum performance" for 4K HDR at full quality (D12); re-check the
+  deferred PresentMon cadence clause with the owner present;
   Phase 7 soak clips by stream copy (D10); Phase 8 fix the WebView2 folder in the app identity work.
 - **Start new sessions from `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`** so the
   project's `.claude/settings.json` hook and `verifier` agent load.
@@ -129,8 +134,7 @@ suite, ≈ 15 s with only the patch tests.
   while paused: impossible on this monitor → **waived**, PresentMon grid evidence (resume lands on the 280 Hz grid) accepted.
 
 ## Open questions for owner
-- Q10 (Phase 2b, 2026-09-28): (a) accept P2b-13 with startup excluded (all mistimes in the first 1.2 s)? (b) PresentMon
-  cadence run (UAC) or waive it (PresentMon perturbs display-sync)? (c) Max Frame Rate: keep global off, or restore 200 and
+- Q10 (Phase 2b, 2026-09-28): (a) YES (rule added). (b) deferred to Phase 5 (no remote UAC). (c) Max Frame Rate: keep global off, or restore 200 and
   plan a Nuvio-only driver profile (needs Phase 8 app identity/own exe; profile creation by Claude was blocked by the
   permission classifier)? (d) answered by D12.
 - Q9 (answered 2026-09-28: owner turned the GLOBAL Max Frame Rate off themselves; backup of all driver profiles in

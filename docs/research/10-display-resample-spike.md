@@ -135,3 +135,16 @@ decays toward 10.0 (one early long hold averaged in) [measured]. Cut down one ca
   the display latency once [inferred, not measured; PresentMon would show it as the first rows being "Composed: Flip"].
 - Impact: one frame, once per player start (not per seek), inside the first ~1 s. In the feature the player starts
   right after a mode switch (≈ 1 s blank anyway).
+
+## P2b-13 verdict (after the owner-approved rule change, 2026-09-28: drops + mistimed counted after the first 5 s)
+| Run | est. fps error | drops + mistimed/min after 5 s | underruns after 5 s | Verdict |
+|---|---|---|---|---|
+| 13:46 1080p windowed | 0.001 % | 0.00 | 0 | PASS |
+| 13:48 1080p fullscreen | 0.001 % | 0.00 | 0 | PASS |
+| 13:51 1080p windowed (repeat) | 0.001 % | 0.00 | 0 | PASS |
+| 14:42 4K HDR fullscreen, full quality, max-performance power | 0.001 % | 0.00 | 0 | PASS |
+| 13:54 4K HDR fullscreen, full quality, Normal power | 0.795 % | 19.26 | 0 | FAIL |
+| 13:59 4K HDR fullscreen, bilinear (rejected by D12) | 0.001 % | 0.00 | 0 | (PASS, not used) |
+PresentMon clause: **deferred** (owner not at the PC for UAC; PresentMon perturbs display-sync) ⇒ Phase 5.
+**Spike result: PASS on mpv's own counters, with two driver settings: Max Frame Rate off and "Prefer maximum
+performance".** Both must become Nuvio-only (a driver profile for Nuvio's own exe, Phase 8) or be documented as manual steps.
