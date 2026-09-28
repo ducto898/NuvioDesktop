@@ -22,6 +22,17 @@ object RefreshRateMatch {
     @Volatile
     private var dispatcher: RefreshRateDispatcher? = null
 
+    /** True once a playback start created the dispatcher (its thread and shutdown hook come with it). */
+    internal val hasDispatcher: Boolean
+        get() = dispatcher != null
+
+    /**
+     * Upcall from the native H2, once per player before loadfile (SPEC P6-9): [Enablement.nativeCode], -1 on error.
+     * Creates nothing.
+     */
+    @JvmStatic
+    fun nativeFeatureEnabled(): Int = TODO("Phase 6 commit B")
+
     /** H6: the player screen went away. Returns at once. */
     fun onScreenGone() {
         if (enabled) dispatcher?.screenGone()
