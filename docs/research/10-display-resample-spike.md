@@ -122,3 +122,16 @@ hdr-2160p-23.976, fullscreen, 239.901, upstream options (spline36 + deband), FRL
 est. display fps 239.898, jitter 0.00024, 0 drops, 2 mistimed (both at 1.08 s), **0 delayed**, 0 underruns;
 GPU P0 2490 MHz in all 120 samples, **40.3 W** median (vs 31.7 W and 38 mistimed / 184 delayed in Normal mode) ⇒ +8.6 W.
 A global setting keeps the GPU at high clocks all the time (idle desktop too) [inferred from the P0 samples]; the right scope is a Nuvio-only profile (Phase 8 identity).
+
+## The startup mistimed frame(s) (owner asked "why", 14:45–14:55)
+In every clean run, 1–3 mistimed frames appear before ~1.2 s of playback, then none; vsync-ratio starts at ~10.4–10.6 and
+decays toward 10.0 (one early long hold averaged in) [measured]. Cut down one cause at a time (1080p, 239.901, windowed):
+- **Shader compilation: ruled out.** libplacebo spends ~170–200 ms compiling on the first frame [measured], but a run with
+  a warm `gpu-shader-cache` (no compile lines in the log) still has 1 mistimed at 0.9 s [measured].
+- **Playback restarts: ruled out.** Two seeks (±10 s at 30 s / 60 s; 3 restarts in total) add 0 mistimed [measured].
+- **Audio device start: ruled out.** `ao=null` still gives 1 mistimed at 1.17 s [measured].
+- Remaining: first-start video-output warm-up, i.e. a brand-new swapchain with no vsync history. Candidate: Windows
+  promoting the new swapchain from composed flip to independent flip (MPO) after its first presents, which shifts
+  the display latency once [inferred, not measured; PresentMon would show it as the first rows being "Composed: Flip"].
+- Impact: one frame, once per player start (not per seek), inside the first ~1 s. In the feature the player starts
+  right after a mode switch (≈ 1 s blank anyway).
