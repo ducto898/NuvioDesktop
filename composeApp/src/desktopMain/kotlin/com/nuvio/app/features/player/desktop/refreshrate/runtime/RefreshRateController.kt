@@ -40,8 +40,15 @@ class RefreshRateController(
     private var lastObserved: DisplayState? = null
     private var candidate: DisplayState? = null
 
-    /** The player we last gave display-synced timing, while its health is watched (P5-11). */
-    private class HealthWatch(val playerId: Long, val health: ResampleHealth)
+    /**
+     * The player we last gave display-synced timing, while its health is watched (P5-11). [health] restarts
+     * whenever [display] does not read the target unchanged: a display change makes mpv's rate estimate dip,
+     * and that is the watcher's case, not the health check's.
+     */
+    private class HealthWatch(val playerId: Long, val display: String, val rate: Rational) {
+        var health = ResampleHealth(rate, 0.0)
+        var lastState: DisplayState? = null
+    }
 
     private var health: HealthWatch? = null
 
@@ -56,7 +63,7 @@ class RefreshRateController(
         val event = SessionEvent.PlaybackStart(input.playerId, input.display, current ?: UNKNOWN_STATE, selection)
         val timing = apply(event) ?: Timing.Upstream
         // The hook applies it (P5-5); the newest player is the one whose health is watched.
-        watchHealth(input.playerId, timing)
+        watchHealth(input.playerId, input.display, timing)
         return timing
     }
 
@@ -79,7 +86,7 @@ class RefreshRateController(
         if (reason == "screen-gone") {
             if (health?.playerId == owner) health = null
         } else if (timing != null) {
-            route(owner, timing)
+            route(owner, timing, display = null)
         }
     }
 
@@ -110,7 +117,7 @@ class RefreshRateController(
                 else -> {
                     candidate = null
                     lastObserved = observed
-                    apply(SessionEvent.DisplayChanged(ctx.display, observed))?.let { route(ctx.owner, it) }
+                    apply(SessionEvent.DisplayChanged(ctx.display, observed))?.let { route(ctx.owner, it, ctx.display) }
                 }
             }
         } catch (e: Exception) {
@@ -142,7 +149,7 @@ class RefreshRateController(
     }
 
     /** A timing change outside the hook goes to the session owner's mpv (P5-6, P5-7). */
-    private fun route(playerId: Long, timing: Timing) {
+    private fun route(playerId: Long, timing: Timing, display: String?) {
         val ok = try {
             port.setTiming(playerId, timing)
         } catch (e: Exception) {
@@ -151,11 +158,11 @@ class RefreshRateController(
             return
         }
         log("setTiming p$playerId ${timing.text()} ${if (ok) "ok" else "failed"}")
-        if (ok) watchHealth(playerId, timing) else if (health?.playerId == playerId) health = null
+        if (ok && display != null) watchHealth(playerId, display, timing) else if (health?.playerId == playerId) health = null
     }
 
-    private fun watchHealth(playerId: Long, timing: Timing) {
-        health = (timing as? Timing.DisplaySync)?.let { HealthWatch(playerId, ResampleHealth(it.rate, clock())) }
+    private fun watchHealth(playerId: Long, display: String, timing: Timing) {
+        health = (timing as? Timing.DisplaySync)?.let { HealthWatch(playerId, display, it.rate) }
     }
 
     /** One health tick (P5-11, Q21): clearly broken display-resample ⇒ upstream timing, the mode stays. */
@@ -172,12 +179,23 @@ class RefreshRateController(
             health = null
             return
         }
+        val state = try {
+            port.query(watch.display)
+        } catch (e: Exception) {
+            null
+        }
+        val atTarget = state != null && relativeError(state.mode.refresh, watch.rate) <= RefreshRateSession.VERIFY_TOLERANCE
+        if (!atTarget || state != watch.lastState) {
+            watch.lastState = state
+            watch.health = ResampleHealth(watch.rate, clock()) // judge only a window on a steady display at the target
+            return
+        }
         val sample = TimingSample(clock(), stats.drops, stats.mistimed, stats.estimatedDisplayFps, stats.timePos, stats.paused)
         val verdict = watch.health.add(sample)
         if (verdict is HealthVerdict.Unhealthy) {
             log("resample-unhealthy p${watch.playerId} ${verdict.detail}")
             health = null
-            route(watch.playerId, Timing.Upstream)
+            route(watch.playerId, Timing.Upstream, display = null)
         }
     }
 
@@ -263,6 +281,8 @@ class RefreshRateController(
     }
 
     private companion object {
+        fun relativeError(a: Rational, b: Rational): Double = kotlin.math.abs(a.toDouble() / b.toDouble() - 1.0)
+
         /** Stands in for the display state when it could not be read (the selection is then NoSwitch). */
         val UNKNOWN_STATE = DisplayState(DisplayMode(0, 0, Rational(0, 1), 0), hdr = false)
 

@@ -272,4 +272,43 @@ class RefreshRateTimingTest {
         repeat(30) { now += 1.0; port2.stats[1] = stats(est = 226.0); c2.watch() }
         assertEquals(emptyList(), port2.callsNamed("timingStats"), "after screen gone")
     }
+
+    // Found in the P5-8 drop-mode run: a display change makes mpv's rate estimate dip for a few seconds, and the
+    // health check fired before the watcher's two-read debounce saw the change. It must only judge while the display
+    // reads the target, unchanged, for a whole window.
+    @Test
+    fun `a lost mode is handled by the re-switch, never by the health check`() {
+        switched()
+        play(20) // as in the run: the drop comes after the first judged window
+        port.states["A"] = DisplayState(MODE_280, hdr = true) // monitor off/on
+        play(1) { stats(est = 220.0) }
+        play(1) { stats(est = 220.0) } // second read: mode-lost re-switch to 240
+        play(3) { stats(est = 225.0) } // estimate still recovering
+        play(30)
+        assertTrue(logged("mode-lost"))
+        assertTrue(!logged("resample-unhealthy"), "$lines")
+        assertEquals(listOf(sync240), timingCalls())
+    }
+
+    @Test
+    fun `an HDR toggle at the same rate does not trip the health check`() {
+        switched()
+        play(12)
+        port.states["A"] = DisplayState(MODE_240, hdr = false)
+        play(4) { stats(est = 200.0) } // blank + re-sync after the toggle
+        play(30)
+        assertTrue(logged("hdr-changed"))
+        assertTrue(!logged("resample-unhealthy"), "$lines")
+        assertEquals(emptyList(), timingCalls())
+    }
+
+    @Test
+    fun `broken timing on a steady display is still caught`() {
+        switched()
+        play(12)
+        port.states["A"] = DisplayState(MODE_240, hdr = false)
+        play(2)
+        play(30) { stats(est = 6.5) } // stays broken after the display settled
+        assertEquals(listOf(upstream), timingCalls())
+    }
 }
