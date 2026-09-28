@@ -22,7 +22,13 @@ _TBD after Phase 1 research and plan approval._ Summary of intent:
 ## 3. New files
 | File | Purpose |
 |---|---|
-| _TBD_ | |
+| `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`); Phase 2/2b: measure-only sampler + knobs |
+| `composeApp/src/desktopMain/kotlin/.../player/desktop/refreshrate/RefreshRateModels.kt` | `Rational` (exact rates), `DisplayMode`, `DisplayState` |
+| `.../refreshrate/FpsSnapper.kt` | fps → standard rate, container first / estimate fallback, cross-check (P3-6..P3-9) |
+| `.../refreshrate/ModeSelector.kt` | target-mode selection and the per-start decision `decide()` (P3-10..P3-15) |
+| `.../refreshrate/FailSafePolicy.kt` | `FailureKind` codes and the failure → action rule (P3-23) |
+| `.../refreshrate/RefreshRateSession.kt` | pure session state machine: `step(session, event)` → state + commands + timing (P3-16..P3-24) |
+| `composeApp/src/desktopTest/kotlin/.../refreshrate/*Test.kt`, `RefreshRateFixtures.kt` | Phase 3 unit, table and seeded fuzz tests |
 
 ## 4. Acceptance criteria (per step; written before each step's code)
 Format: `ID — statement — how checked (auto / [HUMAN])`.
@@ -190,6 +196,105 @@ no product behaviour, no upstream edits beyond H1/H4, the display mode is held b
 second round unless it finds a real problem in the knobs (P2b-1..3).
 
 **[HUMAN] checklist for this phase:** click Yes on the PresentMon UAC prompts (one per run); optionally P2b-14.
+
+### Phase 3 — Pure decision logic, tests first (written 2026-09-28, before code)
+Scope: Kotlin logic only, in `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/`,
+tests in the same package under `desktopTest`. Nothing calls it yet (Phase 4 wires it), so the app behaves exactly as
+after Phase 2b. File and class names are the implementer's choice; SPEC §3 lists them at the end of the phase.
+Rates are exact rationals (numerator/denominator as `Long`, as DXGI/QDC report them); Hz as `Double` only for logging.
+Test mode list = the owner's measured modes at 2560x1440, 10 bpc, progressive: 279961/1000, 239901/1000, 143973/1000,
+119998/1000, 10000/100, 59951/1000 (plus a duplicate 59951/1000, as GDI's 59/60 alias).
+
+**Isolation and footprint**
+- P3-1 — The package imports nothing from Win32/JNI/AWT/Compose/JNA/`java.io`/`java.nio`/threads/clock/logging, and has
+  no `external` functions, no global mutable state and no I/O: every function is deterministic for its inputs — auto
+  (grep of the package's imports + code review)
+- P3-2 — Upstream diff unchanged: still exactly the 2 Phase 2 lines (H1, H4) in `player_bridge.cpp`; no upstream Kotlin
+  file touched; no new dependency (Gradle files untouched) — auto (`verify.ps1 -Full` diff report)
+- P3-3 — `verify.ps1 -Full` green with only the 8 known upstream failures; `-Fast` runs the new tests; nothing written to
+  the official profile (both folders); nothing pushed — auto
+- P3-4 — Tests first: commit A adds the tests + signatures that throw `NotImplementedError`, and `verify.ps1 -Fast` is
+  red on it (output saved); commit B adds the implementation and is green. Any change to test files between A and B is
+  listed in the commit message with a reason and never removes or loosens an assertion — auto (`git diff A B -- desktopTest`)
+- P3-5 — Total: no public function throws for any input (NaN, ±∞, 0, negative, zero or negative denominators, empty or
+  duplicate mode lists, unknown display); bad entries are skipped. Checked by a seeded fuzz test (≥ 10 000 random inputs
+  per public function) — auto
+
+**Fps → standard rate (container first, estimate as fallback)**
+- P3-6 — Standard set: 24000/1001, 24, 25, 30000/1001, 30, 48000/1001, 48, 50, 60000/1001, 60. An input fps snaps to the
+  nearest member if within ±0.1 % (relative), else it is "not standard" — auto. Required cases: 23.976023976, 23.976,
+  23.98 → 24000/1001; 24.0, 24.02 → 24; 25.02 → 25; 29.97 → 30000/1001; 47.952 → 48000/1001; 59.94 → 60000/1001;
+  23.90, 23.810 (Kodi #28836 mkv value), 12, 15, 100, 119.88, 120, 144, 1000, 90000 → not standard
+- P3-7 — Source order: a valid container fps that snaps is used (source = container). If the container value is missing
+  (null/NaN/≤ 0) or does not snap, a valid estimated fps that snaps is used (source = estimate). Otherwise no switch,
+  reason `fps-missing` (neither valid) or `fps-not-standard` — auto
+- P3-8 — Cross-check: when both are valid and the container value snapped, an estimate more than 0.5 % from the snapped
+  rate ⇒ no switch, reason `fps-disagree` (VFR / bad header); within 0.5 % ⇒ agreed. A separate after-start check
+  (snapped rate vs a later estimate) returns agree / disagree / unavailable with the same 0.5 % limit — auto
+- P3-9 — Image/album-art tracks ⇒ no switch, reason `image` — auto
+
+**Mode selection**
+- P3-10 — Candidates: same width, height and bits per colour channel as the current mode, progressive, valid rate
+  (numerator and denominator > 0); duplicates (equal rationals) count once. A candidate r fits fps f when
+  k = round(r/f) ≥ 1 and |r/(k·f) − 1| ≤ 0.1 %. Pick the fitting mode with the highest k; ties at the same k go to the
+  smallest relative error — auto
+- P3-11 — Owner's list, current 279.961: 23.976 / 24 / 29.97 / 30 / 47.952 / 48 / 59.94 / 60 → 239901/1000 (k = 10, 10, 8,
+  8, 5, 5, 4, 4); 25 / 50 → 10000/100 (k = 4, 2); every "not standard" rate in P3-6 → no switch. This is the table in the
+  project brief (requirement 3) — auto
+- P3-12 — 1000/1001 twins (synthetic 1920x1080 list 60/1, 59940/1000, 120/1, 119880/1000): 23.976 → 119880/1000;
+  24 → 120/1; 59.94 → 119880/1000; 60 → 120/1; 25 → no switch, reason `no-suitable-mode` — auto
+- P3-13 — Filters: a 239.901 mode offered only at 8 bpc (current 10 bpc) is not chosen, so 23.976 → 143973/1000; an
+  interlaced mode is never chosen; other resolutions are ignored; an empty or all-invalid list ⇒ `no-suitable-mode` — auto
+- P3-14 — Current mode already equal to the chosen target (exact rational equality) ⇒ no switch, result "already at
+  target" carrying that rate (so display-synced timing can still be used without a switch). A fitting but lower current
+  mode (e.g. 119.998 for 24 fps) still switches to the highest (239.901) — auto
+- P3-15 — Feature disabled ⇒ result `disabled` for every input, before any other rule — auto
+
+**Session state machine (process-global in Phase 4; pure here)**
+States: idle, switching, switched, restoring. Events: playback start (player id, display id, current display state incl.
+HDR + bpc, selection result), switch finished (ok + observed state, or failed + failure kind), restore finished (ok /
+failed), player screen gone (player id), app exit, display change observed (display id, observed state). Each
+transition returns the new state and a list of commands: switch(display, mode), restore(display), and a timing
+instruction: display-sync(exact rate) or upstream (no mpv option change).
+- P3-16 — Every (state × event) pair has a defined result; one table-driven test asserts new state + commands for all
+  24 pairs — auto
+- P3-17 — At most one display command is outstanding at any time: an event that needs a new switch/restore while one is
+  in flight is deferred and handled, after the in-flight result, as if it had arrived in the resulting state — auto
+- P3-18 — Same-target skip (requirement 7): start with the same display and target as the current switched session ⇒ no
+  command, timing display-sync, ownership moves to the new player. A different target on the same display ⇒ one switch
+  straight to the new mode (no restore in between). Start on a different display ⇒ restore the old one, then switch the
+  new one — auto
+- P3-19 — Start with "no switch" (any reason) while switched ⇒ restore, timing upstream. Start with "already at target"
+  while idle ⇒ no command, timing display-sync — auto
+- P3-20 — Restore bookkeeping: switched always records the display, the original state (rate, HDR, bpc) and the owner.
+  Screen gone from the owner ⇒ restore; from a non-owner ⇒ ignored (two players, P3-18 ownership). App exit while
+  switched or switching ⇒ restore (after the in-flight switch, P3-17). After restore finished (ok or failed) ⇒ idle,
+  nothing recorded — auto
+- P3-21 — Switch verification: switch finished ok is accepted only if the observed rate equals the target (relative
+  difference ≤ 1e-6) and HDR and bpc equal the original; otherwise restore + timing upstream, reason `verify-mismatch`
+  — auto
+- P3-22 — (Q13, owner 2026-09-28: re-switch) Display change observed while switched on that display (kill-test case H,
+  monitor off/on): observed rate ≠ target ⇒ **one re-switch** to the same target (state switching, timing upstream
+  until verified, then display-sync), reason `mode-lost`. The original state recorded at the first switch is kept. At
+  most one re-switch per playback start: a second loss in the same playback ⇒ idle, no restore, no re-switch, timing
+  upstream, reason `mode-lost-again`. A failed re-switch follows P3-23. Same rate ⇒ no command (an HDR-only change is
+  reported, reason `hdr-changed`) — auto
+
+**Fail-safe (requirement 10: any failure ⇒ keep playing at the current rate)**
+- P3-23 — Failure kinds: enumerate failed, display not found, switch API error, settle timeout, stop requested during
+  switch, verify mismatch, restore failed, unexpected error. Before a switch was attempted ⇒ no command, timing
+  upstream. After a switch was attempted (any failure) ⇒ restore (idempotent: restores to the registry mode) + timing
+  upstream. Restore failed ⇒ idle, no retry (Windows reverts at process exit, D7), reason `restore-failed`. One test
+  per kind — auto
+- P3-24 — Seeded random event sequences (≥ 10 000 sequences of ≤ 30 events, fixed seed): never throws; invariant P3-17
+  holds; timing is display-sync only in switched or "already at target"; every sequence ending with app exit + all
+  in-flight results delivered ends idle, and every display still in our switched mode got a restore command (a display
+  that went `mode-lost-again` needs none) — auto
+- P3-25 — Every no-switch, failure and state-change result carries a stable lowercase reason code (as named above) plus
+  the values behind it (fps in/snapped, source, k, error ppm, modes considered), so Phase 4 can log one clear line — auto
+
+**Verification:** `verify.ps1 -Full`, then ONE lean verifier round (this table + the two commit ids + test report path).
+No [HUMAN] items this phase.
 
 ## 5. Upkeep limits
 - Upstream-file diff budget: _TBD_ lines (reported by `verify.ps1 -Full`).

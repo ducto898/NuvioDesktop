@@ -18,8 +18,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   win/fs/repeat + 4K HDR full quality with max-performance power: 0 drops+mistimed/min after 5 s). Next: one lean
   verifier round DONE (P2b-16 fixed after it) ⇒ **Phase 2b DONE 2026-09-28. Next: Phase 3** (write P3 criteria, stop at the gate). Phase 5 must plan the two driver settings
   (FRL off, Prefer max performance) as Nuvio-only or documented manual steps.
-- **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
-  gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
+- **Phase 3 (2026-09-28):** P3-1..P3-25 criteria written into SPEC.md and **approved by the owner**. Q11–Q13 answered
+  (see "Owner answers (Phase 3 gate)"); P3-22 rewritten for Q13. Next: tests (red commit) → logic (green commit). Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5: display-resample works once the driver's
   Max Frame Rate is off (Phase 2b); it needs "Prefer maximum performance" for 4K HDR at full quality (D12); re-check the
   deferred PresentMon cadence clause with the owner present;
@@ -132,6 +132,12 @@ suite, ≈ 15 s with only the patch tests.
 - Extra measure-only knobs `NUVIO_RR_MEASURE_DIR` and `NUVIO_RR_MEASURE_IPC` (mpv IPC pipe, only in measure runs): **approved**.
 - P2-13 per-case blank notes: owner's collective note (≈ 1 s per switch, no brightness pop) **accepted**. P2-17 OSD reading
   while paused: impossible on this monitor → **waived**, PresentMon grid evidence (resume lands on the 280 Hz grid) accepted.
+
+## Owner answers (Phase 3 gate, 2026-09-28)
+- P3-1..P3-25: **approved**.
+- Q11 no container fps at file open (some HLS): **don't switch** (no mid-playback switch from `estimated-vf-fps`).
+- Q12 switched session + next video with no suitable rate: **restore 280** (P3-19).
+- Q13 mode dropped by a monitor off/on (case H): **re-switch to the target** (once per playback; P3-22).
 
 ## Open questions for owner
 - Q10 (Phase 2b, 2026-09-28): (a) YES (rule added). (b) deferred to Phase 5 (no remote UAC). (c) Max Frame Rate: keep global off, or restore 200 and
