@@ -1897,7 +1897,7 @@ private:
             }
 
             mpv_event *event = mpvApi().waitEvent(current, 0.5);
-            nuvio_rr::onMpvEvent(current, event, containerHwnd);  // nuvio-rr fork hook H4
+            nuvio_rr::onMpvEvent(current, event, containerHwnd, stopping.load());  // nuvio-rr fork hook H4
             if (!event) continue;
             if (event->event_id == MPV_EVENT_SHUTDOWN) {
                 return;

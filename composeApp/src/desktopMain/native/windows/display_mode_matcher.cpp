@@ -30,6 +30,7 @@ struct MeasureConfig {
     std::wstring directory;
     std::string sync;      // NUVIO_RR_MEASURE_SYNC
     int switchHz = 0;      // NUVIO_RR_MEASURE_SWITCH_HZ
+    bool ipc = false;      // NUVIO_RR_MEASURE_IPC=1: mpv input-ipc-server on \\.\pipe\nuvio-rr-<pid> (measure.ps1 actions)
 };
 
 std::wstring envValue(const wchar_t *name) {
@@ -54,6 +55,7 @@ const MeasureConfig &measureConfig() {
         std::wstring sync = envValue(L"NUVIO_RR_MEASURE_SYNC");
         for (wchar_t ch : sync) config.sync.push_back(ch < 0x80 ? (char)ch : '?');  // mpv option values are ASCII
         config.switchHz = _wtoi(envValue(L"NUVIO_RR_MEASURE_SWITCH_HZ").c_str());
+        config.ipc = envValue(L"NUVIO_RR_MEASURE_IPC") == L"1";
     });
     return config;
 }
@@ -183,12 +185,19 @@ public:
         }
     }
 
-    void onEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd) {
+    void onEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stopping) {
+        if (stopping) {  // player is shutting down: no more mpv or Win32 calls, only one log line
+            if (file_ && !stopLogged_) {
+                stopLogged_ = true;
+                write("stopping: sampler idle");
+            }
+            return;
+        }
         if (!started_) start(mpv, hwnd);
         if (!file_) return;
         if (event && event->event_id != MPV_EVENT_NONE) handleEvent(mpv, event, hwnd);
         double now = nowSeconds();
-        if (now - lastSample_ >= 0.9) {  // events arrive at least every 0.5 s => gaps <= 1.4 s
+        if (now - lastSample_ >= 0.9) {  // events arrive at least every 0.5 s => sample starts <= 1.4 s apart
             lastSample_ = now;
             sample(mpv, hwnd);
         }
@@ -198,6 +207,7 @@ private:
     FILE *file_ = nullptr;
     bool started_ = false;
     bool switched_ = false;
+    bool stopLogged_ = false;
     double lastSample_ = 0.0;
     mpv_event_name_fn eventName_ = nullptr;
     std::shared_ptr<std::mutex> writeMutex_ = std::make_shared<std::mutex>();
@@ -225,16 +235,21 @@ private:
             " sync_knob=" + (config.sync.empty() ? std::string("none") : config.sync) +
             " switch_knob=" + std::to_string(config.switchHz));
         write("before: " + displayText(queryDisplay(hwnd)));
+        if (config.ipc) {
+            std::string pipe = "\\\\.\\pipe\\nuvio-rr-" + std::to_string(GetCurrentProcessId());
+            int result = api.setPropertyString(mpv, "input-ipc-server", pipe.c_str());
+            write("knob: input-ipc-server=" + pipe + " result=" + std::to_string(result));
+        }
         if (!config.sync.empty()) {
             int result = api.setPropertyString(mpv, "video-sync", config.sync.c_str());
             write("knob: video-sync=" + config.sync + " result=" + std::to_string(result));
         }
     }
 
-    void write(const std::string &line) {
+    void write(const std::string &line, const std::string &stamp = std::string()) {
         std::lock_guard<std::mutex> lock(*writeMutex_);
         if (!file_) return;
-        std::fprintf(file_, "%s %s\n", wallClock().c_str(), line.c_str());
+        std::fprintf(file_, "%s %s\n", stamp.empty() ? wallClock().c_str() : stamp.c_str(), line.c_str());
         std::fflush(file_);
     }
 
@@ -306,6 +321,8 @@ private:
     }
 
     void sample(mpv_handle *mpv, HWND hwnd) {
+        std::string stamp = wallClock();  // sample START, so line gaps show the cadence, not the cost
+        double started = nowSeconds();
         std::string line = "S";
         line += " time-pos=" + doubleProp(mpv, "time-pos");
         line += " pause=" + flagProp(mpv, "pause");
@@ -325,7 +342,9 @@ private:
         line += " gamma=" + stringProp(mpv, "video-params/gamma");
         line += " primaries=" + stringProp(mpv, "video-params/primaries");
         line += " " + windowText(hwnd) + " " + displayText(queryDisplay(hwnd));
-        write(line);
+        char cost[32];
+        std::snprintf(cost, sizeof(cost), " cost_ms=%.1f", (nowSeconds() - started) * 1000.0);
+        write(line + cost, stamp);
     }
 
     // Root window size and whether it covers its monitor exactly (app fullscreen is borderless).
@@ -352,14 +371,14 @@ public:
 };
 
 // Hook H4: called by drainMpvEvents after every mpv_wait_event() return (event may be MPV_EVENT_NONE).
-inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd) {
+inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stopping) {
     if (!measureConfig().enabled || !mpv) return;
     struct Holder {
         MeasureSession session;
         ~Holder() { session.markDead(); }
     };
     thread_local Holder holder;
-    holder.session.onEvent(mpv, event, hwnd);
+    holder.session.onEvent(mpv, event, hwnd, stopping);
 }
 
 }  // namespace nuvio_rr
