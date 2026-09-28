@@ -240,7 +240,10 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
-- Q29 (2026-09-28 ~23:55, owner report): **OLED flicker when scrolling/pointing on Nuvio's home/settings screens**,
+- Q29 (ANSWERED 2026-09-29 00:0x: **VRR confirmed** — owner set NVCP Program settings `C:\Program Files\Eclipse
+  Adoptium\jdk-17.0.20.101-hotspotin\java.exe` ⇒ Monitor Technology = Fixed Refresh ⇒ flicker gone. Workaround
+  documented in FORK §9; Phase 8: Nuvio-only profile for the app's own exe, official app needs the same entry.)
+  Original report (2026-09-28 ~23:55): **OLED flicker when scrolling/pointing on Nuvio's home/settings screens**,
   fullscreen and windowed, dev build. Not the feature: the dev-profile refresh-rate.log shows no switch/restore (both
   owner plays 23:50/23:51 already-at-target at 240) and nothing while browsing. Driver unchanged (VRR_MODE=1 fullscreen
   only, VRR_APP_OVERRIDE=1, Windows VRROptimizeEnable=0). Hypothesis [inferred]: G-SYNC engages for the Compose UI,

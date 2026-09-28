@@ -113,6 +113,11 @@ playback start logs one line, e.g. `hook p1 driver frl=off(global) power=1(globa
 
 - Global or per app: the log's `(global)` / `(app)` / `(default)` says where the value came from. A per-app profile
   needs the app's own exe (Phase 8); dev runs are `java.exe`. The owner keeps both set globally (2026-09-28).
+- **OLED flicker on Nuvio's home/settings screens (Q29, 2026-09-28):** with G-SYNC on, the UI (which draws only when
+  something changes) makes the refresh rate follow scrolling/pointing ⇒ visible gamma flicker on OLED. Not caused by
+  this patch (upstream + driver). Fix, owner-confirmed: NVIDIA Control Panel → Manage 3D settings → Program settings →
+  the app's exe → **Monitor Technology = Fixed Refresh**. Dev runs: `C:\Program Files\Eclipse Adoptium  jdk-17.0.20.101-hotspotin\java.exe` (set by the owner 2026-09-28). Official app: its own exe needs the same entry.
+  Phase 8 (own exe): make this a Nuvio-only profile; a JDK update changes the java.exe path and drops the entry.
 - `frl=unknown` (no NVIDIA GPU, nvapi missing) ⇒ no cap is assumed; the health fallback is then the only guard.
 - Cost of max performance: GPU power in PROGRESS.md "Measurements" (Phase 5).
 - After **every NVIDIA driver update**: check the `driver` log line (an update or "restore defaults" can bring a cap
