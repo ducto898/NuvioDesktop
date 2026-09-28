@@ -604,8 +604,12 @@ struct PlayerEntry {
     bool hookPending = false;
     uint64_t hookId = 0;
     // Phase 5 (P5-5/P5-6): our timing change on this player and the values it replaced.
-    bool timingApplied = false;
+    std::atomic<bool> timingApplied{false};
     std::string savedTiming[3];
+    // Health-check counters, cached by the player's own mpv event thread (H4) once per second, so the nuvio-rr
+    // thread never calls into mpv while holding [mutex] (verifier Phase 5: shutdown() takes it on the UI thread).
+    std::atomic<double> cachedStats[5] = {std::nan(""), std::nan(""), std::nan(""), std::nan(""), 0.0};
+    std::atomic<bool> statsReady{false};
 };
 
 struct Registry {
@@ -1237,8 +1241,37 @@ std::wstring playerDisplay(int64_t playerId) {
 }
 
 // Hook H4: called by drainMpvEvents after every mpv_wait_event() return (event may be MPV_EVENT_NONE).
+// From H4 on the player's mpv event thread: refresh the health-check cache once per second while our timing is applied.
+void cacheTimingStats(mpv_handle *mpv) {
+    thread_local double last = 0.0;
+    double now = nowSeconds();
+    if (now - last < 1.0) return;
+    last = now;
+    auto entry = findPlayer([mpv](const PlayerEntry &p) { return p.mpv == mpv; });
+    if (!entry || entry->stopping.load() || !entry->timingApplied.load()) return;
+    MpvApi &api = mpvApi();
+    double nan = std::nan("");
+    auto count = [&](const char *name) {
+        int64_t v = 0;
+        return api.getProperty(mpv, name, MPV_FORMAT_INT64, &v) >= 0 ? (double)v : nan;
+    };
+    auto real = [&](const char *name) {
+        double v = 0.0;
+        return api.getProperty(mpv, name, MPV_FORMAT_DOUBLE, &v) >= 0 ? v : nan;
+    };
+    int idle = 0;
+    api.getProperty(mpv, "core-idle", MPV_FORMAT_FLAG, &idle);
+    entry->cachedStats[0].store(count("frame-drop-count"));
+    entry->cachedStats[1].store(count("mistimed-frame-count"));
+    entry->cachedStats[2].store(real("estimated-display-fps"));
+    entry->cachedStats[3].store(real("time-pos"));
+    entry->cachedStats[4].store(idle ? 1.0 : 0.0);
+    entry->statsReady.store(true);
+}
+
 inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stopping) {
     if (featureConfig().enabled && mpv && event && (int)event->event_id == kMpvEventHook) onHookEvent(mpv, event);
+    if (featureConfig().enabled && mpv && !stopping) cacheTimingStats(mpv);
     if (!measureConfig().enabled || !mpv) return;
     struct Holder {
         MeasureSession session;
@@ -1304,25 +1337,16 @@ bool setTiming(int64_t playerId, int64_t kind, int64_t num, int64_t den) {
 }
 
 // Health-check counters (P5-11): [drops, mistimed, estimated-display-fps, time-pos, idle 0/1, ours 0/1], NaN = n/a.
+// Reads only the cache H4 fills (cacheTimingStats): no mpv call and no lock here.
 std::vector<double> timingStats(int64_t playerId) {
     auto entry = findPlayer([playerId](const PlayerEntry &p) { return p.id == playerId; });
     if (!entry || entry->stopping.load()) return {};
-    std::lock_guard<std::mutex> lock(entry->mutex);
-    if (!entry->mpv) return {};
-    MpvApi &api = mpvApi();
-    double nan = std::nan("");
-    auto count = [&](const char *name) {
-        int64_t v = 0;
-        return api.getProperty(entry->mpv, name, MPV_FORMAT_INT64, &v) >= 0 ? (double)v : nan;
-    };
-    auto real = [&](const char *name) {
-        double v = 0.0;
-        return api.getProperty(entry->mpv, name, MPV_FORMAT_DOUBLE, &v) >= 0 ? v : nan;
-    };
-    int idle = 0;
-    api.getProperty(entry->mpv, "core-idle", MPV_FORMAT_FLAG, &idle);
-    return {count("frame-drop-count"), count("mistimed-frame-count"), real("estimated-display-fps"), real("time-pos"),
-        idle ? 1.0 : 0.0, entry->timingApplied ? 1.0 : 0.0};
+    bool ours = entry->timingApplied.load();
+    if (ours && !entry->statsReady.load()) {  // no sample yet: counters unknown, "idle" so the window waits
+        return {std::nan(""), std::nan(""), std::nan(""), std::nan(""), 1.0, 1.0};
+    }
+    return {entry->cachedStats[0].load(), entry->cachedStats[1].load(), entry->cachedStats[2].load(),
+        entry->cachedStats[3].load(), entry->cachedStats[4].load(), ours ? 1.0 : 0.0};
 }
 
 // No C++ exception crosses JNI: it becomes a Java exception, which the Kotlin controller maps to
