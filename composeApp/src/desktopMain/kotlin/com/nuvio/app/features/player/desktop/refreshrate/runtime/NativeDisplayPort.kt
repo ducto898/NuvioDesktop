@@ -29,6 +29,10 @@ internal object NativeDisplayPort : DisplayPort {
 
     @JvmStatic private external fun nativeLog(line: String)
 
+    @JvmStatic private external fun nativeSetTiming(playerId: Long, kind: Long, numerator: Long, denominator: Long): Boolean
+
+    @JvmStatic private external fun nativeTimingStats(playerId: Long): DoubleArray?
+
     override fun query(display: String): DisplayState? = NativeCodec.state(nativeQuery(display))
 
     override fun modes(display: String): List<DisplayMode>? = NativeCodec.modes(nativeModes(display))
@@ -42,10 +46,12 @@ internal object NativeDisplayPort : DisplayPort {
 
     override fun playerDisplay(playerId: Long): String? = nativePlayerDisplay(playerId)
 
-    // TODO(P5-6, P5-11): native exports in commit C.
-    override fun setTiming(playerId: Long, timing: Timing): Boolean = false
+    override fun setTiming(playerId: Long, timing: Timing): Boolean {
+        val t = NativeCodec.timing(timing)
+        return nativeSetTiming(playerId, t[0], t[1], t[2])
+    }
 
-    override fun timingStats(playerId: Long): TimingStats? = null
+    override fun timingStats(playerId: Long): TimingStats? = NativeCodec.timingStats(nativeTimingStats(playerId))
 
     /** The native `[nuvio-rr]` file sink (refresh-rate.log). */
     fun log(line: String) {

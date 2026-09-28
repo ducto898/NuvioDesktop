@@ -10,6 +10,8 @@
 // exactly as long as that thread, and the thread never outlives the mpv handle.
 //
 // Phase 4 contents: the feature itself (section "Phase 4" below), off unless NUVIO_RR_ENABLE=1.
+// Phase 5 contents: mpv timing (display-resample at the hook and at runtime), the read-only NVIDIA
+// driver-settings read, the health-check counters, fault kinds timing-set and drop-mode.
 
 // player_bridge.cpp includes this file inside its anonymous namespace. System headers and the JNI
 // exports need global scope, so that namespace is closed around them and reopened (here and at the end).
@@ -17,6 +19,7 @@
 #include <dxgi1_2.h>
 #include <cstdarg>
 #include <cstring>
+#include <map>
 #pragma comment(lib, "dxgi.lib")
 namespace {
 
@@ -450,6 +453,10 @@ private:
         line += " vo-delayed-frame-count=" + intProp(mpv, "vo-delayed-frame-count");
         line += " video-sync=" + stringProp(mpv, "video-sync");
         line += " display-sync-active=" + flagProp(mpv, "display-sync-active");
+        line += " video-speed-correction=" + doubleProp(mpv, "video-speed-correction");
+        line += " audio-speed-correction=" + doubleProp(mpv, "audio-speed-correction");
+        line += " interpolation=" + stringProp(mpv, "interpolation");
+        line += " display-fps-override=" + stringProp(mpv, "display-fps-override");
         line += " hwdec-current=" + stringProp(mpv, "hwdec-current");
         line += " gamma=" + stringProp(mpv, "video-params/gamma");
         line += " primaries=" + stringProp(mpv, "video-params/primaries");
@@ -596,6 +603,9 @@ struct PlayerEntry {
     mpv_handle *mpv = nullptr;     // null once the player shut down
     bool hookPending = false;
     uint64_t hookId = 0;
+    // Phase 5 (P5-5/P5-6): our timing change on this player and the values it replaced.
+    bool timingApplied = false;
+    std::string savedTiming[3];
 };
 
 struct Registry {
@@ -847,7 +857,15 @@ StartProps readStartProps(mpv_handle *mpv) {
     return props;
 }
 
-std::string upcallStart(int64_t playerId, const std::wstring &display, const StartProps &props) {
+// NativeCodec.timing: kind 0 = none/timeout, 1 = upstream, 2 = display-sync.
+struct TimingRequest {
+    int64_t kind = 0;
+    int64_t num = 0;
+    int64_t den = 0;
+};
+
+std::string upcallStart(int64_t playerId, const std::wstring &display, const StartProps &props, double frameCap,
+    TimingRequest &request) {
     JavaVM *vm = javaVm();
     if (!vm) return "no-jvm";
     JNIEnv *env = nullptr;
@@ -866,7 +884,7 @@ std::string upcallStart(int64_t playerId, const std::wstring &display, const Sta
         if (!matchClass) {
             jclass local = env->FindClass("com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateMatch");
             if (local) {
-                startMethod = env->GetStaticMethodID(local, "nativePlaybackStart", "(JLjava/lang/String;DDZ)[J");
+                startMethod = env->GetStaticMethodID(local, "nativePlaybackStart", "(JLjava/lang/String;DDZD)[J");
                 if (startMethod) matchClass = static_cast<jclass>(env->NewGlobalRef(local));
                 env->DeleteLocalRef(local);
             }
@@ -878,13 +896,15 @@ std::string upcallStart(int64_t playerId, const std::wstring &display, const Sta
     } else {
         jstring jdisplay = env->NewString(reinterpret_cast<const jchar *>(display.c_str()), (jsize)display.size());
         auto timing = static_cast<jlongArray>(env->CallStaticObjectMethod(matchClass, startMethod, (jlong)playerId, jdisplay,
-            (jdouble)props.containerFps, (jdouble)props.estimatedFps, (jboolean)(props.isImage ? JNI_TRUE : JNI_FALSE)));
+            (jdouble)props.containerFps, (jdouble)props.estimatedFps, (jboolean)(props.isImage ? JNI_TRUE : JNI_FALSE),
+            (jdouble)frameCap));
         if (env->ExceptionCheck()) {
             env->ExceptionClear();
             result = "exception";
         } else if (timing && env->GetArrayLength(timing) == 3) {
             jlong t[3] = {};
             env->GetLongArrayRegion(timing, 0, 3, t);
+            request = {t[0], t[1], t[2]};
             result = t[0] == 2 ? strf("display-sync(%lld/%lld)", (long long)t[1], (long long)t[2])
                 : t[0] == 1 ? std::string("upstream") : std::string("none (timeout or off)");
         } else {
@@ -897,10 +917,220 @@ std::string upcallStart(int64_t playerId, const std::wstring &display, const Sta
     return result;
 }
 
-// Worker for one on_preloaded hook. Phase 4 logs the timing only; Phase 5 applies it (P4-11).
+// ---------------------------------------------------------------- Phase 5: NVIDIA driver settings (P5-9, read-only)
+// The same calls as scripts/rr-tools/drsprobe.cpp: nvapi_QueryInterface IDs from NVIDIA/nvapi (nvapi_interface.h,
+// NvApiDriverSettings.h), no SDK. Never SetSetting/SaveSettings.
+constexpr unsigned int kNvFrlFps = 0x10835002;          // FRL_FPS, Max Frame Rate (0 = off)
+constexpr unsigned int kNvPreferredPstate = 0x1057EB71;  // PREFERRED_PSTATE, Power management mode (1 = max performance)
+
+#pragma pack(push, 8)
+struct NvDrsSetting {  // NVDRS_SETTING_V1, 0x3020 bytes
+    unsigned int version;
+    wchar_t settingName[2048];
+    unsigned int settingId, settingType, settingLocation, isCurrentPredefined, isPredefinedValid;
+    union { unsigned int u32; unsigned char raw[4100]; } predefined;
+    union { unsigned int u32; unsigned char raw[4100]; } current;
+};
+struct NvDrsApplication {  // NVDRS_APPLICATION_V1
+    unsigned int version, isPredefined;
+    wchar_t appName[2048], userFriendlyName[2048], launcher[2048];
+};
+#pragma pack(pop)
+
+struct DriverSettings {
+    double frameCap = std::nan("");  // fps; 0 = off; NaN = unknown (NativeCodec.frameCap)
+    std::string text;
+};
+
+struct NvApi {
+    using QueryInterface = void *(__cdecl *)(unsigned int);
+    using Init = int(__cdecl *)();
+    using CreateSession = int(__cdecl *)(void **);
+    using Session = int(__cdecl *)(void *);
+    using GetBase = int(__cdecl *)(void *, void **);
+    using FindApp = int(__cdecl *)(void *, const wchar_t *, void **, void *);
+    using GetSetting = int(__cdecl *)(void *, void *, unsigned int, void *);
+    bool ok = false;
+    std::string error;
+    CreateSession create = nullptr;
+    Session destroy = nullptr;
+    Session load = nullptr;
+    GetBase getBase = nullptr;
+    FindApp findApp = nullptr;
+    GetSetting getSetting = nullptr;
+};
+
+NvApi &nvApi() {
+    static NvApi api;
+    static std::once_flag once;
+    std::call_once(once, []() {
+        HMODULE lib = LoadLibraryW(L"nvapi64.dll");
+        auto qi = lib ? reinterpret_cast<NvApi::QueryInterface>(GetProcAddress(lib, "nvapi_QueryInterface")) : nullptr;
+        if (!qi) {
+            api.error = lib ? "nvapi_QueryInterface missing" : "nvapi64.dll not found";
+            return;
+        }
+        auto init = reinterpret_cast<NvApi::Init>(qi(0x0150E828));
+        api.create = reinterpret_cast<NvApi::CreateSession>(qi(0x0694D52E));
+        api.destroy = reinterpret_cast<NvApi::Session>(qi(0xDAD9CFF8));
+        api.load = reinterpret_cast<NvApi::Session>(qi(0x375DBD6B));
+        api.getBase = reinterpret_cast<NvApi::GetBase>(qi(0xDA8466A0));
+        api.findApp = reinterpret_cast<NvApi::FindApp>(qi(0xEEE566B2));
+        api.getSetting = reinterpret_cast<NvApi::GetSetting>(qi(0x73BF8338));
+        if (!init || !api.create || !api.destroy || !api.load || !api.getBase || !api.findApp || !api.getSetting) {
+            api.error = "NVAPI entry missing";
+            return;
+        }
+        int rc = init();
+        if (rc != 0) {
+            api.error = strf("NvAPI_Initialize rc=%d", rc);
+            return;
+        }
+        api.ok = true;
+    });
+    return api;
+}
+
+// The value that applies to this process: the app profile's own setting if it has one, else the global one.
+bool nvSetting(NvApi &api, void *session, void *appProfile, void *base, unsigned int id, unsigned int &value,
+    const char *&where) {
+    auto setting = std::make_unique<NvDrsSetting>();
+    for (int pass = 0; pass < 2; ++pass) {
+        void *profile = pass == 0 ? appProfile : base;
+        if (!profile) continue;
+        std::memset(setting.get(), 0, sizeof(NvDrsSetting));
+        setting->version = (unsigned int)sizeof(NvDrsSetting) | (1u << 16);
+        if (api.getSetting(session, profile, id, setting.get()) == 0) {
+            value = setting->current.u32;
+            where = pass == 0 ? "app" : "global";
+            return true;
+        }
+    }
+    return false;
+}
+
+DriverSettings readDriverSettings() {
+    double start = nowSeconds();
+    DriverSettings result;
+    NvApi &api = nvApi();
+    if (!api.ok) {
+        result.text = strf("driver frl=unknown power=unknown profile=none (%s) ms=%.0f", api.error.c_str(),
+            (nowSeconds() - start) * 1000.0);
+        return result;
+    }
+    void *session = nullptr;
+    int rc = api.create(&session);
+    if (rc == 0 && (rc = api.load(session)) == 0) {
+        void *base = nullptr;
+        if (api.getBase(session, &base) != 0) base = nullptr;
+        wchar_t path[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, path, MAX_PATH);
+        const wchar_t *slash = std::wcsrchr(path, L'\\');
+        const wchar_t *exe = slash ? slash + 1 : path;
+        void *appProfile = nullptr;
+        auto app = std::make_unique<NvDrsApplication>();
+        std::memset(app.get(), 0, sizeof(NvDrsApplication));
+        app->version = (unsigned int)sizeof(NvDrsApplication) | (1u << 16);
+        if (api.findApp(session, exe, &appProfile, app.get()) != 0) appProfile = nullptr;
+        unsigned int value = 0;
+        const char *from = "default";
+        std::string frl = "off", power = "unknown";
+        if (nvSetting(api, session, appProfile, base, kNvFrlFps, value, from)) {
+            result.frameCap = (double)value;
+            if (value != 0) frl = std::to_string(value);
+        } else {
+            result.frameCap = 0.0;  // set nowhere = the driver default, no limiter
+            from = "default";
+        }
+        std::string frlFrom = from;
+        if (nvSetting(api, session, appProfile, base, kNvPreferredPstate, value, from)) {
+            power = strf("%u(%s)", value, from);
+        }
+        result.text = strf("driver frl=%s(%s) power=%s exe=%ls app_profile=%s", frl.c_str(), frlFrom.c_str(),
+            power.c_str(), exe, appProfile ? "yes" : "no");
+    } else {
+        result.text = strf("driver frl=unknown power=unknown (DRS session/load rc=%d)", rc);
+    }
+    if (session) api.destroy(session);
+    result.text += strf(" ms=%.0f", (nowSeconds() - start) * 1000.0);
+    return result;
+}
+
+// ---------------------------------------------------------------- Phase 5: mpv timing (P5-5, P5-6)
+// Saved before our first change on a player and put back exactly on revert. The caller holds entry.mutex
+// (H5 takes it too, so no call reaches a destroyed handle).
+const char *const kTimingProps[3] = {"video-sync", "interpolation", "display-fps-override"};
+
+bool readStringProperty(mpv_handle *mpv, const char *name, std::string &out) {
+    MpvApi &api = mpvApi();
+    char *value = nullptr;
+    if (api.getProperty(mpv, name, MPV_FORMAT_STRING, &value) < 0 || !value) return false;
+    out = value;
+    api.freeValue(value);
+    return true;
+}
+
+int setTimingProperty(PlayerEntry &entry, const char *name, const std::string &value) {
+    bool injected = fault("timing-set") && std::strcmp(name, "interpolation") == 0;
+    int rc = injected ? -1 : mpvApi().setPropertyString(entry.mpv, name, value.c_str());
+    nlog(strf("timing p%lld set %s=%s rc=%d%s", (long long)entry.id, name, value.c_str(), rc,
+        injected ? " (injected fault timing-set)" : ""));
+    return rc;
+}
+
+// Puts back the first [count] saved values, last first.
+bool revertTimingLocked(PlayerEntry &entry, int count = 3) {
+    if (!entry.mpv) return false;
+    bool ok = true;
+    for (int i = count - 1; i >= 0; --i) {
+        if (setTimingProperty(entry, kTimingProps[i], entry.savedTiming[i]) < 0) ok = false;
+    }
+    entry.timingApplied = false;
+    return ok;
+}
+
+bool applyDisplaySyncLocked(PlayerEntry &entry, int64_t num, int64_t den) {
+    if (!entry.mpv || num <= 0 || den <= 0) return false;
+    std::string rate = strf("%.6f", (double)num / (double)den);
+    if (entry.timingApplied) return setTimingProperty(entry, "display-fps-override", rate) >= 0;  // re-switch
+    for (int i = 0; i < 3; ++i) {
+        if (!readStringProperty(entry.mpv, kTimingProps[i], entry.savedTiming[i])) {
+            nlog(strf("timing p%lld timing-failed: cannot read %s", (long long)entry.id, kTimingProps[i]));
+            return false;
+        }
+    }
+    const std::string values[3] = {"display-resample", "no", rate};
+    for (int i = 0; i < 3; ++i) {
+        if (setTimingProperty(entry, kTimingProps[i], values[i]) < 0) {
+            revertTimingLocked(entry, i);
+            nlog(strf("timing p%lld timing-failed at %s: reverted, upstream timing", (long long)entry.id, kTimingProps[i]));
+            return false;
+        }
+    }
+    entry.timingApplied = true;
+    nlog(strf("timing p%lld display-sync %s (was video-sync=%s interpolation=%s display-fps-override=%s)",
+        (long long)entry.id, rate.c_str(), entry.savedTiming[0].c_str(), entry.savedTiming[1].c_str(),
+        entry.savedTiming[2].c_str()));
+    return true;
+}
+
+// NUVIO_RR_FAULT=drop-mode (P5-8): drops our temporary mode 20 s and 50 s after the hook, as a monitor off/on does.
+void dropModeFault(std::shared_ptr<PlayerEntry> entry, std::wstring device) {
+    double start = nowSeconds();
+    for (double at : {20.0, 50.0}) {
+        sleepUnlessStopped(at - (nowSeconds() - start), entry->id);
+        if (stopRequested(entry->id)) return;
+        LONG rc = ChangeDisplaySettingsExW(device.c_str(), nullptr, nullptr, 0, nullptr);
+        nlog(strf("injected fault drop-mode at %.0f s: ChangeDisplaySettingsExW(%ls, NULL) = %ld", at, device.c_str(), rc));
+    }
+}
+
+// Worker for one on_preloaded hook: decide + switch through Kotlin, then apply the timing (P5-5).
 void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
     double start = nowSeconds();
     std::string timing = "none";
+    TimingRequest request;
+    std::wstring display;
     try {
         StartProps props;
         bool alive = false;
@@ -912,18 +1142,38 @@ void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
             }
         }
         if (alive && !entry->stopping.load()) {
-            std::wstring display = monitorName(GetAncestor(entry->container, GA_ROOT));
+            display = monitorName(GetAncestor(entry->container, GA_ROOT));
             nlog(strf("hook p%lld on_preloaded %s display=%ls (read in %.0f ms)", (long long)entry->id, props.text.c_str(),
                 display.c_str(), (nowSeconds() - start) * 1000.0));
-            timing = upcallStart(entry->id, display, props);
+            DriverSettings driver = readDriverSettings();
+            nlog(strf("hook p%lld ", (long long)entry->id) + driver.text);
+            timing = upcallStart(entry->id, display, props, driver.frameCap, request);
         }
     } catch (...) {
         timing = "unexpected-error";
+        request = TimingRequest();
     }
-    std::lock_guard<std::mutex> lock(entry->mutex);
-    nlog(strf("hook p%lld done after %.0f ms timing=%s (logged only in Phase 4)", (long long)entry->id,
-        (nowSeconds() - start) * 1000.0, timing.c_str()));
-    continueHookLocked(*entry, hookId, "worker");
+    bool synced = false;
+    {
+        std::lock_guard<std::mutex> lock(entry->mutex);
+        try {
+            if (request.kind == 2 && entry->hookPending && !entry->stopping.load()) {
+                synced = applyDisplaySyncLocked(*entry, request.num, request.den);
+            }
+        } catch (...) {
+            nlog(strf("timing p%lld timing-failed: unexpected error", (long long)entry->id));
+        }
+        nlog(strf("hook p%lld done after %.0f ms timing=%s applied=%s", (long long)entry->id,
+            (nowSeconds() - start) * 1000.0, timing.c_str(),
+            request.kind == 2 ? (synced ? "display-sync" : "none (failed)") : "none (upstream)"));
+        continueHookLocked(*entry, hookId, "worker");
+    }
+    if (synced && fault("drop-mode") && !display.empty()) {
+        try {
+            std::thread(dropModeFault, entry, display).detach();
+        } catch (...) {
+        }
+    }
 }
 
 // Hook H2: after mpv_initialize, before loadfile, so the first file's hook cannot be missed (P4-9).
@@ -1016,6 +1266,65 @@ jlongArray toJava(JNIEnv *env, const std::vector<int64_t> &values) {
     return array;
 }
 
+// The watcher queries every second: log a failure once per change, then one recovery line (P5-19).
+void logQueryChange(const std::wstring &device, bool ok, const std::string &error) {
+    static std::mutex mutex;
+    static std::map<std::wstring, std::string> failing;
+    std::lock_guard<std::mutex> lock(mutex);
+    auto it = failing.find(device);
+    if (ok) {
+        if (it == failing.end()) return;
+        failing.erase(it);
+        nlog(strf("query %ls ok again", device.c_str()));
+    } else if (it == failing.end() || it->second != error) {
+        failing[device] = error;
+        nlog(strf("query %ls failed: %s (logged once until it changes)", device.c_str(), error.c_str()));
+    }
+}
+
+// setTiming from Kotlin (P5-6): kind 1 = upstream (put ours back, if any), 2 = display-sync.
+bool setTiming(int64_t playerId, int64_t kind, int64_t num, int64_t den) {
+    auto entry = findPlayer([playerId](const PlayerEntry &p) { return p.id == playerId; });
+    if (!entry || entry->stopping.load()) {
+        nlog(strf("timing p%lld: player gone or stopping, no mpv call", (long long)playerId));
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    if (!entry->mpv) return false;
+    if (kind == 2) return applyDisplaySyncLocked(*entry, num, den);
+    if (kind != 1) return false;
+    if (!entry->timingApplied) {
+        nlog(strf("timing p%lld upstream: nothing of ours applied", (long long)playerId));
+        return true;
+    }
+    bool ok = revertTimingLocked(*entry);
+    nlog(strf("timing p%lld upstream: saved values back (video-sync=%s) ok=%d", (long long)playerId,
+        entry->savedTiming[0].c_str(), ok ? 1 : 0));
+    return ok;
+}
+
+// Health-check counters (P5-11): [drops, mistimed, estimated-display-fps, time-pos, idle 0/1, ours 0/1], NaN = n/a.
+std::vector<double> timingStats(int64_t playerId) {
+    auto entry = findPlayer([playerId](const PlayerEntry &p) { return p.id == playerId; });
+    if (!entry || entry->stopping.load()) return {};
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    if (!entry->mpv) return {};
+    MpvApi &api = mpvApi();
+    double nan = std::nan("");
+    auto count = [&](const char *name) {
+        int64_t v = 0;
+        return api.getProperty(entry->mpv, name, MPV_FORMAT_INT64, &v) >= 0 ? (double)v : nan;
+    };
+    auto real = [&](const char *name) {
+        double v = 0.0;
+        return api.getProperty(entry->mpv, name, MPV_FORMAT_DOUBLE, &v) >= 0 ? v : nan;
+    };
+    int idle = 0;
+    api.getProperty(entry->mpv, "core-idle", MPV_FORMAT_FLAG, &idle);
+    return {count("frame-drop-count"), count("mistimed-frame-count"), real("estimated-display-fps"), real("time-pos"),
+        idle ? 1.0 : 0.0, entry->timingApplied ? 1.0 : 0.0};
+}
+
 // No C++ exception crosses JNI: it becomes a Java exception, which the Kotlin controller maps to
 // unexpected-error (P4-7).
 void throwJava(JNIEnv *env, const char *what) {
@@ -1038,11 +1347,11 @@ JNIEXPORT jlongArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshr
             nuvio_rr::nlog("query: injected fault display-not-found");
             return nullptr;
         }
-        nuvio_rr::DisplayState state = nuvio_rr::queryDisplayByName(nuvio_rr::fromJava(env, display));
-        if (!nuvio_rr::complete(state)) {
-            nuvio_rr::nlog(nuvio_rr::strf("query %ls failed: %s", state.gdiName.c_str(), state.error.c_str()));
-            return nullptr;
-        }
+        std::wstring device = nuvio_rr::fromJava(env, display);
+        nuvio_rr::DisplayState state = nuvio_rr::queryDisplayByName(device);
+        bool ok = nuvio_rr::complete(state);
+        nuvio_rr::logQueryChange(device, ok, state.error);
+        if (!ok) return nullptr;
         return nuvio_rr::toJava(env, nuvio_rr::stateValues(state));
     } catch (const std::exception &e) {
         nuvio_rr::throwJava(env, e.what());
@@ -1114,6 +1423,34 @@ JNIEXPORT jstring JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate
         nuvio_rr::throwJava(env, e.what());
     } catch (...) {
         nuvio_rr::throwJava(env, "unknown native error in nativePlayerDisplay");
+    }
+    return nullptr;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeSetTiming(
+    JNIEnv *env, jclass, jlong playerId, jlong kind, jlong numerator, jlong denominator) {
+    try {
+        return nuvio_rr::setTiming(playerId, kind, numerator, denominator) ? JNI_TRUE : JNI_FALSE;
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeSetTiming");
+    }
+    return JNI_FALSE;
+}
+
+JNIEXPORT jdoubleArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeTimingStats(
+    JNIEnv *env, jclass, jlong playerId) {
+    try {
+        std::vector<double> values = nuvio_rr::timingStats(playerId);
+        if (values.empty()) return nullptr;
+        jdoubleArray array = env->NewDoubleArray((jsize)values.size());
+        if (array) env->SetDoubleArrayRegion(array, 0, (jsize)values.size(), values.data());
+        return array;
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeTimingStats");
     }
     return nullptr;
 }

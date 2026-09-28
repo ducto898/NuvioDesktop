@@ -40,6 +40,7 @@ object RefreshRateMatch {
         containerFps: Double,
         estimatedFps: Double,
         isImage: Boolean,
+        frameCap: Double,
     ): LongArray = try {
         if (!enabled) {
             NativeCodec.timing(null)
@@ -50,6 +51,7 @@ object RefreshRateMatch {
                 containerFps = containerFps.takeIf { it.isFinite() },
                 estimatedFps = estimatedFps.takeIf { it.isFinite() },
                 isImage = isImage,
+                frameCap = NativeCodec.frameCap(frameCap),
             )
             NativeCodec.timing(dispatcher().playbackStart(input, START_TIMEOUT_MS))
         }
