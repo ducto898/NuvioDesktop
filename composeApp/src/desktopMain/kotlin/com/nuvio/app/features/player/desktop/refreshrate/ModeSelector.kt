@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.desktop.refreshrate
 
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -99,7 +100,22 @@ object ModeSelector {
         if (!enabled) return Selection.NoSwitch("disabled", "setting off")
         return when (val fps = FpsSnapper.resolve(containerFps, estimatedFps, isImage)) {
             is FpsResult.Rejected -> Selection.NoSwitch(fps.reason, "container=${fps.containerFps} estimate=${fps.estimatedFps}")
-            is FpsResult.Snapped -> select(fps, current, modes)
+            is FpsResult.Snapped -> capped(select(fps, current, modes), frameCap)
         }
+    }
+
+    private fun capped(selection: Selection, frameCap: Double?): Selection {
+        val target = when (selection) {
+            is Selection.Switch -> selection.target
+            is Selection.AlreadyAtTarget -> selection.mode
+            is Selection.NoSwitch -> return selection
+        }
+        if (frameCap == null || !(frameCap > 0.0) || !frameCap.isFinite()) return selection
+        val rate = target.refresh.toDouble()
+        if (frameCap >= rate * FRAME_CAP_HEADROOM) return selection
+        return Selection.NoSwitch(
+            "frame-cap",
+            "driver Max Frame Rate ${"%.0f".format(Locale.ROOT, frameCap)} < $FRAME_CAP_HEADROOM x target ${"%.3f".format(Locale.ROOT, rate)} Hz",
+        )
     }
 }

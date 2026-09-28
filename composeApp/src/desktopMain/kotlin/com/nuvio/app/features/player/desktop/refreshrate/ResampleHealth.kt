@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.desktop.refreshrate
 
+import java.util.Locale
 /** One read of the player's mpv counters; [at] in seconds on any monotonic clock. */
 data class TimingSample(
     val at: Double,
@@ -24,9 +25,33 @@ sealed interface HealthVerdict {
  * e.g. the display-resample collapse under a driver frame cap (Phase 2b), never normal runs.
  */
 class ResampleHealth(private val target: Rational, private val startedAt: Double) {
+    private val samples = ArrayDeque<TimingSample>()
+
+    /** Judges the 10 s window that ends at [sample]. */
     fun add(sample: TimingSample): HealthVerdict {
-        // TODO(P5-11): implemented in commit B.
-        return HealthVerdict.Wait
+        if (sample.at < startedAt + IGNORE_FIRST_SECONDS) return HealthVerdict.Wait
+        samples.addLast(sample)
+        // Keep one sample at or before the window start as the base.
+        while (samples.size > 2 && samples[1].at <= sample.at - WINDOW_SECONDS) samples.removeFirst()
+        val base = samples.first().takeIf { it.at <= sample.at - WINDOW_SECONDS } ?: return HealthVerdict.Wait
+        if (sample.paused || base.paused) return HealthVerdict.Wait
+        val advance = (sample.timePos ?: return HealthVerdict.Wait) - (base.timePos ?: return HealthVerdict.Wait)
+        if (advance < MIN_ADVANCE_SECONDS || advance > MAX_ADVANCE_SECONDS) return HealthVerdict.Wait
+        val drops = sample.drops - base.drops
+        val mistimed = sample.mistimed - base.mistimed
+        if (drops < 0 || mistimed < 0) return HealthVerdict.Wait
+        val window = "%.0f s".format(Locale.ROOT, sample.at - base.at)
+        if (drops + mistimed > MAX_BAD_FRAMES) {
+            return HealthVerdict.Unhealthy("drops=$drops mistimed=$mistimed in $window (max $MAX_BAD_FRAMES)")
+        }
+        val estimate = sample.estimatedDisplayFps
+        val rate = target.toDouble()
+        if (estimate != null && rate > 0.0 && kotlin.math.abs(estimate / rate - 1.0) > MAX_RATE_ERROR) {
+            return HealthVerdict.Unhealthy(
+                "estimated-display-fps=${"%.3f".format(Locale.ROOT, estimate)} vs target ${"%.3f".format(Locale.ROOT, rate)} (max ${MAX_RATE_ERROR * 100} %)",
+            )
+        }
+        return HealthVerdict.Healthy
     }
 
     companion object {

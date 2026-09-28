@@ -4,9 +4,11 @@ import com.nuvio.app.features.player.desktop.refreshrate.Command
 import com.nuvio.app.features.player.desktop.refreshrate.DisplayMode
 import com.nuvio.app.features.player.desktop.refreshrate.DisplayState
 import com.nuvio.app.features.player.desktop.refreshrate.FailureKind
+import com.nuvio.app.features.player.desktop.refreshrate.HealthVerdict
 import com.nuvio.app.features.player.desktop.refreshrate.ModeSelector
 import com.nuvio.app.features.player.desktop.refreshrate.Rational
 import com.nuvio.app.features.player.desktop.refreshrate.RefreshRateSession
+import com.nuvio.app.features.player.desktop.refreshrate.ResampleHealth
 import com.nuvio.app.features.player.desktop.refreshrate.Selection
 import com.nuvio.app.features.player.desktop.refreshrate.Session
 import com.nuvio.app.features.player.desktop.refreshrate.SessionEvent
@@ -14,6 +16,7 @@ import com.nuvio.app.features.player.desktop.refreshrate.SessionState
 import com.nuvio.app.features.player.desktop.refreshrate.Step
 import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
 import com.nuvio.app.features.player.desktop.refreshrate.Timing
+import com.nuvio.app.features.player.desktop.refreshrate.TimingSample
 import com.nuvio.app.features.player.desktop.refreshrate.describe
 
 /**
@@ -37,6 +40,11 @@ class RefreshRateController(
     private var lastObserved: DisplayState? = null
     private var candidate: DisplayState? = null
 
+    /** The player we last gave display-synced timing, while its health is watched (P5-11). */
+    private class HealthWatch(val playerId: Long, val health: ResampleHealth)
+
+    private var health: HealthWatch? = null
+
     /** One playback start: decide, switch, verify. Returns the timing for that player. */
     fun playbackStart(input: StartInput): Timing {
         if (exited) {
@@ -46,10 +54,16 @@ class RefreshRateController(
         val (current, selection) = select(input)
         log(startLine(input, current, selection))
         val event = SessionEvent.PlaybackStart(input.playerId, input.display, current ?: UNKNOWN_STATE, selection)
-        return apply(event) ?: Timing.Upstream
+        val timing = apply(event) ?: Timing.Upstream
+        // The hook applies it (P5-5); the newest player is the one whose health is watched.
+        watchHealth(input.playerId, timing)
+        return timing
     }
 
-    /** The player screen went away (H6), or the player moved to another monitor. */
+    /**
+     * The player screen went away (H6), or the player moved to another monitor. Only a moved player keeps
+     * playing, so only then does its timing change (P5-7).
+     */
     fun screenGone(reason: String = "screen-gone") {
         val owner = when (val state = session.state) {
             is SessionState.Switched -> state.context.owner
@@ -61,7 +75,12 @@ class RefreshRateController(
             return
         }
         log("$reason p$owner")
-        apply(SessionEvent.ScreenGone(owner))
+        val timing = apply(SessionEvent.ScreenGone(owner))
+        if (reason == "screen-gone") {
+            if (health?.playerId == owner) health = null
+        } else if (timing != null) {
+            route(owner, timing)
+        }
     }
 
     /** Window close / JVM shutdown (H8): restore, and never switch again. */
@@ -74,6 +93,7 @@ class RefreshRateController(
 
     /** One display-watcher tick (P4-16, Q15). A changed read acts only when the next tick reads the same. */
     fun watch() {
+        checkHealth()
         val ctx = (session.state as? SessionState.Switched)?.context ?: return
         try {
             val where = port.playerDisplay(ctx.owner)
@@ -89,7 +109,7 @@ class RefreshRateController(
                 else -> {
                     candidate = null
                     lastObserved = observed
-                    apply(SessionEvent.DisplayChanged(ctx.display, observed))
+                    apply(SessionEvent.DisplayChanged(ctx.display, observed))?.let { route(ctx.owner, it) }
                 }
             }
         } catch (e: Exception) {
@@ -115,8 +135,49 @@ class RefreshRateController(
             isImage = input.isImage,
             current = current.mode,
             modes = modes,
+            frameCap = input.frameCap,
         )
         return current to selection
+    }
+
+    /** A timing change outside the hook goes to the session owner's mpv (P5-6, P5-7). */
+    private fun route(playerId: Long, timing: Timing) {
+        val ok = try {
+            port.setTiming(playerId, timing)
+        } catch (e: Exception) {
+            log("setTiming p$playerId ${timing.text()} failed ${FailureKind.UNEXPECTED_ERROR.code} ${e.describeError()}")
+            if (health?.playerId == playerId) health = null
+            return
+        }
+        log("setTiming p$playerId ${timing.text()} ${if (ok) "ok" else "failed"}")
+        if (ok) watchHealth(playerId, timing) else if (health?.playerId == playerId) health = null
+    }
+
+    private fun watchHealth(playerId: Long, timing: Timing) {
+        health = (timing as? Timing.DisplaySync)?.let { HealthWatch(playerId, ResampleHealth(it.rate, clock())) }
+    }
+
+    /** One health tick (P5-11, Q21): clearly broken display-resample ⇒ upstream timing, the mode stays. */
+    private fun checkHealth() {
+        val watch = health ?: return
+        val stats = try {
+            port.timingStats(watch.playerId)
+        } catch (e: Exception) {
+            log("health p${watch.playerId} ${FailureKind.UNEXPECTED_ERROR.code} ${e.describeError()}")
+            return
+        }
+        if (stats == null || !stats.displaySyncApplied) {
+            log("health p${watch.playerId} stopped: ${if (stats == null) "player gone" else "display-sync not applied"}")
+            health = null
+            return
+        }
+        val sample = TimingSample(clock(), stats.drops, stats.mistimed, stats.estimatedDisplayFps, stats.timePos, stats.paused)
+        val verdict = watch.health.add(sample)
+        if (verdict is HealthVerdict.Unhealthy) {
+            log("resample-unhealthy p${watch.playerId} ${verdict.detail}")
+            health = null
+            route(watch.playerId, Timing.Upstream)
+        }
     }
 
     /** Steps [first], runs each command to its result and steps that too. Returns the last timing given. */

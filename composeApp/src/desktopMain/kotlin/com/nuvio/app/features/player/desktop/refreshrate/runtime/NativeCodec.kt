@@ -56,9 +56,20 @@ object NativeCodec {
     const val STATS_SIZE = 6
 
     /** Null = no cap to respect (off, unknown or nonsense). */
-    fun frameCap(value: Double): Double? = null // TODO(P5-9): commit B
+    fun frameCap(value: Double): Double? = value.takeIf { it.isFinite() && it > 0.0 }
 
-    fun timingStats(values: DoubleArray?): TimingStats? = null // TODO(P5-11): commit B
+    fun timingStats(values: DoubleArray?): TimingStats? {
+        if (values == null || values.size != STATS_SIZE) return null
+        fun count(v: Double) = if (v.isFinite() && v > 0.0) v.toLong() else 0L
+        return TimingStats(
+            drops = count(values[0]),
+            mistimed = count(values[1]),
+            estimatedDisplayFps = values[2].takeIf { it.isFinite() },
+            timePos = values[3].takeIf { it.isFinite() },
+            paused = values[4] != 0.0,
+            displaySyncApplied = values[5] != 0.0,
+        )
+    }
 
     private fun stateAt(values: LongArray, o: Int) = DisplayState(
         mode = DisplayMode(
