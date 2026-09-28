@@ -77,6 +77,7 @@ object RefreshRateSession {
             is Handled.To -> {
                 state = r.state
                 if (r.requeue != null) pending = listOf(r.requeue) + pending
+                if (event == SessionEvent.AppExit) pending = pending.withoutStarts()
             }
         }
         // Replay deferred events once no display command is in flight (P3-17).
@@ -91,6 +92,7 @@ object RefreshRateSession {
                 is Handled.To -> {
                     state = r.state
                     if (r.requeue != null) pending = listOf(r.requeue) + pending
+                    if (next == SessionEvent.AppExit) pending = pending.withoutStarts()
                 }
             }
         }
@@ -119,6 +121,9 @@ object RefreshRateSession {
         /** [requeue]: an event to handle again, first, once the new state has no command in flight. */
         data class To(val state: SessionState, val requeue: SessionEvent? = null) : Handled
     }
+
+    /** Nothing may switch once the app is exiting. */
+    private fun List<SessionEvent>.withoutStarts() = filterNot { it is SessionEvent.PlaybackStart }
 
     private fun SessionState.inFlight() = this is SessionState.Switching || this is SessionState.Restoring
 
@@ -243,7 +248,7 @@ object RefreshRateSession {
             return Handled.To(SessionState.Restoring(ctx.display), requeue = event)
         }
         val keep = { rate: Rational, target: DisplayMode ->
-            out.reasons += "same-target"
+            out.reasons += if (target == ctx.target) "same-target" else "retarget"
             out.timing = Timing.DisplaySync(rate)
             Handled.To(SessionState.Switched(ctx.copy(target = target, owner = event.playerId, reswitchUsed = false)))
         }

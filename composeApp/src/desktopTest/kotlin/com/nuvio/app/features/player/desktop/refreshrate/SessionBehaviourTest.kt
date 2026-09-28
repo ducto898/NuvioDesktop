@@ -152,6 +152,10 @@ class SessionBehaviourTest {
         val exactOtherDenominator = DisplayState(qhd(239901000, 1000000), hdr = true)
         assertIs<SessionState.Switched>(RefreshRateSession.step(switching, switchOk(exactOtherDenominator)).session.state)
 
+        // Within 1e-6 relative but not exactly equal (0.2 ppm off) is accepted.
+        val nearlyExact = DisplayState(qhd(23990105, 100000), hdr = true)
+        assertIs<SessionState.Switched>(RefreshRateSession.step(switching, switchOk(nearlyExact)).session.state)
+
         val bad = listOf(
             DisplayState(MODE_280, hdr = true),
             DisplayState(qhd(239902, 1000), hdr = true),
@@ -215,5 +219,23 @@ class SessionBehaviourTest {
         val otherDisplay = RefreshRateSession.step(switched, SessionEvent.DisplayChanged("B", ORIG))
         assertEquals(switched, otherDisplay.session)
         assertEquals(emptyList(), otherDisplay.commands)
+    }
+
+    // Verifier round 1, problem 5: nothing switches after app exit.
+    @Test
+    fun `starts queued behind app exit are dropped`() {
+        val steps = run(switching, SessionEvent.AppExit, start(2, SEL_100), switchOk(), SessionEvent.RestoreFinished(true))
+        assertEquals(listOf(Command.Restore("A")), steps[2].commands)
+        assertEquals(Session(), steps[3].session)
+        assertEquals(emptyList(), steps[3].commands, "no switch after exit")
+    }
+
+    // Verifier round 1, problem 4: retargeting is named as such.
+    @Test
+    fun `already at another fitting mode while switched retargets`() {
+        val step = RefreshRateSession.step(switched, start(2, Selection.AlreadyAtTarget(MODE_120, 5, 0.0, SNAP_23, 6), current = DisplayState(MODE_120, true)))
+        assertEquals(emptyList(), step.commands)
+        assertEquals(SessionState.Switched(CTX.copy(target = MODE_120, owner = 2)), step.session.state)
+        assertTrue("retarget" in step.reasons, "${step.reasons}")
     }
 }

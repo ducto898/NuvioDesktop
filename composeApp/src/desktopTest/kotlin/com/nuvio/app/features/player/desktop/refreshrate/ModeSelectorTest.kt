@@ -94,6 +94,14 @@ class ModeSelectorTest {
         assertNoSwitch(decide(23.976, current = qhd(0, 0)), "no-suitable-mode", "invalid current")
     }
 
+    // P3-10 tie rule (verifier round 1): same k, smaller relative error wins
+    @Test
+    fun `two fitting modes at the same multiple pick the smaller error`() {
+        val modes = listOf(MODE_280, qhd(119950, 1000), qhd(119900, 1000))
+        assertSwitch(decide(24.0, modes = modes), Rational(119950, 1000), 5, "24 fps: 119.95 (-417 ppm) beats 119.90 (-833 ppm)")
+        assertSwitch(decide(24.0, modes = modes.reversed()), Rational(119950, 1000), 5, "order does not matter")
+    }
+
     // P3-14
     @Test
     fun `already at the target means no switch`() {
