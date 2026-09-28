@@ -630,5 +630,133 @@ Design:
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
+### Phase 7 — Test matrix + independent review (written 2026-09-29, before code; AWAITING owner approval, Q30–Q35)
+Scope: prove the finished feature (Phases 3–6) across the clip matrix, the disturbance cases carried from Phases 4–5,
+10-min soaks and one owner checklist, at the **240 Hz desktop default** (Q27: 239.901 live, 240 in the registry); set
+`ResampleHealth.RATE_ERROR_SAMPLES` from measured data (Q28); end with a fresh, independent review of the whole patch.
+**Not in Phase 7:** app identity / own exe / Nuvio-only driver profiles, updater, Sentry, patch export (Phase 8); any
+NVIDIA or Windows setting change by Claude (the owner makes those, FORK §9); new product behaviour.
+
+Design notes:
+- **The 240 default hides the switch path.** 23.976/24/29.97/59.94/60 (and VFR by its 60 fps header) target 240 ⇒
+  `already-at-target`: display-synced timing, no switch, no black, nothing to restore. 25/50 ⇒ `no-suitable-mode`
+  (100 Hz is raw-only, Q17). So switch, settle, verify, restore, `mode-lost`, `hdr-toggled` and kill-revert would get
+  no fresh evidence. Proposed (**Q30**, recommended option a): a **measure-only mode cap**
+  `NUVIO_RR_MEASURE_MAX_HZ=<n>`, honoured only when `NUVIO_RR_MEASURE=1`, that drops listed modes above `<n>` from the
+  list handed to `decide()` (the current-state reads are untouched). With `144`: 23.976/24 ⇒ 143.973 (×6),
+  29.97/59.94 ⇒ 119.998, 60 ⇒ 120.000 — real switches away from 240 and a real `NULL` restore back to the registry mode
+  240, the same path a 280 desktop takes. Rejected alternative: `switcher.exe` holding 280 around a run — the feature's
+  restore (`ChangeDisplaySettingsExW(NULL)`) goes to the **registry** mode 240, not to switcher's 280, so the run would
+  test an artificial two-process state.
+- **Rate-off data (Q28, Q31).** No `rate-off` line exists yet in any run folder (0 of 65 `refresh-rate.log`; the
+  line exists since `c1623bc8` and no stall has happened since). Two sources: (1) every `rate-off … recovered` and
+  `resample-unhealthy` line from every Phase 7 run and soak; (2) an offline **replay** of the per-second sampler stats
+  (`estimated-display-fps`, `time-pos`, `pause`, counters — logged by the measure sampler in every run since Phase 2,
+  all Phase 2–6 run folders) through the P5-11 rule for N = 1..10 samples, so a decision exists even if no live stall happens.
+- Soaks use long **stream-copied** clips (D10): ffmpeg concat demuxer, `-c copy`, 4 × the 150 s clip ≈ 10 min, into
+  `testdata/` (git-ignored); no `loop-file`.
+- Every unattended run wakes the monitor first (measure.ps1's 1 px nudge). A run with the asleep signature (Phase 4
+  caveat: hundreds of drops + underruns in 30 s, feature on or off) is re-run, never judged.
+- Runs are launched only through `scripts/measure.ps1` / `scripts/run-dev.ps1`. Runs without `-Feature`/`-Setting`
+  are off (`NUVIO_RR_ENABLE=0`). Default limits `-ExpectHz 239.901 -ExpectRegHz 240`.
+
+**Footprint and tooling**
+- P7-1 — Upstream diff unchanged from Phase 6 (7 code lines + 3 string lines, 5 files). The only product-source change
+  allowed is the measure-only `NUVIO_RR_MEASURE_MAX_HZ` in `display_mode_matcher.cpp` (Q30) and the
+  `RATE_ERROR_SAMPLES` value (P7-16); no Gradle change, no dependency; nothing pushed — auto (`verify.ps1 -Full`)
+- P7-2 — `verify.ps1 -Full` green with only the known upstream failures (baseline 8 entries, incl. the flaky
+  `PluginRuntimeDesktopTest` case); nothing written to either official folder in any Phase 7 run — auto
+- P7-3 — Mode cap (if Q30 = a): active only with `NUVIO_RR_MEASURE=1`; each start logs one line
+  `measure max-hz=<n> dropped=<rates>`; without the knob the mode list and the log are unchanged (a 23.976 run without
+  it = `already-at-target`, as in Phase 6); the restore path is not touched by the knob — auto (code review + runs)
+- P7-4 — measure.ps1 fixes carried from Phase 5: `after5s` sums only the positive increments of each counter (mpv resets
+  mistimed/delayed on a seek); every PresentMon grid check fits the period from the display times instead of a constant;
+  `f11` in `-Actions` is confirmed by reading the window state and retried once, and the summary records the final
+  mode; new `-MaxHz <n>` (sets the P7-3 knob, and makes "during" expect the chosen target); new action `alttab@<s>`
+  (focus another window for 3 s, then back) — auto (a rerun of the Phase 5 `p5-pm-actions` summary via `-Cadence`, and
+  one run using each new option)
+- P7-5 — summary.json gets a `health` section: every `rate-off` line (samples, worst fps, error %, time),
+  `resample-unhealthy` (time, reason) and the count of judged samples; `scripts/rr-tools/p7-collect.ps1` builds one
+  table from all run folders (≥ the Phase 7 folders + any older ones containing such lines) into
+  `measurements/phase7-rate-off.txt` — auto
+- P7-6 — `scripts/rr-tools/health-replay.py`: reads the sampler lines of a run folder and applies the P5-11 rule
+  (5 s ignored, 10 s windows, advance 8–12 s, > 20 bad frames, > 1 % rate error for N judged samples in a row). **Cross-
+  check:** at N = 5 its verdicts (fallback yes/no and time, recovered streaks) equal the app's own log lines in every
+  Phase 7 feature-on run; one mismatch ⇒ the tool is fixed before its results are used — auto
+
+**Matrix (unattended, 60 s each unless stated; limits = P5-12's, read against 239.901/240, counted after 5 s)**
+- P7-7 — Feature on (`-Setting on`), windowed, **all 32 clips** (7 rates + VFR × SDR/HDR × 1080p/2160p):
+  23.976/24/29.97/59.94/60/VFR ⇒ `already-at-target`, no switch call, Windows 239.901 and registry 240 throughout,
+  display-resample, `display-fps` = 239.901000 ± 0.001, estimated within 0.1 %, drops + mistimed ≤ 1/min, 0 underruns,
+  speed corrections within ± 0.2 % (VFR: 0 underruns + no desync warning, counts recorded, Q22); 25/50 ⇒
+  `no-suitable-mode`, upstream timing, no feature mpv property set. The 2160p HDR clips also fullscreen (7 + VFR) with
+  "Prefer maximum performance" as the owner keeps it (D12). A limit miss is re-run once; two misses = a finding —
+  auto (summary.json + p7-collect table)
+- P7-8 — Feature off (no `-Feature`/`-Setting`, env 0): `sdr-1080p-23.976`, `sdr-1080p-59.94`, `hdr-2160p-23.976` ⇒
+  no hook, no `refresh-rate.log`, upstream audio sync at 239.901, mpv option lines equal Phase 6's off runs — auto
+- P7-9 — Switch path (with the Q30 cap `-MaxHz 144`, feature on): `sdr-1080p-23.976` and `sdr-1080p-24` (⇒ 143.973),
+  `sdr-1080p-29.97`/`sdr-1080p-59.94` (⇒ 119.998), `sdr-1080p-60` (⇒ 120.000) windowed; `hdr-2160p-23.976`
+  fullscreen ⇒ switch before `file-loaded`, settle ≤ 4 s, verify OK, HDR/bpc unchanged, P5-12 limits at the new rate,
+  restore on close ⇒ 239.901 within 1 s, registry 240 in every observer sample — auto
+- P7-10 — Lifecycle at the capped switch: (a) window close during the switch (`-CloseAfterSwitchMs` 0/50/150/300,
+  2 runs each) ⇒ no crash, 239.901 after; (b) `-Kill` while switched ⇒ Windows reverts to 239.901 within 1 s (D7);
+  (c) next episode with the same target (two consecutive files, as P5-13) ⇒ one switch only, second player gets
+  `DisplaySync`; (d) `drop-mode` fault ⇒ `mode-lost` re-switch + `setTiming display-sync ok`, then `mode-lost-again` +
+  `setTiming upstream ok`, as P5-8; (e) `-Actions` pause 20 s, seek ±10 s, controls, f11 ×2, alttab ×2 ⇒ mode kept,
+  limits met outside a 5 s window after each action, every seek/f11/alttab's `rate-off` line (if any) collected — auto
+- P7-11 — Fail-safe regressions (one short run each, feature on): every `NUVIO_RR_FAULT` kind (8 Phase 4 kinds +
+  `timing-set`, `drop-mode`, `enable-upcall`) ⇒ plays ≥ 10 s, no crash, 239.901 after exit; with the cap where the
+  kind needs a switch to fire — auto
+
+**Soaks (unattended, stream-copied ≈ 10 min, D10; see Q32)**
+- P7-12 — `hdr-2160p-23.976` fullscreen (already at target), `sdr-1080p-59.94` windowed (already at target),
+  `sdr-1080p-25` windowed (no switch, upstream timing), `sdr-1080p-23.976` windowed with `-MaxHz 144` (switched,
+  143.973): P5-12 limits over the whole soak (drops + mistimed ≤ 1/min averaged AND no 60 s bin > 3), 0 underruns, no
+  `resample-unhealthy`, GPU power median + max logged, 239.901 after — auto
+
+**Rate-off data and the final sample count (Q28, Q31)**
+- P7-13 — After P7-7..P7-12 and the owner batch: `measurements/phase7-rate-off.txt` lists every recovered stretch
+  (run, time, samples, worst %, cause if known: seek/f11/alttab/HDR/monitor/driver/sleep/none) and every fallback — auto
+- P7-14 — Replay (P7-6) over every run folder with sampler stats, N = 1..10: per N the number of **false fallbacks**
+  in runs judged healthy by P5-12, and the **time to fallback** in the known-bad runs (Phase 5's forced
+  `d3d11-sync-interval=0` run + one new P7 run of the same set, at 239.901 and at the capped 143.973). Table in the same
+  file — auto
+- P7-15 — Rule for the final value (Q31, recommended): N = max(3, longest recovered stretch seen live or in the replay
+  + 2), and at most the largest N for which every known-bad run still falls back within 20 s of its first judged
+  sample; if nothing ever went off-rate, N stays 5. The chosen N, the numbers behind it and the rule go into
+  PROGRESS/SPEC P5-11 — auto (table) + owner decides at the Phase 7 end gate
+- P7-16 — If N changes: tests first (commit A: `ResampleHealthTest` + controller tests updated to the new count, red;
+  commit B: the constant, green, empty test diff A→B), `verify.ps1 -Full` green, one feature-on run and the known-bad
+  run re-measured — auto
+
+**Owner batch (one session, ≈ 40 min, see Q33)**
+- P7-17 — [HUMAN] one checklist. For items 1–6 Claude gives ONE command (a long capped `measure.ps1 -Feature -MaxHz 144
+  -Seconds 900` run, or two if one crashes) and the owner does the steps in any order, noting clock times; each step
+  must appear in `refresh-rate.log`: (1) Win+Alt+B HDR off ⇒ `hdr-toggled` re-switch in SDR, then HDR back on ⇒ re-switch
+  in HDR (P4-22), smooth after each; (2) monitor power off/on ⇒ `mode-lost` re-switch + `setTiming display-sync`;
+  (3) Win+Ctrl+Shift+B driver reset ⇒ no crash, playback continues, mode back or restored per P4-18; (4) sleep and
+  resume (Start → Sleep) ⇒ no crash, playback resumes or the player recovers, 239.901 after exit; (5) switch the
+  Windows default audio device and back ⇒ sound follows or stays, no A/V desync warning, display sync kept;
+  (6) (optional, Q34, UAC click) PresentMon on the capped fullscreen run with a 20 s pause ⇒ resume on the 143.973 grid
+  (P5-16 at a second rate). Items 7–9 in the normal dev build (`scripts/run-dev.ps1`, setting on, 240 default):
+  (7) a real **Dolby Vision** (P5/P8) title and an **HDR10+** title from Nuvio's catalogue: colours/brightness as with
+  the setting off, `already-at-target`, smooth; (8) a series: play an episode to "next episode" ⇒ no black, smooth;
+  (9) a 25 fps title ⇒ stays 240, plays normally (known judder, Q17); plus a yes/no: any OLED flicker in the player or
+  the browse UI with the java.exe Fixed Refresh entry (FORK §9)?
+- P7-18 — Every checklist item left unproven by the log is named in PROGRESS as owner-attested or open, never PASS by
+  default — auto
+
+**Independent review and docs**
+- P7-19 — A fresh subagent with no Phase 3–7 context (the project's `verifier` agent) reviews the whole patch
+  (`git diff upstream/Dev...HEAD`, product files only) against SPEC §1–4 and FORK.md: every criterion P3–P7 mapped to
+  code/test/evidence, plus a bug hunt (threads/locks, JNI lifetime, restore on every exit path, fail-safe on every
+  Win32/mpv/NVAPI call, off = upstream). ONE round; findings fixed tests-first or listed as known limits with the
+  owner's OK; a second round only if a fix touches native code — auto
+- P7-20 — Docs: SPEC §1–4 current (cap knob, final N), FORK.md §5/§6 (the Phase 7 re-verify recipe: which measure
+  runs to repeat after an upstream or driver update, with the cap), PROGRESS (results, Phase 7 DONE, Phase 8 next) — auto
+
+**Verification:** `verify.ps1 -Full` + the runs above + the owner batch, then the P7-19 review (it replaces the usual
+lean verifier round).
+
 ## 5. Upkeep limits
 - Upstream-file diff budget: _TBD_ lines (reported by `verify.ps1 -Full`).

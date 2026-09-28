@@ -49,6 +49,11 @@ The only memory between phases. Read it at the start of every phase; update it a
   the 2 s wait and the restore then relies on the JVM shutdown hook or Windows' revert (D7).
 - **Phase 6 DONE 2026-09-29** (owner approved the P6-12 checklist; details below). **Next: Phase 7** — write P7 criteria for
   the 240 Hz default (Q27) incl. the Q28 `rate-off` data collection, stop at the gate.
+- **Phase 7 criteria written 2026-09-29 (SPEC P7-1..P7-20), AT THE GATE:** waiting for the owner's approval + Q30–Q35.
+  No code, no measure run until then. Found while planning: 0 `rate-off` lines exist in any of the 65 `refresh-rate.log`s
+  (no stall since `c1623bc8`) ⇒ P7-6/P7-14 replay the per-second sampler stats of all old runs too. At the 240 default
+  nothing switches (24–60 fps already at target, 25/50 no mode) ⇒ Q30 measure-only mode cap. `switcher.exe` holding 280
+  is not a valid substitute: the feature's `ChangeDisplaySettingsExW(NULL)` restore goes to the registry mode 240.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -242,6 +247,21 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
+- Q30 (Phase 7): how to test switch/restore at the 240 default? (a) measure-only `NUVIO_RR_MEASURE_MAX_HZ=144` (only with
+  NUVIO_RR_MEASURE=1): 23.976/24 ⇒ 143.973, 29.97/59.94 ⇒ 119.998, 60 ⇒ 120, restore to 240 — **recommended** (no
+  Windows change, real switch + real registry restore); (b) owner sets the Windows default to 280 for one matrix block and
+  back (most realistic target, owner-only change); (c) no fresh switch evidence, rely on Phase 4/5 (made at 280).
+- Q31 (Phase 7): final `RATE_ERROR_SAMPLES` rule (P7-15): N = max(3, longest recovered stretch seen live or in the replay
+  + 2), capped so every known-bad run still falls back within 20 s; nothing off-rate seen ⇒ stays 5. Recommended **yes**.
+- Q32 (Phase 7): soaks = 4 × ~10 min stream-copied (2160p HDR 23.976 fs, 1080p 59.94, 1080p 25, 1080p 23.976 capped),
+  plus ONE unattended 60 min `hdr-2160p-23.976` fullscreen for more rate-off data? Recommended **yes to both**.
+- Q33 (Phase 7): owner batch (P7-17) as one ~40 min session after the unattended runs: one long capped measure command
+  for HDR toggle / monitor off-on / driver reset / sleep / audio device, then dev-build items (DV, HDR10+, next episode,
+  25 fps, flicker yes/no). You pick the DV and HDR10+ titles. Recommended **yes**.
+- Q34 (Phase 7): include the optional PresentMon capture (one UAC click) to prove the constant panel rate at 143.973 too?
+  Recommended **yes** (cheap; P5-16 proved it only at 239.9).
+- Q35 (Phase 7): the P7-19 independent review (fresh verifier, whole patch vs SPEC/FORK, ~150k) replaces the usual lean
+  verifier round; one round, a second only if a fix touches native code. Recommended **yes**.
 - Q29 (ANSWERED 2026-09-28 23:58: **VRR confirmed** — owner set NVCP Program settings
   `C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot\bin\java.exe` ⇒ Monitor Technology = Fixed Refresh ⇒ flicker gone. Workaround
   documented in FORK §9; Phase 8: Nuvio-only profile for the app's own exe, official app needs the same entry.)
@@ -302,7 +322,7 @@ suite, ≈ 15 s with only the patch tests.
 | 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
 | 5 mpv timing / OLED | ~400k | ≈ 470k so far (criteria + gate ≈ 140k, code + 22 runs + fixes ≈ 215k, verifier 115k); the owner's PresentMon/checklist session still to come ⇒ ~500k, ~25 % over (verifier again the largest item) |
 | 6 Settings/JNI | ~200k | ≈ 140k so far (criteria + gate, mostly reading PROGRESS/SPEC/plan) |
-| 7 Matrix + review | ~500k | |
+| 7 Matrix + review | ~500k; re-estimated at the gate ≈ 550k (criteria ≈ 90k, tooling ≈ 80k, ~90 runs + soaks ≈ 130k, owner batch ≈ 50k, N change ≈ 25k, review ≈ 150k, docs ≈ 25k) | |
 | 8 Upkeep | ~250k | |
 
 ## Measurements
