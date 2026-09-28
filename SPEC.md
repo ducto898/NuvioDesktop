@@ -502,7 +502,9 @@ first change on a player and puts exactly those back on revert.
   watcher reads that player's mpv counters once per second (new native read: `frame-drop-count`, `mistimed-frame-count`,
   `estimated-display-fps`, `time-pos`, `paused`; values only, no display call). Pure rule `ResampleHealth` (tests first):
   ignore the first 5 s after the hook and any 10 s window in which playback advanced < 8 s (pause, seek, buffering);
-  a 10 s window with drops + mistimed > 20, or `estimated-display-fps` off the target by > 1 %, ⇒ `setTiming(Upstream)`,
+  a 10 s window with drops + mistimed > 20, or `estimated-display-fps` off the target by > 1 % **in 3 judged samples in a
+  row** (amended 2026-09-28 in Phase 6, awaiting owner OK: one 1.3 s stall bent the estimate for one sample and dropped
+  display sync for the rest of the video, run p6-env1-set-off; fix `814cef33`/`3b6d8fda`), ⇒ `setTiming(Upstream)`,
   reason `resample-unhealthy`, at most once per playback start; the display stays at the target (no extra switch). Healthy
   runs (P5-12) never trigger it — auto (tests + P5-12 logs + one run with `-Opts` forcing a known-bad setup, e.g. the
   2b `d3d11-sync-interval=0` set, which must trigger it)

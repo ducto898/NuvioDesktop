@@ -64,7 +64,12 @@ The only memory between phases. Read it at the start of every phase; update it a
   (run p6-env1-set-off). Fixed tests-first: `814cef33` (red 3/146; 2 Phase 5 tests changed to expect the 3rd judged
   sample), `3b6d8fda` (rate error must hold 3 judged samples in a row). Re-runs clean; the fix is proven by a replay
   test, not yet by a live stall (none occurred). verify -Full green (1492 tests, 7 known failures; upstream 5 files,
-  7 code + 3 string lines = P6-1). **Next: ONE lean verifier round, then owner checklist P6-12 (SPEC wording for 240).**
+  7 code + 3 string lines = P6-1).
+  **Lean verifier round (≈116k): PASS** on P6-1..P6-10, P6-13; P6-11/P6-12 HUMAN. Health fix judged justified (not a
+  weakening). 2 notes fixed: null-JNIEnv guard in both upcalls (commit after `ae2217e2`, verify -Fast green, native
+  rebuilt); SPEC P5-11 text amended to the 3-sample rule. **Waiting for the owner: (1) OK for the P5-11 amendment
+  (Q28), (2) the P6-12 checklist. Then Phase 6 DONE; next Phase 7** (test matrix; re-plan it for the 240 default, where
+  24/30/60 fps no longer switch).
 - **Phase 5 carry-overs from Phase 4:** apply `Timing` (it is computed and logged; hook worker in
   display_mode_matcher.cpp `runHook`, "logged only in Phase 4"); a Q15 move / `mode-lost-again` / screen-gone restore
   mid-playback must switch mpv back to upstream timing at runtime; audio sync at 240 shows a few drops at 59.94 and VFR
@@ -234,6 +239,8 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
+- Q28 (Phase 6): OK to amend P5-11 so the display-rate part needs 3 judged samples in a row (~3 s) instead of one?
+  Reason: one 1.3 s stall dropped display sync for the rest of a video. A real breakage is still caught, ~2 s later.
 - Q27 (ANSWERED 23:15: keep 240): the monitor's Windows default is now 240 Hz (was 280 all day). Did you change it?
   Phase 6 runs need 280 as the default (every criterion compares against 279.961). Set it back to 280 in Windows
   display settings (I won't change a Windows default myself), or say if 240 is the new normal (then the P6 limits
