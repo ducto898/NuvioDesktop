@@ -87,6 +87,9 @@ Toggle (default OFF, Windows only), separate storage, strings, H6/H7 wiring; OFF
 
 **Phase 7 — Test matrix + independent review** · est. 500k
 Full matrix (fps × SDR/HDR × 1080p/2160p, DV/HDR10+ manual, audio device change, windowed/fullscreen, pause/seek/buffer, next episode, alt-tab, close, kill, sleep); 10-min soaks for 23.976 HDR 2160p, 59.94 SDR, 25 SDR; one [HUMAN] checklist; fresh-subagent review vs SPEC/FORK.
+Re-plan for the 240 Hz desktop default (Q27: 24/30/60 fps no longer switch). Collect every `rate-off pN <n> samples, worst …,
+recovered` log line (Q28, since `c1623bc8`) across all runs and soaks: how long a stall bends mpv's rate estimate on this PC;
+set `ResampleHealth.RATE_ERROR_SAMPLES` (now 5) from that data.
 
 **Phase 8 — Upkeep** · est. 250k
 FORK.md complete, patch export, updater off, Sentry off, side-by-side identity, CI job proposal, optional PR branch (no PR without approval).
