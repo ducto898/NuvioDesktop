@@ -123,6 +123,7 @@ fun main(args: Array<String>) {
 
         SwingWindow(
             onCloseRequest = {
+                com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateMatch.onAppExit() // nuvio-rr fork hook H8
                 P2pStreamingEngine.shutdown()
                 DiscordPresenceManager.shutdown()
                 SentryInitializer.close()

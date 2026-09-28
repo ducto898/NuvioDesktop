@@ -155,6 +155,7 @@ private fun NativePlayerSurface(
             hostFirstFullSizePaintComplete.value = true
         }
         onDispose {
+            com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateMatch.onScreenGone() // nuvio-rr fork hook H6
             DesktopPlayerPictureInPicture.release()
             host.onDisplayableChanged = null
             host.onFirstPaint = null

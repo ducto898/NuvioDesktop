@@ -903,6 +903,7 @@ public:
     }
 
     void shutdown() {
+        nuvio_rr::onPlayerShutdown(this);  // nuvio-rr fork hook H5
         if (shuttingDown.exchange(true)) {
             return;
         }
@@ -1687,6 +1688,7 @@ private:
             if (initResult < 0) {
                 throw std::runtime_error(std::string("mpv_initialize failed: ") + api.errorText(initResult));
             }
+            nuvio_rr::onMpvInitialized(this, mpv, containerHwnd);  // nuvio-rr fork hook H2
 
             std::vector<const char *> loadCommand = {"loadfile", sourceUrl.c_str()};
             std::string loadOptions;

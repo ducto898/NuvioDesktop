@@ -8,6 +8,17 @@
 // Threading: onMpvEvent() is called only from a player's mpv event thread (drainMpvEvents), once
 // per mpv_wait_event() return, i.e. at least every 0.5 s. All state is thread_local, so it lives
 // exactly as long as that thread, and the thread never outlives the mpv handle.
+//
+// Phase 4 contents: the feature itself (section "Phase 4" below), off unless NUVIO_RR_ENABLE=1.
+
+// player_bridge.cpp includes this file inside its anonymous namespace. System headers and the JNI
+// exports need global scope, so that namespace is closed around them and reopened (here and at the end).
+}  // namespace
+#include <dxgi1_2.h>
+#include <cstdarg>
+#include <cstring>
+#pragma comment(lib, "dxgi.lib")
+namespace {
 
 namespace nuvio_rr {
 
@@ -107,26 +118,33 @@ struct DisplayState {
     int hdr = -1, bpc = -1;
     DWORD currentHz = 0, registryHz = 0;
     int width = 0, height = 0;
+    bool interlaced = false;
 };
 
-DisplayState queryDisplay(HWND hwnd) {
-    DisplayState state;
-    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+// GDI device name (\\.\DISPLAYn) of the monitor nearest to `hwnd`; empty if none.
+std::wstring monitorName(HWND hwnd) {
+    HMONITOR monitor = hwnd ? MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) : nullptr;
     MONITORINFOEXW info = {};
     info.cbSize = sizeof(info);
-    if (!monitor || !GetMonitorInfoW(monitor, &info)) return state;
-    state.gdiName = info.szDevice;
+    if (!monitor || !GetMonitorInfoW(monitor, &info)) return std::wstring();
+    return info.szDevice;
+}
+
+DisplayState queryDisplayByName(const std::wstring &device) {
+    DisplayState state;
+    if (device.empty()) return state;
+    state.gdiName = device;
 
     DEVMODEW dm = {};
     dm.dmSize = sizeof(dm);
-    if (EnumDisplaySettingsW(info.szDevice, ENUM_CURRENT_SETTINGS, &dm)) {
+    if (EnumDisplaySettingsW(device.c_str(), ENUM_CURRENT_SETTINGS, &dm)) {
         state.currentHz = dm.dmDisplayFrequency;
         state.width = (int)dm.dmPelsWidth;
         state.height = (int)dm.dmPelsHeight;
     }
     DEVMODEW reg = {};
     reg.dmSize = sizeof(reg);
-    if (EnumDisplaySettingsW(info.szDevice, ENUM_REGISTRY_SETTINGS, &reg)) state.registryHz = reg.dmDisplayFrequency;
+    if (EnumDisplaySettingsW(device.c_str(), ENUM_REGISTRY_SETTINGS, &reg)) state.registryHz = reg.dmDisplayFrequency;
 
     UINT32 pathCount = 0, modeCount = 0;
     if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != ERROR_SUCCESS) return state;
@@ -143,17 +161,21 @@ DisplayState queryDisplay(HWND hwnd) {
         source.header.adapterId = path.sourceInfo.adapterId;
         source.header.id = path.sourceInfo.id;
         if (DisplayConfigGetDeviceInfo(&source.header) != ERROR_SUCCESS) continue;
-        if (_wcsicmp(source.viewGdiDeviceName, info.szDevice) != 0) continue;
+        if (_wcsicmp(source.viewGdiDeviceName, device.c_str()) != 0) continue;
 
         UINT32 modeIndex = path.targetInfo.modeInfoIdx;
         if (modeIndex != DISPLAYCONFIG_PATH_MODE_IDX_INVALID && modeIndex < modeCount &&
             modes[modeIndex].infoType == DISPLAYCONFIG_MODE_INFO_TYPE_TARGET) {
-            const auto &vsync = modes[modeIndex].targetMode.targetVideoSignalInfo.vSyncFreq;
-            state.num = vsync.Numerator;
-            state.den = vsync.Denominator;
+            const auto &signal = modes[modeIndex].targetMode.targetVideoSignalInfo;
+            state.num = signal.vSyncFreq.Numerator;
+            state.den = signal.vSyncFreq.Denominator;
+            state.interlaced = signal.scanLineOrdering != DISPLAYCONFIG_SCANLINE_ORDERING_PROGRESSIVE &&
+                signal.scanLineOrdering != DISPLAYCONFIG_SCANLINE_ORDERING_UNSPECIFIED;
         } else {
             state.num = path.targetInfo.refreshRate.Numerator;
             state.den = path.targetInfo.refreshRate.Denominator;
+            state.interlaced = path.targetInfo.scanLineOrdering != DISPLAYCONFIG_SCANLINE_ORDERING_PROGRESSIVE &&
+                path.targetInfo.scanLineOrdering != DISPLAYCONFIG_SCANLINE_ORDERING_UNSPECIFIED;
         }
         DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO color = {};
         color.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO;
@@ -168,6 +190,10 @@ DisplayState queryDisplay(HWND hwnd) {
         break;
     }
     return state;
+}
+
+DisplayState queryDisplay(HWND hwnd) {
+    return queryDisplayByName(monitorName(hwnd));
 }
 
 std::string displayText(const DisplayState &d) {
@@ -435,8 +461,509 @@ public:
     }
 };
 
+// ================================================================ Phase 4: the feature (SPEC P4)
+// Off unless the process starts with NUVIO_RR_ENABLE=1 (dev knob until the Phase 6 setting, Q14).
+// Flow: onMpvInitialized (H2) adds mpv's on_preloaded hook -> the hook event reaches onMpvEvent (H4)
+// on the mpv event thread, which only starts a worker -> the worker reads fps + the player's monitor
+// and calls up into Kotlin (RefreshRateMatch.nativePlaybackStart), which decides and switches through
+// the NativeDisplayPort functions below on its own "nuvio-rr" thread -> the worker continues the hook.
+// onPlayerShutdown (H5) continues a pending hook itself and cuts the worker off from the mpv handle.
+
+constexpr int kMpvEventHook = 25;
+struct MpvEventHook {
+    const char *name;
+    uint64_t id;
+};
+using mpv_hook_add_fn = int (*)(mpv_handle *, uint64_t, const char *, int);
+using mpv_hook_continue_fn = int (*)(mpv_handle *, uint64_t);
+
+constexpr uint64_t kLogMaxBytes = 1024 * 1024;  // then one rotation to refresh-rate.log.1 (P4-20)
+constexpr double kSettleCapSeconds = 4.0;       // P4-8
+constexpr DWORD kSettlePollMs = 100;
+// NUVIO_RR_FAULT=slow-settle (P4-12): longer than the 2 s window-close wait, so a close early in the settle
+// disposes the player (H5) while the settle is still running.
+constexpr double kSlowSettleSeconds = 3.0;
+
+// FailureKind.ordinal + 1 (Kotlin NativeCodec): the switch result codes.
+enum SwitchCode : int64_t {
+    kSwitchOk = 0,
+    kDisplayNotFound = 2,
+    kSwitchApiError = 3,
+    kSettleTimeout = 4,
+    kStopRequested = 5,
+    kUnexpectedError = 8,
+};
+
+struct FeatureConfig {
+    bool enabled = false;
+    std::string fault;     // NUVIO_RR_FAULT, honoured only in measure runs (NUVIO_RR_MEASURE=1, Q16)
+    std::wstring logPath;  // run folder in measure runs, else %LOCALAPPDATA%\Nuvio\Cache
+};
+
+const FeatureConfig &featureConfig() {
+    static FeatureConfig config;
+    static std::once_flag once;
+    std::call_once(once, []() {
+        if (envValue(L"NUVIO_RR_ENABLE") != L"1") return;
+        config.enabled = true;
+        const MeasureConfig &measure = measureConfig();
+        if (measure.enabled) config.fault = asciiValue(envValue(L"NUVIO_RR_FAULT"));
+        std::wstring dir = measure.enabled ? envValue(L"NUVIO_RR_MEASURE_DIR") : std::wstring();
+        if (dir.empty()) {
+            std::wstring local = envValue(L"LOCALAPPDATA");
+            if (!local.empty()) dir = local + L"\\Nuvio\\Cache";
+        }
+        if (!dir.empty()) {
+            SHCreateDirectoryExW(nullptr, dir.c_str(), nullptr);
+            config.logPath = dir + L"\\refresh-rate.log";
+        }
+    });
+    return config;
+}
+
+bool fault(const char *kind) {
+    return featureConfig().fault == kind;
+}
+
+std::string strf(const char *format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    return buffer;
+}
+
+// The one writer of refresh-rate.log: native lines ("N") and Kotlin lines ("K", via nativeLog).
+void rrLog(const std::string &line) {
+    const FeatureConfig &config = featureConfig();
+    if (!config.enabled) return;
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    std::string text = wallClock() + " [nuvio-rr] " + line + "\n";
+    OutputDebugStringA(text.c_str());
+    if (config.logPath.empty()) return;
+    WIN32_FILE_ATTRIBUTE_DATA info = {};
+    if (GetFileAttributesExW(config.logPath.c_str(), GetFileExInfoStandard, &info) &&
+        ((((uint64_t)info.nFileSizeHigh) << 32) | info.nFileSizeLow) > kLogMaxBytes) {
+        std::wstring old = config.logPath + L".1";
+        MoveFileExW(config.logPath.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING);
+    }
+    FILE *file = _wfsopen(config.logPath.c_str(), L"a", _SH_DENYWR);
+    if (!file) return;
+    std::fputs(text.c_str(), file);
+    std::fclose(file);
+}
+
+void nlog(const std::string &line) {
+    rrLog("N " + line);
+}
+
+std::string stateText(const DisplayState &d) {
+    if (!d.ok) return "na";
+    return strf("%ls %dx%d@%u/%u %dbpc hdr=%d%s", d.gdiName.c_str(), d.width, d.height, d.num, d.den, d.bpc, d.hdr,
+        d.interlaced ? " interlaced" : "");
+}
+
+// ---------------------------------------------------------------- players (process-global)
+struct PlayerEntry {
+    int64_t id = 0;
+    const void *owner = nullptr;  // the WindowsMpvWebPlayer
+    HWND container = nullptr;
+    std::atomic<bool> stopping{false};
+    std::mutex mutex;              // guards the three below; held only for short mpv calls
+    mpv_handle *mpv = nullptr;     // null once the player shut down
+    bool hookPending = false;
+    uint64_t hookId = 0;
+};
+
+struct Registry {
+    std::mutex mutex;
+    std::vector<std::shared_ptr<PlayerEntry>> players;
+    int64_t nextId = 1;
+};
+
+Registry &registry() {
+    static Registry instance;
+    return instance;
+}
+
+template <typename Match>
+std::shared_ptr<PlayerEntry> findPlayer(Match match, bool remove = false) {
+    Registry &r = registry();
+    std::lock_guard<std::mutex> lock(r.mutex);
+    for (auto it = r.players.begin(); it != r.players.end(); ++it) {
+        if (!match(**it)) continue;
+        std::shared_ptr<PlayerEntry> found = *it;
+        if (remove) r.players.erase(it);
+        return found;
+    }
+    return nullptr;
+}
+
+bool stopRequested(int64_t playerId) {
+    auto entry = findPlayer([playerId](const PlayerEntry &p) { return p.id == playerId; });
+    return !entry || entry->stopping.load();
+}
+
+void sleepUnlessStopped(double seconds, int64_t playerId) {
+    double end = nowSeconds() + seconds;
+    while (nowSeconds() < end && !stopRequested(playerId)) Sleep(20);
+}
+
+template <typename Fn>
+Fn mpvSymbol(const char *name) {
+    return reinterpret_cast<Fn>(GetProcAddress(mpvApi().library, name));
+}
+
+// Continues the pending hook once; the caller holds entry.mutex.
+void continueHookLocked(PlayerEntry &entry, uint64_t hookId, const char *by) {
+    if (!entry.hookPending || entry.hookId != hookId || !entry.mpv) return;
+    entry.hookPending = false;
+    static auto hookContinue = mpvSymbol<mpv_hook_continue_fn>("mpv_hook_continue");
+    int rc = hookContinue ? hookContinue(entry.mpv, hookId) : -1;
+    nlog(strf("hook p%lld continued by %s rc=%d", (long long)entry.id, by, rc));
+}
+
+// ---------------------------------------------------------------- Win32 port (called from the nuvio-rr thread)
+// Exact modes from DXGI (research 02); DXGI does not know the link bpc, so each mode carries the
+// current bpc and the switch verify (P3-21) checks the real bpc afterwards.
+bool enumerateModes(const std::wstring &device, const DisplayState &current, std::vector<int64_t> &out) {
+    int bpc = current.bpc;
+    ComPtr<IDXGIFactory1> factory;
+    HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void **>(factory.GetAddressOf()));
+    if (FAILED(hr)) {
+        nlog(strf("modes: CreateDXGIFactory1 failed hr=0x%08lx", (unsigned long)hr));
+        return false;
+    }
+    ComPtr<IDXGIAdapter1> adapter;
+    for (UINT a = 0; factory->EnumAdapters1(a, adapter.ReleaseAndGetAddressOf()) != DXGI_ERROR_NOT_FOUND; ++a) {
+        ComPtr<IDXGIOutput> output;
+        for (UINT o = 0; adapter->EnumOutputs(o, output.ReleaseAndGetAddressOf()) != DXGI_ERROR_NOT_FOUND; ++o) {
+            DXGI_OUTPUT_DESC desc = {};
+            if (FAILED(output->GetDesc(&desc)) || _wcsicmp(desc.DeviceName, device.c_str()) != 0) continue;
+            ComPtr<IDXGIOutput1> output1;
+            if (FAILED(output.As(&output1))) {
+                nlog("modes: IDXGIOutput1 unavailable");
+                return false;
+            }
+            std::vector<DXGI_MODE_DESC1> modes;
+            for (int attempt = 0; attempt < 3; ++attempt) {
+                UINT count = 0;
+                hr = output1->GetDisplayModeList1(DXGI_FORMAT_R8G8B8A8_UNORM, 0, &count, nullptr);
+                if (FAILED(hr)) break;
+                modes.resize(count);
+                hr = output1->GetDisplayModeList1(DXGI_FORMAT_R8G8B8A8_UNORM, 0, &count, modes.data());
+                modes.resize(count);
+                if (hr != DXGI_ERROR_MORE_DATA) break;
+            }
+            if (FAILED(hr)) {
+                nlog(strf("modes: GetDisplayModeList1 failed hr=0x%08lx", (unsigned long)hr));
+                return false;
+            }
+            std::string text;
+            for (const DXGI_MODE_DESC1 &m : modes) {
+                bool interlaced = m.ScanlineOrdering == DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST ||
+                    m.ScanlineOrdering == DXGI_MODE_SCANLINE_ORDER_LOWER_FIELD_FIRST;
+                out.insert(out.end(), {(int64_t)m.Width, (int64_t)m.Height, (int64_t)m.RefreshRate.Numerator,
+                    (int64_t)m.RefreshRate.Denominator, (int64_t)bpc, interlaced ? 1 : 0});
+                if ((int)m.Width == current.width && (int)m.Height == current.height) {  // log the relevant ones only
+                    text += strf(" %ux%u@%u/%u%s", m.Width, m.Height, m.RefreshRate.Numerator, m.RefreshRate.Denominator,
+                        interlaced ? "i" : "");
+                }
+            }
+            nlog(strf("modes %ls: %zu (DXGI R8G8B8A8, bpc %d), at %dx%d:", device.c_str(), modes.size(), bpc, current.width,
+                current.height) + text);
+            return true;
+        }
+    }
+    nlog(strf("modes: no DXGI output for %ls", device.c_str()));
+    return false;
+}
+
+bool sameRate(UINT32 num, UINT32 den, int64_t targetNum, int64_t targetDen) {
+    if (!num || !den || targetNum <= 0 || targetDen <= 0) return false;
+    double a = (double)num / (double)den, b = (double)targetNum / (double)targetDen;
+    return std::fabs(a / b - 1.0) <= 1e-6;
+}
+
+bool sameState(const DisplayState &a, const DisplayState &b) {
+    return a.ok && b.ok && a.num == b.num && a.den == b.den && a.hdr == b.hdr && a.bpc == b.bpc && a.width == b.width &&
+        a.height == b.height && a.interlaced == b.interlaced;
+}
+
+std::vector<int64_t> stateValues(const DisplayState &d) {
+    return {(int64_t)d.width, (int64_t)d.height, (int64_t)d.num, (int64_t)d.den, (int64_t)d.bpc, d.hdr == 1 ? 1 : 0,
+        d.interlaced ? 1 : 0};
+}
+
+// CDS_FULLSCREEN switch, then settle (P4-6, P4-8). Result: [code, state x7, elapsed ms].
+std::vector<int64_t> switchMode(const std::wstring &device, int width, int height, int64_t num, int64_t den, int64_t playerId) {
+    double start = nowSeconds();
+    DisplayState last;
+    auto result = [&](int64_t code, const char *what) {
+        std::vector<int64_t> values = {code};
+        std::vector<int64_t> state = stateValues(last);
+        values.insert(values.end(), state.begin(), state.end());
+        values.push_back((int64_t)((nowSeconds() - start) * 1000.0));
+        nlog(strf("switch %ls -> %dx%d@%lld/%lld p%lld: %s code=%lld after %lld ms, last=", device.c_str(), width, height,
+            (long long)num, (long long)den, (long long)playerId, what, (long long)code, (long long)values.back()) +
+            stateText(last));
+        return values;
+    };
+    if (stopRequested(playerId)) return result(kStopRequested, "player stopping before the switch");
+    if (fault("switch-api")) return result(kSwitchApiError, "injected fault switch-api (no API call)");
+
+    DEVMODEW dm = {};
+    dm.dmSize = sizeof(dm);
+    if (!EnumDisplaySettingsW(device.c_str(), ENUM_CURRENT_SETTINGS, &dm)) {
+        nlog(strf("switch: EnumDisplaySettingsW(%ls, CURRENT) failed err=%lu", device.c_str(), GetLastError()));
+        return result(kDisplayNotFound, "display not found");
+    }
+    DWORD hz = (DWORD)std::llround((double)num / (double)den);
+    dm.dmDisplayFrequency = hz;
+    dm.dmFields = DM_DISPLAYFREQUENCY;
+    double callStart = nowSeconds();
+    LONG rc = ChangeDisplaySettingsExW(device.c_str(), &dm, nullptr, CDS_FULLSCREEN, nullptr);
+    nlog(strf("ChangeDisplaySettingsExW(%ls, %lu Hz, CDS_FULLSCREEN) = %ld in %.0f ms", device.c_str(), hz, rc,
+        (nowSeconds() - callStart) * 1000.0));
+    if (rc != DISP_CHANGE_SUCCESSFUL) return result(kSwitchApiError, "switch API error");
+
+    double settleStart = nowSeconds();
+    if (fault("slow-settle")) {
+        nlog("injected fault slow-settle: +3 s");
+        sleepUnlessStopped(kSlowSettleSeconds, playerId);
+    }
+    DisplayState previous;
+    for (;;) {
+        if (stopRequested(playerId)) return result(kStopRequested, "player stopped during settle");
+        if (nowSeconds() - settleStart > kSettleCapSeconds) return result(kSettleTimeout, "settle timeout");
+        DisplayState now = queryDisplayByName(device);
+        if (now.ok) last = now;
+        if (now.ok && !fault("settle-timeout") && sameRate(now.num, now.den, num, den) && sameState(previous, now)) {
+            nlog(strf("settled in %.0f ms (switch call to two equal reads)", (nowSeconds() - callStart) * 1000.0));
+            if (fault("verify-mismatch")) {
+                nlog("injected fault verify-mismatch: reporting HDR flipped");
+                last.hdr = last.hdr == 1 ? 0 : 1;
+            }
+            return result(kSwitchOk, "ok");
+        }
+        previous = now;
+        Sleep(kSettlePollMs);
+    }
+}
+
+bool restoreMode(const std::wstring &device) {
+    if (fault("restore-failed")) {
+        nlog(strf("restore %ls: injected fault restore-failed (no API call)", device.c_str()));
+        return false;
+    }
+    double start = nowSeconds();
+    LONG rc = ChangeDisplaySettingsExW(device.c_str(), nullptr, nullptr, 0, nullptr);
+    nlog(strf("ChangeDisplaySettingsExW(%ls, NULL, 0) restore = %ld in %.0f ms, now ", device.c_str(), rc,
+        (nowSeconds() - start) * 1000.0) + stateText(queryDisplayByName(device)));
+    return rc == DISP_CHANGE_SUCCESSFUL;
+}
+
+// ---------------------------------------------------------------- JNI upcall
+JavaVM *javaVm() {
+    static JavaVM *vm = nullptr;
+    static std::once_flag once;
+    std::call_once(once, []() {
+        using GetVms = jint(JNICALL *)(JavaVM **, jsize, jsize *);
+        HMODULE jvm = GetModuleHandleW(L"jvm.dll");
+        auto getVms = jvm ? reinterpret_cast<GetVms>(GetProcAddress(jvm, "JNI_GetCreatedJavaVMs")) : nullptr;
+        jsize count = 0;
+        if (!getVms || getVms(&vm, 1, &count) != JNI_OK || count < 1) vm = nullptr;
+    });
+    return vm;
+}
+
+struct StartProps {
+    double containerFps = std::nan("");
+    double estimatedFps = std::nan("");
+    bool isImage = false;
+    std::string text;
+};
+
+// At on_preloaded no track is selected yet, so container-fps is usually unavailable: take the
+// first video track that is not cover art from track-list (research 03).
+StartProps readStartProps(mpv_handle *mpv) {
+    MpvApi &api = mpvApi();
+    StartProps props;
+    double value = 0.0;
+    if (api.getProperty(mpv, "container-fps", MPV_FORMAT_DOUBLE, &value) >= 0) props.containerFps = value;
+    if (api.getProperty(mpv, "estimated-vf-fps", MPV_FORMAT_DOUBLE, &value) >= 0) props.estimatedFps = value;
+    int64_t count = 0;
+    api.getProperty(mpv, "track-list/count", MPV_FORMAT_INT64, &count);
+    int videoTracks = 0;
+    for (int64_t i = 0; i < count && i < 64; ++i) {
+        std::string prefix = "track-list/" + std::to_string(i) + "/";
+        char *type = nullptr;
+        if (api.getProperty(mpv, (prefix + "type").c_str(), MPV_FORMAT_STRING, &type) < 0 || !type) continue;
+        bool video = std::strcmp(type, "video") == 0;
+        api.freeValue(type);
+        if (!video) continue;
+        ++videoTracks;
+        int albumart = 0, image = 0;
+        api.getProperty(mpv, (prefix + "albumart").c_str(), MPV_FORMAT_FLAG, &albumart);
+        api.getProperty(mpv, (prefix + "image").c_str(), MPV_FORMAT_FLAG, &image);
+        if (albumart) continue;
+        props.isImage = image != 0;
+        double demuxFps = 0.0;
+        if (std::isnan(props.containerFps) &&
+            api.getProperty(mpv, (prefix + "demux-fps").c_str(), MPV_FORMAT_DOUBLE, &demuxFps) >= 0) {
+            props.containerFps = demuxFps;
+        }
+        break;
+    }
+    props.text = strf("fps=%.6f estimate=%.6f image=%d video_tracks=%d tracks=%lld", props.containerFps,
+        props.estimatedFps, props.isImage ? 1 : 0, videoTracks, (long long)count);
+    return props;
+}
+
+std::string upcallStart(int64_t playerId, const std::wstring &display, const StartProps &props) {
+    JavaVM *vm = javaVm();
+    if (!vm) return "no-jvm";
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
+        if (vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) return "attach-failed";
+        attached = true;
+    }
+    std::string result;
+    // Found through the system class loader, which is the app's loader in dev runs and in the packaged app.
+    static jclass matchClass = nullptr;
+    static jmethodID startMethod = nullptr;
+    static std::mutex lookupMutex;
+    {
+        std::lock_guard<std::mutex> lock(lookupMutex);
+        if (!matchClass) {
+            jclass local = env->FindClass("com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateMatch");
+            if (local) {
+                startMethod = env->GetStaticMethodID(local, "nativePlaybackStart", "(JLjava/lang/String;DDZ)[J");
+                if (startMethod) matchClass = static_cast<jclass>(env->NewGlobalRef(local));
+                env->DeleteLocalRef(local);
+            }
+            if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+    }
+    if (!matchClass || !startMethod) {
+        result = "class-not-found";
+    } else {
+        jstring jdisplay = env->NewString(reinterpret_cast<const jchar *>(display.c_str()), (jsize)display.size());
+        auto timing = static_cast<jlongArray>(env->CallStaticObjectMethod(matchClass, startMethod, (jlong)playerId, jdisplay,
+            (jdouble)props.containerFps, (jdouble)props.estimatedFps, (jboolean)(props.isImage ? JNI_TRUE : JNI_FALSE)));
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            result = "exception";
+        } else if (timing && env->GetArrayLength(timing) == 3) {
+            jlong t[3] = {};
+            env->GetLongArrayRegion(timing, 0, 3, t);
+            result = t[0] == 2 ? strf("display-sync(%lld/%lld)", (long long)t[1], (long long)t[2])
+                : t[0] == 1 ? std::string("upstream") : std::string("none (timeout or off)");
+        } else {
+            result = "bad-result";
+        }
+        if (timing) env->DeleteLocalRef(timing);
+        if (jdisplay) env->DeleteLocalRef(jdisplay);
+    }
+    if (attached) vm->DetachCurrentThread();
+    return result;
+}
+
+// Worker for one on_preloaded hook. Phase 4 logs the timing only; Phase 5 applies it (P4-11).
+void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
+    double start = nowSeconds();
+    std::string timing = "none";
+    try {
+        StartProps props;
+        bool alive = false;
+        {
+            std::lock_guard<std::mutex> lock(entry->mutex);
+            if (entry->mpv && entry->hookPending) {
+                props = readStartProps(entry->mpv);
+                alive = true;
+            }
+        }
+        if (alive && !entry->stopping.load()) {
+            std::wstring display = monitorName(GetAncestor(entry->container, GA_ROOT));
+            nlog(strf("hook p%lld on_preloaded %s display=%ls (read in %.0f ms)", (long long)entry->id, props.text.c_str(),
+                display.c_str(), (nowSeconds() - start) * 1000.0));
+            timing = upcallStart(entry->id, display, props);
+        }
+    } catch (...) {
+        timing = "unexpected-error";
+    }
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    nlog(strf("hook p%lld done after %.0f ms timing=%s (logged only in Phase 4)", (long long)entry->id,
+        (nowSeconds() - start) * 1000.0, timing.c_str()));
+    continueHookLocked(*entry, hookId, "worker");
+}
+
+// Hook H2: after mpv_initialize, before loadfile, so the first file's hook cannot be missed (P4-9).
+inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container) {
+    if (!featureConfig().enabled || !mpv) return;
+    auto hookAdd = mpvSymbol<mpv_hook_add_fn>("mpv_hook_add");
+    int rc = hookAdd ? hookAdd(mpv, 0, "on_preloaded", 0) : -1;
+    auto entry = std::make_shared<PlayerEntry>();
+    entry->owner = owner;
+    entry->container = container;
+    entry->mpv = mpv;
+    {
+        Registry &r = registry();
+        std::lock_guard<std::mutex> lock(r.mutex);
+        entry->id = r.nextId++;
+        if (rc >= 0) r.players.push_back(entry);
+    }
+    std::string faultText = featureConfig().fault.empty() ? std::string() : " fault=" + featureConfig().fault;
+    nlog(strf("player p%lld created, mpv_hook_add(on_preloaded) rc=%d%s", (long long)entry->id, rc, faultText.c_str()));
+}
+
+// From onMpvEvent (the mpv event thread): hand the hook to a worker and return at once.
+void onHookEvent(mpv_handle *mpv, mpv_event *event) {
+    auto *hook = static_cast<MpvEventHook *>(event->data);
+    if (!hook) return;
+    auto entry = findPlayer([mpv](const PlayerEntry &p) { return p.mpv == mpv; });
+    if (!entry || !hook->name || std::strcmp(hook->name, "on_preloaded") != 0) {
+        static auto hookContinue = mpvSymbol<mpv_hook_continue_fn>("mpv_hook_continue");
+        if (hookContinue) hookContinue(mpv, hook->id);
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(entry->mutex);
+        entry->hookPending = true;
+        entry->hookId = hook->id;
+    }
+    try {
+        std::thread(runHook, entry, hook->id).detach();
+    } catch (...) {
+        std::lock_guard<std::mutex> lock(entry->mutex);
+        continueHookLocked(*entry, hook->id, "event thread (no worker)");
+    }
+}
+
+// Hook H5: first thing in shutdown(), while the mpv handle is still valid (P4-12).
+inline void onPlayerShutdown(const void *owner) {
+    if (!featureConfig().enabled) return;
+    auto entry = findPlayer([owner](const PlayerEntry &p) { return p.owner == owner; }, true);
+    if (!entry) return;
+    entry->stopping.store(true);
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    continueHookLocked(*entry, entry->hookId, "shutdown");
+    entry->mpv = nullptr;
+    nlog(strf("player p%lld shutdown", (long long)entry->id));
+}
+
+std::wstring playerDisplay(int64_t playerId) {
+    auto entry = findPlayer([playerId](const PlayerEntry &p) { return p.id == playerId; });
+    if (!entry || entry->stopping.load() || !IsWindow(entry->container)) return std::wstring();
+    return monitorName(GetAncestor(entry->container, GA_ROOT));
+}
+
 // Hook H4: called by drainMpvEvents after every mpv_wait_event() return (event may be MPV_EVENT_NONE).
 inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stopping) {
+    if (featureConfig().enabled && mpv && event && (int)event->event_id == kMpvEventHook) onHookEvent(mpv, event);
     if (!measureConfig().enabled || !mpv) return;
     struct Holder {
         MeasureSession session;
@@ -446,4 +973,130 @@ inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stoppi
     holder.session.onEvent(mpv, event, hwnd, stopping);
 }
 
+// ---------------------------------------------------------------- JNI helpers
+std::wstring fromJava(JNIEnv *env, jstring value) {
+    if (!value) return std::wstring();
+    const jchar *chars = env->GetStringChars(value, nullptr);
+    if (!chars) return std::wstring();
+    std::wstring result(reinterpret_cast<const wchar_t *>(chars), (size_t)env->GetStringLength(value));
+    env->ReleaseStringChars(value, chars);
+    return result;
+}
+
+jlongArray toJava(JNIEnv *env, const std::vector<int64_t> &values) {
+    jlongArray array = env->NewLongArray((jsize)values.size());
+    if (array && !values.empty()) {
+        env->SetLongArrayRegion(array, 0, (jsize)values.size(), reinterpret_cast<const jlong *>(values.data()));
+    }
+    return array;
+}
+
+// No C++ exception crosses JNI: it becomes a Java exception, which the Kotlin controller maps to
+// unexpected-error (P4-7).
+void throwJava(JNIEnv *env, const char *what) {
+    nlog(strf("jni: exception %s", what));
+    if (env->ExceptionCheck()) return;
+    jclass type = env->FindClass("java/lang/IllegalStateException");
+    if (type) env->ThrowNew(type, what);
+}
+
 }  // namespace nuvio_rr
+}  // namespace
+
+// ---------------------------------------------------------------- JNI exports (Kotlin NativeDisplayPort)
+extern "C" {
+
+JNIEXPORT jlongArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeQuery(
+    JNIEnv *env, jclass, jstring display) {
+    try {
+        if (nuvio_rr::fault("display-not-found")) {
+            nuvio_rr::nlog("query: injected fault display-not-found");
+            return nullptr;
+        }
+        nuvio_rr::DisplayState state = nuvio_rr::queryDisplayByName(nuvio_rr::fromJava(env, display));
+        return state.ok ? nuvio_rr::toJava(env, nuvio_rr::stateValues(state)) : nullptr;
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeQuery");
+    }
+    return nullptr;
+}
+
+JNIEXPORT jlongArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeModes(
+    JNIEnv *env, jclass, jstring display) {
+    try {
+        if (nuvio_rr::fault("enumerate")) {
+            nuvio_rr::nlog("modes: injected fault enumerate");
+            return nullptr;
+        }
+        std::wstring device = nuvio_rr::fromJava(env, display);
+        nuvio_rr::DisplayState state = nuvio_rr::queryDisplayByName(device);
+        std::vector<int64_t> modes;
+        if (!state.ok || !nuvio_rr::enumerateModes(device, state, modes)) return nullptr;
+        return nuvio_rr::toJava(env, modes);
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeModes");
+    }
+    return nullptr;
+}
+
+JNIEXPORT jlongArray JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeSwitch(
+    JNIEnv *env, jclass, jstring display, jint width, jint height, jlong numerator, jlong denominator, jlong playerId) {
+    try {
+        std::vector<int64_t> result = nuvio_rr::switchMode(nuvio_rr::fromJava(env, display), width, height, numerator,
+            denominator, playerId);
+        // After a real switch, so the restore-after-exception path is exercised (P4-19).
+        if (nuvio_rr::fault("unexpected")) throw std::runtime_error("injected fault unexpected (after the switch)");
+        return nuvio_rr::toJava(env, result);
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeSwitch");
+    }
+    return nullptr;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeRestore(
+    JNIEnv *env, jclass, jstring display) {
+    try {
+        return nuvio_rr::restoreMode(nuvio_rr::fromJava(env, display)) ? JNI_TRUE : JNI_FALSE;
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeRestore");
+    }
+    return JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativePlayerDisplay(
+    JNIEnv *env, jclass, jlong playerId) {
+    try {
+        std::wstring device = nuvio_rr::playerDisplay(playerId);
+        if (device.empty()) return nullptr;
+        return env->NewString(reinterpret_cast<const jchar *>(device.c_str()), (jsize)device.size());
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativePlayerDisplay");
+    }
+    return nullptr;
+}
+
+JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_runtime_NativeDisplayPort_nativeLog(
+    JNIEnv *env, jclass, jstring line) {
+    if (!line) return;
+    const char *chars = env->GetStringUTFChars(line, nullptr);
+    if (!chars) return;
+    try {
+        nuvio_rr::rrLog(std::string("K ") + chars);
+    } catch (...) {
+    }
+    env->ReleaseStringUTFChars(line, chars);
+}
+
+}  // extern "C"
+
+namespace {  // player_bridge.cpp continues inside its anonymous namespace
