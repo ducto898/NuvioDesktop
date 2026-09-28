@@ -3,13 +3,16 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
-- **Phase:** 2 (Measure only) **IN PROGRESS 2026-09-28**. Rebased onto `upstream/Dev` `fe92d414` (local, backup
-  branch `backup/pre-rebase-phase2`). Criteria P2-0..P2-19 approved and implemented; kill test A–J done; baselines done.
-  Verifier round 1: 7 FAILs → fixed (P2-4 reworded with owner approval). Owner runs done: fullscreen PresentMon,
-  resample PresentMon, loop check. Official enrichment file restored (owner). Verifier round 2: FAIL on P2-4 (pre-load
-  sample 110 ms) and P2-17 (not written up) + WebView2 official-profile leak → all fixed 09:53 (see Incidents).
-- **Next:** verifier round 3 (last allowed), then close Phase 2 → Phase 3 (pure logic, tests first). Phase 5 must
-  diagnose display-resample (windowed ≈ 6 Hz vs fullscreen ≈ 191 Hz estimated display fps).
+- **Phase:** 2 (Measure only) **DONE 2026-09-28**. Verifier round 3/3: **PASS** on P2-0..P2-19 (P2-7/13/17 human parts
+  recorded/accepted/waived by the owner). Upstream diff: 2 lines in `player_bridge.cpp`. Rebased on `fe92d414`, not pushed.
+  Open: upstream `PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions` is **flaky under load**
+  (QuickJs NPE `this.closed`; failed 4 of ~10 full runs today, passes alone 3/3 and in 2 later full runs, unrelated to the
+  patch) — owner to decide: add to the known-failure baseline, or keep and re-run on failure.
+- **Next:** Phase 3 (pure logic, tests first) in a fresh session: write P3 acceptance criteria into SPEC.md, stop at the
+  gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
+  the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
+  (windowed ≈ 6 Hz vs fullscreen ≈ 191 Hz estimated display fps, present blocks ~4.8 ms) or fall back to audio sync at N×fps;
+  Phase 7 soak clips by stream copy (D10); Phase 8 fix the WebView2 folder in the app identity work.
 - **Start new sessions from `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`** so the
   project's `.claude/settings.json` hook and `verifier` agent load.
 
@@ -117,7 +120,7 @@ suite, ≈ 15 s with only the patch tests.
 |---|---|---|
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
-| 2 Measure | ~400k (incl. kill test A–J) | |
+| 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |
