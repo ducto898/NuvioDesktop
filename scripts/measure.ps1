@@ -23,7 +23,10 @@
 
   Phase 4 (the feature): -Feature sets NUVIO_RR_ENABLE=1; its log is the run folder's refresh-rate.log and
   summary.json gets a "feature" section. -Fault <kind> sets NUVIO_RR_FAULT (measure runs only; kinds: enumerate,
-  display-not-found, switch-api, settle-timeout, slow-settle, verify-mismatch, restore-failed, unexpected).
+  display-not-found, switch-api, settle-timeout, slow-settle, verify-mismatch, restore-failed, unexpected; Phase 5:
+  timing-set = the interpolation set fails at the hook, drop-mode = the temporary mode is dropped at 20 s and 50 s).
+  Phase 5: summary.json mpv.after5s = counters from 5 s of playback to the end (P2b-13 / P5-12 rule), speed
+  corrections, and the timing options mpv reports.
   -CloseAfterSwitchMs <ms> closes the window <ms> after the feature's switch call (dispose-mid-switch, P4-12).
 
 .PARAMETER Actions
@@ -383,6 +386,8 @@ $afterLoad = $false
 foreach ($l in $lines) {
     if ($l -match '\bE file-loaded\b') { $afterLoad = $true }
     if (-not $afterLoad -or $l -notmatch '^\S+ S ') { continue }
+    # Samples from the close on show the restore, not playback (Phase 5: the restore to 280 mid-sample counted as drops).
+    if ((& $toTime ($l.Substring(0, 12))).TimeOfDay -ge $closeAt.TimeOfDay) { continue }
     $o = @{}
     foreach ($m in [regex]::Matches($l, '(\S+?)=(\S+)')) { $o[$m.Groups[1].Value] = $m.Groups[2].Value }
     if ($o['time-pos'] -and $o['time-pos'] -ne 'na') { $samples += [pscustomobject]$o }
@@ -435,6 +440,26 @@ foreach ($k in $summary.mpv.counters.Keys) {
     $perMin[$k] = if ($null -eq $c -or $minutes -le 0) { $null } else { [math]::Round($c / $minutes, 2) }
 }
 $summary.mpv.countersPerMinute = $perMin
+# P5-12: counted after the first 5 s of playback (P2b-13 rule).
+$late = @($samples | Where-Object { [double]$_.'time-pos' -ge 5 })
+if ($late.Count -ge 2) {
+    $lateMin = ([double]$late[-1].'time-pos' - [double]$late[0].'time-pos') / 60
+    $lateDelta = { param($n) $a = $late[0].$n; $b = $late[-1].$n; if ($a -and $b -and $a -ne 'na' -and $b -ne 'na') { [double]$b - [double]$a } else { $null } }
+    $dr = & $lateDelta 'frame-drop-count'; $mt = & $lateDelta 'mistimed-frame-count'
+    $summary.mpv.after5s = [ordered]@{
+        minutes = [math]::Round($lateMin, 2); frameDrops = $dr; mistimed = $mt; delayed = & $lateDelta 'vo-delayed-frame-count'
+        dropsPlusMistimedPerMinute = if ($null -ne $dr -and $null -ne $mt -and $lateMin -gt 0) { [math]::Round(($dr + $mt) / $lateMin, 2) } else { $null }
+        estimatedDisplayFpsMedian = Median (@($late | ForEach-Object { $_.'estimated-display-fps' } | Where-Object { $_ -and $_ -ne 'na' } | ForEach-Object { [double]$_ }))
+    }
+}
+$speed = { param($n) @($samples | ForEach-Object { $_.$n } | Where-Object { $_ -and $_ -ne 'na' } | ForEach-Object { [double]$_ }) }
+$vsc = & $speed 'video-speed-correction'; $asc = & $speed 'audio-speed-correction'
+$summary.mpv.speedCorrection = [ordered]@{
+    videoMin = ($vsc | Measure-Object -Minimum).Minimum; videoMax = ($vsc | Measure-Object -Maximum).Maximum
+    audioMin = ($asc | Measure-Object -Minimum).Minimum; audioMax = ($asc | Measure-Object -Maximum).Maximum
+}
+$summary.mpv.interpolation = @($samples | ForEach-Object { $_.interpolation } | Sort-Object -Unique)
+$summary.mpv.displayFpsOverride = @($samples | ForEach-Object { $_.'display-fps-override' } | Sort-Object -Unique)
 $summary.mpv.dropsPlusMistimedPerMinute = if ($null -ne $perMin.frameDrops -and $null -ne $perMin.mistimed) { $perMin.frameDrops + $perMin.mistimed } else { $null }
 # Audio underruns after the first 5 s of playback (P2b-13), occlusion/present messages (P2b-10), knob results (P2b-1/2).
 $loadWall = ($lines | Where-Object { $_ -match '\bE file-loaded\b' } | Select-Object -First 1)
