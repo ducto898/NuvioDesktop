@@ -10,10 +10,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   patch) — **added to the known-failure baseline (owner approved 2026-09-28)**; baseline is now 8 entries.
 - **Next (changed 2026-09-28, owner-approved, D11):** **Phase 2b — display-resample spike** BEFORE Phase 3, in a fresh
   session: read docs/PLAN.md "Phase 2b", write P2b acceptance criteria into SPEC.md, stop at the gate. Then Phase 3.
-  2026-09-28: P2b criteria approved ("ok"). **Spike run (21 runs, 11:04–13:28): NOT PASS yet, cause narrowed**
-  (docs/research/10-display-resample-spike.md). The NVIDIA global profile has **Max Frame Rate = 200** (read-only probe);
-  display-resample either collapses (Present with vsync blocks ~235 ms ⇒ est. display fps ≈ 6.5, at 240 AND 120 Hz,
-  windowed AND fullscreen) or, with `d3d11-sync-interval=0`, runs into the 200/s cap. **Waiting for the owner (Q9 below).**
+  2026-09-28: P2b criteria approved. **Spike result: cause found = NVIDIA global Max Frame Rate 200 fps.** With the owner's
+  global FRL off (13:45): display-resample at 239.901, 1080p windowed + fullscreen + repeat: est. 239.898, jitter 0.00025,
+  0 drops, 1 mistimed (at startup) per 120 s, 0 underruns. 4K HDR needs cheaper scalers (bilinear ⇒ same numbers; upstream
+  spline36+deband ⇒ −0.8 %, 38 mistimed, GPU stuck at 210 MHz). **Waiting for owner (Q10) before the verifier round.**
 - **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
   the mpv event thread, and switch before VO init (mpv misses external changes); Phase 5 must diagnose display-resample
@@ -122,7 +122,12 @@ suite, ≈ 15 s with only the patch tests.
   while paused: impossible on this monitor → **waived**, PresentMon grid evidence (resume lands on the 280 Hz grid) accepted.
 
 ## Open questions for owner
-- Q9 (Phase 2b, 2026-09-28): approve ONE driver-profile experiment: a new NVIDIA application profile for `java.exe` with
+- Q10 (Phase 2b, 2026-09-28): (a) accept P2b-13 with startup excluded (all mistimes in the first 1.2 s)? (b) PresentMon
+  cadence run (UAC) or waive it (PresentMon perturbs display-sync)? (c) Max Frame Rate: keep global off, or restore 200 and
+  plan a Nuvio-only driver profile (needs Phase 8 app identity/own exe; profile creation by Claude was blocked by the
+  permission classifier)? (d) 4K render cost: which option set for Phase 5 (bilinear tested; dscale-only untested)?
+- Q9 (answered 2026-09-28: owner turned the GLOBAL Max Frame Rate off themselves; backup of all driver profiles in
+  NuvioRate\drs-backup-2026-09-28.nip). Original: approve ONE driver-profile experiment: a new NVIDIA application profile for `java.exe` with
   Max Frame Rate = Off (the global 200 cap untouched), re-run S1 at 239.901 windowed + fullscreen, then delete the profile?
   (Alternative: the owner turns global Max Frame Rate off in the NVIDIA App for the test and back on after.)
   If it still fails ⇒ choose (a) switch + audio sync only, (b) deeper fix (libmpv render API), (c) stop.
@@ -133,7 +138,7 @@ suite, ≈ 15 s with only the patch tests.
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
-| 2b Resample spike | ~150–250k | ≈ 175k so far (criteria 45k + 21 runs/diagnosis ≈ 130k); verifier round not yet run |
+| 2b Resample spike | ~150–250k | ≈ 205k so far (criteria 45k + 28 runs/diagnosis ≈ 160k); verifier round not yet run |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |
@@ -234,4 +239,5 @@ suite, ≈ 15 s with only the patch tests.
   found verify.ps1 tests writing the OFFICIAL profile (one cache file) → fixed (D8); other findings fixed as listed above.
 - 2026-09-28 Phase 2b: criteria P2b-1..16 approved. Knobs OPTS/HIDE_OVERLAY + measure.ps1 -Opts/-HideOverlay/-Cadence/
   -PresentMonCsv built (upstream diff still 2 lines). 21 runs: overlay ruled out (S4), render cost ruled out, sync modes
-  and swapchain options don't fix it; found the driver's 200 fps limiter. Stopped for Q9 (driver-profile change needs approval).
+  and swapchain options don't fix it; found the driver's 200 fps limiter. Q9: owner turned FRL off ⇒ display-resample works
+  (1080p clean; 4K HDR clean with bilinear scalers). Stopped for Q10.

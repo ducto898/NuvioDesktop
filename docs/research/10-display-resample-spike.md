@@ -1,7 +1,8 @@
 # 10 — Display-resample diagnosis spike (Phase 2b, 2026-09-28)
 
 Question (D11): can `video-sync=display-resample` be made to work in Nuvio's embedded mpv player, and how?
-Status: **cause narrowed, not yet PASS. Waiting for an owner decision on one driver-profile experiment.**
+Status: **cause found — the NVIDIA global Max Frame Rate (200 fps). With it off, display-resample works** (see
+"FRL off" below). PASS as written is blocked only by startup mistimes and the missing PresentMon cadence run (owner decisions).
 Legend: **[measured]** = run data on this PC; **[inferred]** = my reading of the data, not proven.
 
 ## Setup
@@ -86,3 +87,32 @@ re-run S1 at 239.901, windowed and fullscreen, no PresentMon. Undo = delete that
   options (a) switch + audio sync only, (b) deeper fix (e.g. libmpv render API), (c) stop.
 The owner could instead toggle the global Max Frame Rate off for the test themselves (NVIDIA App → Graphics →
 Global → Max Frame Rate), and back on after.
+
+## FRL off (owner turned global Max Frame Rate off, 2026-09-28 ~13:45; confirmed FRL_FPS = 0 with drsprobe)
+No PresentMon, 120 s each, 239.901 Hz, display-resample [measured]:
+
+| Time | Clip | Window | Options | est. display fps | jitter | drops | mistimed | delayed | underruns | GPU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 13:46 | sdr-1080p-23.976 | win | — | 239.898 | 0.00025 | 0 | 1 | 1 | 0 | |
+| 13:48 | sdr-1080p-23.976 | fs | — | 239.898 | 0.00025 | 0 | 1 | 4 | 0 | |
+| 13:51 | sdr-1080p-23.976 | win | — (repeat) | 239.898 | 0.00025 | 0 | 1 | 1 | 0 | |
+| 13:54 | hdr-2160p-23.976 | fs | — | 237.99 | 0.10 | 0 | 38 | 184 | 0 | 31.7 W, 210 MHz P3, 29 % |
+| 13:57 | hdr-2160p-23.976 | fs | deband=no | 239.42 | 0.045 | 0 | 3 | 46 | 0 | 29.8 W, 210 MHz, 26 % |
+| 13:59 | hdr-2160p-23.976 | fs | scale/dscale/cscale=bilinear | 239.898 | 0.00026 | 0 | 3 | 5 | 0 | 30.6 W, 210 MHz, 22.5 % |
+| 14:03 | sdr-1080p-23.976 | win | — (PresentMon UAC declined) | 239.77 | 0.00002 | 0 | 3 | 3 | 0 | |
+
+- **Every mistimed frame in these runs falls in the first 1.2 s of playback**; from then to the end: 0 mistimed, 0 drops
+  (timeline from the 1 Hz samples). Delayed frames: a handful, spread out, mostly near close.
+- 4K HDR with upstream's spline36 + deband: the GPU stays in P3 at 210 MHz and misses about 0.3 frames/s; cheaper
+  scalers fix it. So S2 matters at 4K HDR, but as a render-cost margin at a low-power clock, not as the root cause.
+  Upstream sets only `scale`/`cscale=spline36` + `deband=yes`; the 4K→1440p step uses `dscale` (not set by upstream).
+  Which single option is enough (e.g. only `dscale`) is not yet tested.
+- ⇒ The collapse and the 200/s cap were both the driver limiter [measured: same build, same options, FRL 200 → est. 6.5 Hz;
+  FRL off → 239.898]. Why FRL + vsync collapses even at 120 Hz (below the cap) stays unexplained [open].
+
+### P2b-13 against the data
+- est. display fps within 0.1 % of 239.901: **PASS** 1080p win/fs + repeat; 4K HDR with bilinear PASS, default FAIL (−0.8 %).
+- drops + mistimed ≤ 1/min over 120 s: 1080p **PASS** (0.5/min); 4K bilinear 1.5/min **FAIL as written**, 0/min after the
+  first 5 s (all 3 at startup).
+- 0 audio underruns after 5 s: **PASS** everywhere.
+- PresentMon ≥ 99 % of frames at 10 refreshes: **not measured** (UAC declined; also PresentMon perturbs display-sync, see above).
