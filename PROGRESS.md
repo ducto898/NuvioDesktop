@@ -80,6 +80,7 @@ suite, ≈ 15 s with only the patch tests.
   active (no bilinear/cheaper scalers). The 4K HDR render margin must come from GPU clocks instead: NVIDIA "Power management
   mode: Prefer maximum performance" (a driver setting ⇒ owner sets it, ideally Nuvio-only once Phase 8 gives the app its own
   exe); measure its extra watts. Q10(d) answered by this.
+  Measured 14:42: max-performance mode ⇒ 4K HDR at full quality clean (239.898, 2 mistimed at startup, 0 delayed), 40.3 W vs 31.7 W.
 - D8: `verify.ps1` runs Gradle with APPDATA/LOCALAPPDATA redirected to `NuvioRate\testprofile` and fails if the official
   `%APPDATA%\Nuvio` / `%LOCALAPPDATA%\Nuvio` changed (upstream desktopTests write through real storage).
 

@@ -116,3 +116,9 @@ No PresentMon, 120 s each, 239.901 Hz, display-resample [measured]:
   first 5 s (all 3 at startup).
 - 0 audio underruns after 5 s: **PASS** everywhere.
 - PresentMon ≥ 99 % of frames at 10 refreshes: **not measured** (UAC declined; also PresentMon perturbs display-sync, see above).
+
+## Full quality via GPU power mode (D12; owner set global "Prefer maximum performance", PREFERRED_PSTATE = 1, 14:42)
+hdr-2160p-23.976, fullscreen, 239.901, upstream options (spline36 + deband), FRL off, no PresentMon [measured]:
+est. display fps 239.898, jitter 0.00024, 0 drops, 2 mistimed (both at 1.08 s), **0 delayed**, 0 underruns;
+GPU P0 2490 MHz in all 120 samples, **40.3 W** median (vs 31.7 W and 38 mistimed / 184 delayed in Normal mode) ⇒ +8.6 W.
+A global setting keeps the GPU at high clocks all the time (idle desktop too) [inferred from the P0 samples]; the right scope is a Nuvio-only profile (Phase 8 identity).
