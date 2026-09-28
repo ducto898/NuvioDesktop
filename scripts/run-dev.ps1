@@ -22,11 +22,17 @@
   Force refresh-rate matching on (NUVIO_RR_ENABLE=1, the dev/measure override of the "Match display refresh rate"
   setting in Settings > Playback > Display; NUVIO_RR_ENABLE=0 forces it off). Without -Feature and without the
   variable, the dev profile's setting decides. Its log is <ProfileRoot>\Local\Nuvio\Cache\refresh-rate.log.
+
+.PARAMETER MaxHz
+  Phase 7 (Q30): measure-only mode cap. Sets NUVIO_RR_MEASURE=1 (per-second mpv stats into
+  <ProfileRoot>\Local\Nuvio\Cache\nuvio-rr) and NUVIO_RR_MEASURE_MAX_HZ=<n>, so modes above <n> are hidden from the
+  feature and a 24 fps title switches (e.g. 240 -> 143.973 with 144) and restores to the desktop default.
 #>
 param(
     [string]$ProfileRoot = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'devprofile'),
     [string[]]$GradleArgs = @(),
-    [switch]$Feature
+    [switch]$Feature,
+    [int]$MaxHz = 0
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -54,6 +60,11 @@ Write-Host "Dev profile: $ProfileRoot (APPDATA/LOCALAPPDATA redirected for this 
 if ($Feature) {
     $env:NUVIO_RR_ENABLE = '1'
     Write-Host "Refresh-rate matching ON; log: $(Join-Path $local 'Nuvio\Cache\refresh-rate.log')"
+}
+if ($MaxHz -gt 0) {
+    $env:NUVIO_RR_MEASURE = '1'
+    $env:NUVIO_RR_MEASURE_MAX_HZ = "$MaxHz"
+    Write-Host "Measure-only mode cap: modes above $MaxHz Hz hidden from the feature; mpv stats in $(Join-Path $local 'Nuvio\Cache\nuvio-rr')"
 }
 
 Set-Location $repo

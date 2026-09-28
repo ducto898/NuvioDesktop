@@ -630,7 +630,7 @@ Design:
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
-### Phase 7 — Test matrix + independent review (written 2026-09-29, before code; AWAITING owner approval, Q30–Q35)
+### Phase 7 — Test matrix + independent review (written 2026-09-29, before code; owner-approved 2026-09-29 with Q30–Q35 as recommended)
 Scope: prove the finished feature (Phases 3–6) across the clip matrix, the disturbance cases carried from Phases 4–5,
 10-min soaks and one owner checklist, at the **240 Hz desktop default** (Q27: 239.901 live, 240 in the registry); set
 `ResampleHealth.RATE_ERROR_SAMPLES` from measured data (Q28); end with a fresh, independent review of the whole patch.
@@ -644,7 +644,7 @@ Design notes:
   no fresh evidence. Proposed (**Q30**, recommended option a): a **measure-only mode cap**
   `NUVIO_RR_MEASURE_MAX_HZ=<n>`, honoured only when `NUVIO_RR_MEASURE=1`, that drops listed modes above `<n>` from the
   list handed to `decide()` (the current-state reads are untouched). With `144`: 23.976/24 ⇒ 143.973 (×6),
-  29.97/59.94 ⇒ 119.998, 60 ⇒ 120.000 — real switches away from 240 and a real `NULL` restore back to the registry mode
+  29.97/59.94/60 ⇒ 120.000 (listed as 12000/100) — real switches away from 240 and a real `NULL` restore back to the registry mode
   240, the same path a 280 desktop takes. Rejected alternative: `switcher.exe` holding 280 around a run — the feature's
   restore (`ChangeDisplaySettingsExW(NULL)`) goes to the **registry** mode 240, not to switcher's 280, so the run would
   test an artificial two-process state.
@@ -676,7 +676,7 @@ Design notes:
   (focus another window for 3 s, then back) — auto (a rerun of the Phase 5 `p5-pm-actions` summary via `-Cadence`, and
   one run using each new option)
 - P7-5 — summary.json gets a `health` section: every `rate-off` line (samples, worst fps, error %, time),
-  `resample-unhealthy` (time, reason) and the count of judged samples; `scripts/rr-tools/p7-collect.ps1` builds one
+  `resample-unhealthy` (time, reason) and the count of judged samples; `scripts/rr-tools/p7-collect.py rateoff` builds one
   table from all run folders (≥ the Phase 7 folders + any older ones containing such lines) into
   `measurements/phase7-rate-off.txt` — auto
 - P7-6 — `scripts/rr-tools/health-replay.py`: reads the sampler lines of a run folder and applies the P5-11 rule
@@ -695,7 +695,7 @@ Design notes:
 - P7-8 — Feature off (no `-Feature`/`-Setting`, env 0): `sdr-1080p-23.976`, `sdr-1080p-59.94`, `hdr-2160p-23.976` ⇒
   no hook, no `refresh-rate.log`, upstream audio sync at 239.901, mpv option lines equal Phase 6's off runs — auto
 - P7-9 — Switch path (with the Q30 cap `-MaxHz 144`, feature on): `sdr-1080p-23.976` and `sdr-1080p-24` (⇒ 143.973),
-  `sdr-1080p-29.97`/`sdr-1080p-59.94` (⇒ 119.998), `sdr-1080p-60` (⇒ 120.000) windowed; `hdr-2160p-23.976`
+  `sdr-1080p-29.97`, `sdr-1080p-59.94`, `sdr-1080p-60` (⇒ 120.000) windowed; `hdr-2160p-23.976`
   fullscreen ⇒ switch before `file-loaded`, settle ≤ 4 s, verify OK, HDR/bpc unchanged, P5-12 limits at the new rate,
   restore on close ⇒ 239.901 within 1 s, registry 240 in every observer sample — auto
 - P7-10 — Lifecycle at the capped switch: (a) window close during the switch (`-CloseAfterSwitchMs` 0/50/150/300,

@@ -49,8 +49,9 @@ The only memory between phases. Read it at the start of every phase; update it a
   the 2 s wait and the restore then relies on the JVM shutdown hook or Windows' revert (D7).
 - **Phase 6 DONE 2026-09-29** (owner approved the P6-12 checklist; details below). **Next: Phase 7** — write P7 criteria for
   the 240 Hz default (Q27) incl. the Q28 `rate-off` data collection, stop at the gate.
-- **Phase 7 criteria written 2026-09-29 (SPEC P7-1..P7-20), AT THE GATE:** waiting for the owner's approval + Q30–Q35.
-  No code, no measure run until then. Found while planning: 0 `rate-off` lines exist in any of the 65 `refresh-rate.log`s
+- **Phase 7 criteria written 2026-09-29 (SPEC P7-1..P7-20), **approved by the owner 2026-09-29, Q30–Q35 as
+  recommended** (Q30 a: mode cap; Q31 rule; Q32 4 soaks + one 60 min; Q33 one owner session; Q34 PresentMon yes; Q35 review
+  replaces the lean verifier). Found while planning: 0 `rate-off` lines exist in any of the 65 `refresh-rate.log`s
   (no stall since `c1623bc8`) ⇒ P7-6/P7-14 replay the per-second sampler stats of all old runs too. At the 240 default
   nothing switches (24–60 fps already at target, 25/50 no mode) ⇒ Q30 measure-only mode cap. `switcher.exe` holding 280
   is not a valid substitute: the feature's `ChangeDisplaySettingsExW(NULL)` restore goes to the registry mode 240.
@@ -247,20 +248,20 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
-- Q30 (Phase 7): how to test switch/restore at the 240 default? (a) measure-only `NUVIO_RR_MEASURE_MAX_HZ=144` (only with
+- Q30 (Phase 7, ANSWERED 2026-09-29: as recommended): how to test switch/restore at the 240 default? (a) measure-only `NUVIO_RR_MEASURE_MAX_HZ=144` (only with
   NUVIO_RR_MEASURE=1): 23.976/24 ⇒ 143.973, 29.97/59.94 ⇒ 119.998, 60 ⇒ 120, restore to 240 — **recommended** (no
   Windows change, real switch + real registry restore); (b) owner sets the Windows default to 280 for one matrix block and
   back (most realistic target, owner-only change); (c) no fresh switch evidence, rely on Phase 4/5 (made at 280).
-- Q31 (Phase 7): final `RATE_ERROR_SAMPLES` rule (P7-15): N = max(3, longest recovered stretch seen live or in the replay
+- Q31 (Phase 7, ANSWERED 2026-09-29: as recommended): final `RATE_ERROR_SAMPLES` rule (P7-15): N = max(3, longest recovered stretch seen live or in the replay
   + 2), capped so every known-bad run still falls back within 20 s; nothing off-rate seen ⇒ stays 5. Recommended **yes**.
-- Q32 (Phase 7): soaks = 4 × ~10 min stream-copied (2160p HDR 23.976 fs, 1080p 59.94, 1080p 25, 1080p 23.976 capped),
+- Q32 (Phase 7, ANSWERED 2026-09-29: as recommended): soaks = 4 × ~10 min stream-copied (2160p HDR 23.976 fs, 1080p 59.94, 1080p 25, 1080p 23.976 capped),
   plus ONE unattended 60 min `hdr-2160p-23.976` fullscreen for more rate-off data? Recommended **yes to both**.
-- Q33 (Phase 7): owner batch (P7-17) as one ~40 min session after the unattended runs: one long capped measure command
+- Q33 (Phase 7, ANSWERED 2026-09-29: as recommended): owner batch (P7-17) as one ~40 min session after the unattended runs: one long capped measure command
   for HDR toggle / monitor off-on / driver reset / sleep / audio device, then dev-build items (DV, HDR10+, next episode,
   25 fps, flicker yes/no). You pick the DV and HDR10+ titles. Recommended **yes**.
-- Q34 (Phase 7): include the optional PresentMon capture (one UAC click) to prove the constant panel rate at 143.973 too?
+- Q34 (Phase 7, ANSWERED 2026-09-29: as recommended): include the optional PresentMon capture (one UAC click) to prove the constant panel rate at 143.973 too?
   Recommended **yes** (cheap; P5-16 proved it only at 239.9).
-- Q35 (Phase 7): the P7-19 independent review (fresh verifier, whole patch vs SPEC/FORK, ~150k) replaces the usual lean
+- Q35 (Phase 7, ANSWERED 2026-09-29: as recommended): the P7-19 independent review (fresh verifier, whole patch vs SPEC/FORK, ~150k) replaces the usual lean
   verifier round; one round, a second only if a fix touches native code. Recommended **yes**.
 - Q29 (ANSWERED 2026-09-28 23:58: **VRR confirmed** — owner set NVCP Program settings
   `C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot\bin\java.exe` ⇒ Monitor Technology = Fixed Refresh ⇒ flicker gone. Workaround

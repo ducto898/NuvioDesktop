@@ -36,9 +36,15 @@
   Fault kind enable-upcall: the H2 upcall fails, so the player must play without the feature (P6-10).
   summary.json "enable" = the env passed, the store file after the run, the enable/upcall lines of the log.
 
+  Phase 7: -MaxHz <n> sets NUVIO_RR_MEASURE_MAX_HZ (measure-only mode cap, Q30): modes above <n> are hidden from the
+  feature's decision, so at the 240 Hz desktop default a 23.976 clip switches to 143.973 and restores to 240.
+  summary.json "health" = the feature's rate-off / resample-unhealthy lines (Q28); mpv.after5s sums only positive
+  counter increments (mpv resets mistimed/delayed on a seek); PresentMon grid checks fit the refresh period.
+
 .PARAMETER Actions
   Comma list of key@second (seconds after file-loaded): space (pause toggle), right/left (seek),
-  mouse (wiggle the cursor over the window so the controls show), f11. Example: 'space@40,space@60'.
+  mouse (wiggle the cursor over the window so the controls show), f11 (confirmed from the next sample's fs=, retried
+  once), alttab (Alt+Tab away for 3 s, then back). Example: 'space@40,space@60'.
 #>
 param(
     [string]$Clip,
@@ -66,6 +72,7 @@ param(
     [switch]$Feature,
     [string]$Fault = '',
     [int]$CloseAfterSwitchMs = -1,
+    [int]$MaxHz = 0,
     [ValidateSet('', 'on', 'off', 'absent')][string]$Setting = '',
     [ValidateSet('', '0', '1')][string]$EnableEnv = ''
 )
@@ -88,6 +95,18 @@ function Pct([double[]]$v, [double]$p) {
     return $s[[int][math]::Min($s.Count - 1, [math]::Floor($p * $s.Count))]
 }
 
+# Refresh period fitted to the display intervals (Phase 5 note: the 280 Hz constant and the nominal 239.901 are both
+# wrong for the grid check). Start at the observer's rate, then least squares over the whole-refresh counts.
+function Fit-Period([double[]]$dc, [double]$refreshHz) {
+    $p = 1000.0 / $refreshHz
+    for ($i = 0; $i -lt 3; $i++) {
+        $n = 0.0; $sum = 0.0
+        foreach ($d in $dc) { $k = [math]::Round($d / $p); if ($k -ge 1 -and $k -le 20) { $n += $k; $sum += $d } }
+        if ($n -gt 0) { $p = $sum / $n }
+    }
+    return $p
+}
+
 # PresentMon cadence of the player's swapchain (java.exe), SPEC P2b-4. Two present patterns exist:
 #  per-frame  (audio sync: one present per video frame) => MsBetweenDisplayChange = how long each frame was held;
 #  per-refresh (display-sync modes: one present per refresh, the same frame repeated) => every interval should be
@@ -96,11 +115,11 @@ function Pct([double[]]$v, [double]$p) {
 function Get-Cadence([string]$csvPath, [double]$refreshHz, [double]$fps) {
     $rows = @(Import-Csv $csvPath | Where-Object { $_.Application -eq 'java.exe' })
     if ($rows.Count -lt 10 -or $refreshHz -le 0 -or $fps -le 0) { return $null }
-    $period = 1000.0 / $refreshHz
-    $frameMs = 1000.0 / $fps
-    $ideal = [int][math]::Round($frameMs / $period)
     $dc = @($rows | Where-Object { $_.MsBetweenDisplayChange -and $_.MsBetweenDisplayChange -ne 'NA' } |
         ForEach-Object { [double]$_.MsBetweenDisplayChange } | Where-Object { $_ -gt 0 })
+    $period = Fit-Period $dc $refreshHz
+    $frameMs = 1000.0 / $fps
+    $ideal = [int][math]::Round($frameMs / $period)
     $seconds = if ($rows[0].PSObject.Properties['TimeInMs']) { ([double]$rows[-1].TimeInMs - [double]$rows[0].TimeInMs) / 1000.0 } else {
         $parse = { param($v) $d = $v.LastIndexOf('.'); if ($d -gt 0 -and $v.Length - $d -gt 8) { $v = $v.Substring(0, $d + 8) }; [datetime]::Parse($v) }
         ((& $parse $rows[-1].TimeInDateTime) - (& $parse $rows[0].TimeInDateTime)).TotalSeconds
@@ -111,7 +130,7 @@ function Get-Cadence([string]$csvPath, [double]$refreshHz, [double]$fps) {
         ForEach-Object { $hist["$($_.Name)"] = $_.Count }
     $inPresent = @($rows | Where-Object { $_.MsInPresentAPI -and $_.MsInPresentAPI -ne 'NA' } | ForEach-Object { [double]$_.MsInPresentAPI })
     $result = [ordered]@{
-        refreshHz = $refreshHz; fps = $fps; idealRefreshesPerFrame = $ideal; seconds = [math]::Round($seconds, 1)
+        refreshHz = $refreshHz; fittedPeriodMs = [math]::Round($period, 5); fps = $fps; idealRefreshesPerFrame = $ideal; seconds = [math]::Round($seconds, 1)
         presentsPerSecond = [math]::Round($presentRate, 2); displayChanges = $dc.Count; histogramRefreshes = $hist
         msInPresentApiMedian = Median $inPresent; msInPresentApiP95 = Pct $inPresent 0.95
         presentModes = [ordered]@{}
@@ -250,6 +269,7 @@ $envSet = @{
     NUVIO_RR_MEASURE_IPC = $(if ($Actions) { '1' } else { '' })
     NUVIO_RR_MEASURE_OPTS = $Opts; NUVIO_RR_MEASURE_HIDE_OVERLAY = $(if ($HideOverlay) { '1' } else { '' })
     NUVIO_RR_ENABLE = $enableValue; NUVIO_RR_FAULT = $Fault
+    NUVIO_RR_MEASURE_MAX_HZ = $(if ($MaxHz) { "$MaxHz" } else { '' })
 }
 foreach ($k in $envSet.Keys) { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envSet[$k]) }
 try {
@@ -352,7 +372,23 @@ if ($loadedAt -and $app -and -not $closedEarlyAt) {
                 'space' { $result = & $mpvCommand '{"command":["cycle","pause"]}' }
                 'right' { $result = & $mpvCommand '{"command":["seek",10,"relative"]}' }
                 'left' { $result = & $mpvCommand '{"command":["seek",-10,"relative"]}' }
-                'f11' { & $focusApp; $shell.SendKeys('{F11}') }
+                'f11' {
+                    # Confirm from the sampler's fs= (1 s cadence); retry once (Phase 5: one f11 was not applied).
+                    $fsBefore = (Select-String -Path $log.FullName -Pattern '^\S+ S .* fs=(yes|no)' | Select-Object -Last 1).Matches.Groups[1].Value
+                    foreach ($try in 1, 2) {
+                        & $focusApp; $shell.SendKeys('{F11}'); Start-Sleep -Milliseconds 2200
+                        $fsAfter = (Select-String -Path $log.FullName -Pattern '^\S+ S .* fs=(yes|no)' | Select-Object -Last 1).Matches.Groups[1].Value
+                        if ($fsAfter -ne $fsBefore) { break }
+                    }
+                    $result = "fs $fsBefore -> $fsAfter (tries $try)"
+                }
+                'alttab' {
+                    [RrWin]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [RrWin]::keybd_event(0x09, 0, 0, [UIntPtr]::Zero)
+                    [RrWin]::keybd_event(0x09, 0, 2, [UIntPtr]::Zero); [RrWin]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+                    Start-Sleep -Seconds 3
+                    & $focusApp
+                    $result = 'away 3 s, back'
+                }
                 'mouse' {
                     $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
                     for ($i = 0; $i -lt 10; $i++) {
@@ -424,6 +460,7 @@ for ($i = 1; $i -lt $times.Count; $i++) { $gaps += ($times[$i] - $times[$i - 1])
 
 $summary = [ordered]@{
     run = $runName; clip = $clipName; seconds = $Seconds; fullscreenRequested = [bool]$Fullscreen; sync = $Sync; switchHz = $SwitchHz
+    maxHz = $MaxHz
     actions = $Actions; forcedClose = $forced; opts = $Opts; hideOverlay = [bool]$HideOverlay
     windows = [ordered]@{
         before = & $winState $first
@@ -465,7 +502,12 @@ $summary.mpv.countersPerMinute = $perMin
 $late = @($samples | Where-Object { [double]$_.'time-pos' -ge 5 })
 if ($late.Count -ge 2) {
     $lateMin = ([double]$late[-1].'time-pos' - [double]$late[0].'time-pos') / 60
-    $lateDelta = { param($n) $a = $late[0].$n; $b = $late[-1].$n; if ($a -and $b -and $a -ne 'na' -and $b -ne 'na') { [double]$b - [double]$a } else { $null } }
+    # Sum of the positive increments: mpv resets mistimed/delayed on a seek, so last - first can go negative (Phase 5).
+    $lateDelta = { param($n)
+        $v = @($late | ForEach-Object { $_.$n } | Where-Object { $_ -and $_ -ne 'na' } | ForEach-Object { [double]$_ })
+        if ($v.Count -lt 2) { return $null }
+        $sum = 0.0; for ($i = 1; $i -lt $v.Count; $i++) { if ($v[$i] -gt $v[$i - 1]) { $sum += $v[$i] - $v[$i - 1] } }
+        $sum }
     $dr = & $lateDelta 'frame-drop-count'; $mt = & $lateDelta 'mistimed-frame-count'
     $summary.mpv.after5s = [ordered]@{
         minutes = [math]::Round($lateMin, 2); frameDrops = $dr; mistimed = $mt; delayed = & $lateDelta 'vo-delayed-frame-count'
@@ -544,12 +586,13 @@ if (Test-Path "$out\presentmon.csv") {
         ForEach-Object { [ordered]@{ key = $_.Name; count = $_.Count } }
     $javaDc = @($pm | Where-Object { $_.Application -eq 'java.exe' -and $_.MsBetweenDisplayChange -and $_.MsBetweenDisplayChange -ne 'NA' } |
         ForEach-Object { [double]$_.MsBetweenDisplayChange } | Where-Object { $_ -gt 0 })
-    $period = 1000.0 / [double]$first.hz
+    $duringHzPm = Median (@($during | ForEach-Object { [double]$_.hz }))
+    $period = Fit-Period $javaDc $(if ($duringHzPm) { $duringHzPm } else { [double]$first.hz })
     $offGrid = @($javaDc | Where-Object { $q = $_ / $period; [math]::Abs($q - [math]::Round($q)) * $period -gt 0.5 }).Count
     $summary.presentMon = [ordered]@{
         presentModes = $modes
         javaMsBetweenDisplayChange = [ordered]@{ count = $javaDc.Count; median = Median $javaDc; p05 = Pct $javaDc 0.05; p95 = Pct $javaDc 0.95
-            offVsyncGridOver0_5ms = $offGrid; vsyncPeriodMs = [math]::Round($period, 4) }
+            offVsyncGridOver0_5ms = $offGrid; vsyncPeriodMs = [math]::Round($period, 5); periodFitted = $true }
     }
     $duringHz = Median (@($during | ForEach-Object { [double]$_.hz }))
     if ($duringHz -and $summary.mpv.containerFps) {
@@ -581,6 +624,13 @@ if ($Feature -or $Setting -eq 'on' -or $EnableEnv -eq '1') {
         switchBeforeFileLoaded = if ($firstSwitch -and $loadWall) { $firstSwitch.Substring(0, 12) -lt $loadWall.Substring(0, 12) } else { $null }
         reasons = @($fl | Where-Object { $_ -match ' K step ' } | ForEach-Object { if ($_ -match 'reasons=(\S*)') { $Matches[1] } })
         modesLine = $fl | Where-Object { $_ -match ' N modes ' } | Select-Object -First 1
+        maxHzLine = $fl | Where-Object { $_ -match 'measure max-hz=' } | Select-Object -First 1
+    }
+    # Phase 7 (Q28): every off-rate stretch that recovered, and every fallback.
+    $summary.health = [ordered]@{
+        rateOff = @($fl | Where-Object { $_ -match 'rate-off p\d+ (\d+) samples, worst ([\d.]+) \(([+-][\d.]+) %\)' } | ForEach-Object {
+                [ordered]@{ time = $_.Substring(0, 12); samples = [int]$Matches[1]; worstFps = [double]$Matches[2]; errorPct = [double]$Matches[3] } })
+        unhealthy = @($fl | Where-Object { $_ -match 'resample-unhealthy' } | ForEach-Object { $_.Substring(0, 12) + ' ' + ($_ -replace '^.*(resample-unhealthy)', '$1') })
     }
 }
 $hsErr = @(Get-ChildItem $repo, (Join-Path $repo 'composeApp') -Filter 'hs_err_pid*.log' -ErrorAction SilentlyContinue |

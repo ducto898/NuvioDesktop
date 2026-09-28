@@ -47,6 +47,7 @@ struct MeasureConfig {
     bool ipc = false;      // NUVIO_RR_MEASURE_IPC=1: mpv input-ipc-server on \\.\pipe\nuvio-rr-<pid> (measure.ps1 actions)
     std::vector<std::pair<std::string, std::string>> opts;  // NUVIO_RR_MEASURE_OPTS="k=v;k=v" (Phase 2b spike)
     bool hideOverlay = false;  // NUVIO_RR_MEASURE_HIDE_OVERLAY=1 (Phase 2b spike)
+    int maxHz = 0;  // NUVIO_RR_MEASURE_MAX_HZ: modes above it are hidden from decide() (Phase 7, Q30)
 };
 
 std::string asciiValue(const std::wstring &value) {
@@ -95,6 +96,7 @@ const MeasureConfig &measureConfig() {
             begin = end + 1;
         }
         config.hideOverlay = envValue(L"NUVIO_RR_MEASURE_HIDE_OVERLAY") == L"1";
+        config.maxHz = _wtoi(envValue(L"NUVIO_RR_MEASURE_MAX_HZ").c_str());
     });
     return config;
 }
@@ -698,7 +700,18 @@ bool enumerateModes(const std::wstring &device, const DisplayState &current, std
                 return false;
             }
             std::string text;
+            std::string dropped;
+            // Measure-only (Phase 7, Q30): at the 240 Hz desktop default nothing would switch, so a cap hides the modes
+            // above it from decide(); the current-state reads and the restore are untouched.
+            int maxHz = measureConfig().enabled ? measureConfig().maxHz : 0;
             for (const DXGI_MODE_DESC1 &m : modes) {
+                if (maxHz > 0 && m.RefreshRate.Denominator != 0 &&
+                    (double)m.RefreshRate.Numerator / m.RefreshRate.Denominator > maxHz + 0.5) {
+                    if ((int)m.Width == current.width && (int)m.Height == current.height) {
+                        dropped += strf(" %u/%u", m.RefreshRate.Numerator, m.RefreshRate.Denominator);
+                    }
+                    continue;
+                }
                 bool interlaced = m.ScanlineOrdering == DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST ||
                     m.ScanlineOrdering == DXGI_MODE_SCANLINE_ORDER_LOWER_FIELD_FIRST;
                 out.insert(out.end(), {(int64_t)m.Width, (int64_t)m.Height, (int64_t)m.RefreshRate.Numerator,
@@ -710,6 +723,7 @@ bool enumerateModes(const std::wstring &device, const DisplayState &current, std
             }
             nlog(strf("modes %ls: %zu (DXGI R8G8B8A8, bpc %d), at %dx%d:", device.c_str(), modes.size(), bpc, current.width,
                 current.height) + text);
+            if (maxHz > 0) nlog(strf("measure max-hz=%d dropped=", maxHz) + (dropped.empty() ? std::string(" none") : dropped));
             return true;
         }
     }
