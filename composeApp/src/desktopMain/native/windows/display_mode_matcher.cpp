@@ -9,7 +9,7 @@
 // per mpv_wait_event() return, i.e. at least every 0.5 s. All state is thread_local, so it lives
 // exactly as long as that thread, and the thread never outlives the mpv handle.
 //
-// Phase 4 contents: the feature itself (section "Phase 4" below), off unless NUVIO_RR_ENABLE=1.
+// Phase 4 contents: the feature itself (section "Phase 4" below), on per player when Kotlin says so at H2 (Phase 6).
 // Phase 5 contents: mpv timing (display-resample at the hook and at runtime), the read-only NVIDIA
 // driver-settings read, the health-check counters, fault kinds timing-set and drop-mode.
 
@@ -490,7 +490,8 @@ public:
 };
 
 // ================================================================ Phase 4: the feature (SPEC P4)
-// Off unless the process starts with NUVIO_RR_ENABLE=1 (dev knob until the Phase 6 setting, Q14).
+// Phase 6: on or off per player. onMpvInitialized (H2) asks Kotlin (RefreshRateMatch.nativeFeatureEnabled: the
+// NUVIO_RR_ENABLE override, else the "Match display refresh rate" setting); off = nothing below runs for that player.
 // Flow: onMpvInitialized (H2) adds mpv's on_preloaded hook -> the hook event reaches onMpvEvent (H4)
 // on the mpv event thread, which only starts a worker -> the worker reads fps + the player's monitor
 // and calls up into Kotlin (RefreshRateMatch.nativePlaybackStart), which decides and switches through
@@ -523,7 +524,6 @@ enum SwitchCode : int64_t {
 };
 
 struct FeatureConfig {
-    bool enabled = false;
     std::string fault;     // NUVIO_RR_FAULT, honoured only in measure runs (NUVIO_RR_MEASURE=1, Q16)
     std::wstring logPath;  // run folder in measure runs, else %LOCALAPPDATA%\Nuvio\Cache
 };
@@ -532,8 +532,6 @@ const FeatureConfig &featureConfig() {
     static FeatureConfig config;
     static std::once_flag once;
     std::call_once(once, []() {
-        if (envValue(L"NUVIO_RR_ENABLE") != L"1") return;
-        config.enabled = true;
         const MeasureConfig &measure = measureConfig();
         if (measure.enabled) config.fault = asciiValue(envValue(L"NUVIO_RR_FAULT"));
         std::wstring dir = measure.enabled ? envValue(L"NUVIO_RR_MEASURE_DIR") : std::wstring();
@@ -562,10 +560,13 @@ std::string strf(const char *format, ...) {
     return buffer;
 }
 
-// The one writer of refresh-rate.log: native lines ("N") and Kotlin lines ("K", via nativeLog).
+// True once H2 turned the feature on for a player; until then H4/H5 return at once (a feature-off process pays nothing).
+std::atomic<bool> gFeatureUsed{false};
+
+// The one writer of refresh-rate.log: native lines ("N") and Kotlin lines ("K", via nativeLog). Only called for
+// players the feature is on for, or to record why H2 could not ask Kotlin (P6-10), so a feature-off run writes nothing.
 void rrLog(const std::string &line) {
     const FeatureConfig &config = featureConfig();
-    if (!config.enabled) return;
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     std::string text = wallClock() + " [nuvio-rr] " + line + "\n";
@@ -818,6 +819,80 @@ JavaVM *javaVm() {
     return vm;
 }
 
+// RefreshRateMatch, found through the system class loader, which is the app's loader in dev runs and in the packaged app.
+struct MatchMethods {
+    jclass type = nullptr;
+    jmethodID start = nullptr;    // nativePlaybackStart
+    jmethodID enabled = nullptr;  // nativeFeatureEnabled (Phase 6)
+};
+
+const MatchMethods &matchMethods(JNIEnv *env) {
+    static MatchMethods methods;
+    static std::mutex lookupMutex;
+    std::lock_guard<std::mutex> lock(lookupMutex);
+    if (!methods.type) {
+        jclass local = env->FindClass("com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateMatch");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (local) {
+            jmethodID start = env->GetStaticMethodID(local, "nativePlaybackStart", "(JLjava/lang/String;DDZD)[J");
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            jmethodID enabled = env->GetStaticMethodID(local, "nativeFeatureEnabled", "()I");
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            if (start && enabled) {
+                methods.start = start;
+                methods.enabled = enabled;
+                methods.type = static_cast<jclass>(env->NewGlobalRef(local));
+            }
+            env->DeleteLocalRef(local);
+        }
+    }
+    return methods;
+}
+
+// Phase 6 (P6-9, P6-10): is the feature on for the player being created? Kotlin's code: 0 = off, 1 = on by
+// NUVIO_RR_ENABLE, 2 = on by the setting, -1 = Kotlin failed. Anything that stops the question being asked is -1 with
+// the reason in [why]; the caller treats every value <= 0 as off.
+int upcallFeatureEnabled(std::string &why) {
+    JavaVM *vm = javaVm();
+    if (!vm) {
+        why = "no-jvm";
+        return -1;
+    }
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
+        if (vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) {
+            why = "attach-failed";
+            return -1;
+        }
+        attached = true;
+    }
+    int code = -1;
+    const MatchMethods &match = matchMethods(env);
+    jmethodID method = match.enabled;
+    if (match.type && measureConfig().enabled && fault("enable-upcall")) {  // measure runs only: ask for a method that does not exist
+        method = env->GetStaticMethodID(match.type, "nativeFeatureEnabledInjectedFault", "()I");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        why = "method-not-found (injected fault enable-upcall)";
+    }
+    if (!match.type) {
+        why = "class-not-found";
+    } else if (method) {
+        jint value = env->CallStaticIntMethod(match.type, method);
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            why = "exception";
+        } else {
+            code = (int)value;
+            if (code < 0) why = "kotlin-error";
+        }
+    } else if (why.empty()) {
+        why = "method-not-found";
+    }
+    if (attached) vm->DetachCurrentThread();
+    return code;
+}
+
 struct StartProps {
     double containerFps = std::nan("");
     double estimatedFps = std::nan("");
@@ -879,22 +954,9 @@ std::string upcallStart(int64_t playerId, const std::wstring &display, const Sta
         attached = true;
     }
     std::string result;
-    // Found through the system class loader, which is the app's loader in dev runs and in the packaged app.
-    static jclass matchClass = nullptr;
-    static jmethodID startMethod = nullptr;
-    static std::mutex lookupMutex;
-    {
-        std::lock_guard<std::mutex> lock(lookupMutex);
-        if (!matchClass) {
-            jclass local = env->FindClass("com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateMatch");
-            if (local) {
-                startMethod = env->GetStaticMethodID(local, "nativePlaybackStart", "(JLjava/lang/String;DDZD)[J");
-                if (startMethod) matchClass = static_cast<jclass>(env->NewGlobalRef(local));
-                env->DeleteLocalRef(local);
-            }
-            if (env->ExceptionCheck()) env->ExceptionClear();
-        }
-    }
+    const MatchMethods &match = matchMethods(env);
+    jclass matchClass = match.type;
+    jmethodID startMethod = match.start;
     if (!matchClass || !startMethod) {
         result = "class-not-found";
     } else {
@@ -1182,7 +1244,20 @@ void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
 
 // Hook H2: after mpv_initialize, before loadfile, so the first file's hook cannot be missed (P4-9).
 inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container) {
-    if (!featureConfig().enabled || !mpv) return;
+    if (!mpv) return;
+    std::string why;
+    double asked = nowSeconds();
+    int code = -1;
+    try {
+        code = upcallFeatureEnabled(why);
+    } catch (...) {
+        code = -1;
+        why = "native-exception";
+    }
+    double upcallMs = (nowSeconds() - asked) * 1000.0;
+    if (code < 0) nlog(strf("enable upcall failed (%s) in %.1f ms: feature off for this player", why.c_str(), upcallMs));
+    if (code <= 0) return;
+    gFeatureUsed.store(true);
     auto hookAdd = mpvSymbol<mpv_hook_add_fn>("mpv_hook_add");
     int rc = hookAdd ? hookAdd(mpv, 0, "on_preloaded", 0) : -1;
     auto entry = std::make_shared<PlayerEntry>();
@@ -1196,7 +1271,8 @@ inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container)
         if (rc >= 0) r.players.push_back(entry);
     }
     std::string faultText = featureConfig().fault.empty() ? std::string() : " fault=" + featureConfig().fault;
-    nlog(strf("player p%lld created, mpv_hook_add(on_preloaded) rc=%d%s", (long long)entry->id, rc, faultText.c_str()));
+    nlog(strf("player p%lld created, enabled=%s (upcall %.1f ms), mpv_hook_add(on_preloaded) rc=%d%s", (long long)entry->id,
+        code == 1 ? "env" : "setting", upcallMs, rc, faultText.c_str()));
 }
 
 // From onMpvEvent (the mpv event thread): hand the hook to a worker and return at once.
@@ -1224,7 +1300,7 @@ void onHookEvent(mpv_handle *mpv, mpv_event *event) {
 
 // Hook H5: first thing in shutdown(), while the mpv handle is still valid (P4-12).
 inline void onPlayerShutdown(const void *owner) {
-    if (!featureConfig().enabled) return;
+    if (!gFeatureUsed.load()) return;
     auto entry = findPlayer([owner](const PlayerEntry &p) { return p.owner == owner; }, true);
     if (!entry) return;
     entry->stopping.store(true);
@@ -1270,8 +1346,9 @@ void cacheTimingStats(mpv_handle *mpv) {
 }
 
 inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stopping) {
-    if (featureConfig().enabled && mpv && event && (int)event->event_id == kMpvEventHook) onHookEvent(mpv, event);
-    if (featureConfig().enabled && mpv && !stopping) cacheTimingStats(mpv);
+    bool used = gFeatureUsed.load(std::memory_order_relaxed);
+    if (used && mpv && event && (int)event->event_id == kMpvEventHook) onHookEvent(mpv, event);
+    if (used && mpv && !stopping) cacheTimingStats(mpv);
     if (!measureConfig().enabled || !mpv) return;
     struct Holder {
         MeasureSession session;
