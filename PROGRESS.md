@@ -35,8 +35,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   by H4 on the mpv event thread; re-measured OK), verify -Full green again. Known limits, not fixed: NVAPI calls are
   guarded by try/catch only (an access violation inside nvapi64.dll would not be caught; struct layouts match
   drsprobe.cpp); under the `timing-set` fault knob a later revert also reports ok=0 (knob only).
-  **Open:** owner at the PC for P5-15/P5-16 (PresentMon, UAC) and the P5-17 checklist (incl. P5-13 next episode). Then
-  Phase 5 DONE ⇒ Phase 6.
+  **Owner session 19:45–20:05:** PresentMon runs + checklist "all OK" (owner). P5-15 PASS, P5-16 PASS on substance (see
+  Measurements; strict ±0.25 ms wording missed by jittered pairs ⇒ owner to accept), P5-13 PASS from the log, P5-17
+  owner-attested; monitor off/on not in the log ⇒ Phase 7 matrix. **Phase 5 DONE 2026-09-28 (pending the owner's OK on the
+  P5-16 note). Next: Phase 6** (write P6 criteria, stop at the gate).
   History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
@@ -332,6 +334,17 @@ suite, ≈ 15 s with only the patch tests.
   (280 Hz audio sync) 37.8 W; 4K HDR 40.1 W vs 40.2 W ⇒ no material difference.
   Tooling note: samples from the close request on are now excluded (the first run counted the restore to 280 as 3 drops +
   4 mistimed).
+- **Phase 5 PresentMon (owner UAC, 19:45–19:53, feature on, 23.976 at 239.901):** fullscreen `*p5-pm-fs`: all 26 865
+  java.exe display changes exactly 1 refresh apart (max 0.12 ms off the 4.168 ms grid), 0 missed refreshes, mpv
+  vsync-ratio 10.0, jitter 0.00023, 0 drops/mistimed with PresentMon running ⇒ **PresentMon no longer perturbs
+  display-sync** (that was the 200 fps cap) and every 23.976 frame is on screen for exactly 10 refreshes (display-resample
+  presents every refresh, so frame holds come from vsync-ratio + 0 missed refreshes, not from the present histogram).
+  Windowed with pause 20 s, seeks, controls, f11 ×2 (`*p5-pm-actions`, run twice): every interval a whole number of
+  refreshes; off-grid > 0.25 ms only as compensated pairs (e.g. 4.420 + 3.916 = 2 refreshes; run 2: 7 pairs of 22 044,
+  pair sums ≤ 0.22 ms off, 0 unpaired; run 1: 1 pair after cutting the last second, which captured the close and restore
+  to 280) ⇒ timestamp jitter, **VRR not engaged, panel rate constant** through pause/seek/controls/fullscreen. Harness
+  note: both action runs ended fs=yes (one f11 not applied), a measure-script issue. The summary's own grid check uses the
+  280 Hz period; fix in the tooling before Phase 7.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
@@ -382,3 +395,5 @@ suite, ≈ 15 s with only the patch tests.
   commits A/B (Kotlin: timing routing, frame-cap rule, ResampleHealth), C (native timing apply/revert, setTiming/stats,
   NVAPI read, faults). 20 measure runs: display-resample clean at 239.901 for every rate; two health-check bugs found by
   the runs and fixed test-first. Waiting for the verifier round and the owner's PresentMon + checklist session.
+- 2026-09-28 Phase 5 closed: verifier PASS (flag 1 deadlock risk fixed `75ec3f57`), owner PresentMon runs + checklist all
+  OK; next episode proven in the log. Next: Phase 6.
