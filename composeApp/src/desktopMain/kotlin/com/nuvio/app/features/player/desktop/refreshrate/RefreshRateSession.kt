@@ -70,6 +70,9 @@ object RefreshRateSession {
     /** Largest relative difference between the requested and the observed rate after a switch. */
     const val VERIFY_TOLERANCE = 1e-6
 
+    /** HDR-toggle re-switches allowed per playback start before the P3-22 rules apply (SPEC P4-22). */
+    const val MAX_HDR_RESWITCHES = 3
+
     fun step(session: Session, event: SessionEvent): Step {
         val out = Out()
         var state = session.state
@@ -215,22 +218,40 @@ object RefreshRateSession {
                 out.restore(ctx.display)
                 Handled.To(SessionState.Restoring(ctx.display))
             }
-            is SessionEvent.DisplayChanged -> when {
-                event.display != ctx.display -> ignored(state, out)
-                sameRate(event.observed.mode.refresh, ctx.target.refresh) -> {
-                    if (event.observed.hdr != ctx.original.hdr) out.reasons += "hdr-changed"
-                    Handled.To(state)
-                }
-                !ctx.reswitchUsed -> {
-                    // Monitor off/on dropped our temporary mode (kill-test case H): switch back once (Q13).
-                    out.reasons += "mode-lost"
-                    out.switchTo(ctx.display, ctx.target)
-                    Handled.To(SessionState.Switching(ctx.copy(reswitchUsed = true)))
-                }
-                else -> {
-                    out.reasons += "mode-lost-again"
-                    out.timing = Timing.Upstream
-                    Handled.To(SessionState.Idle)
+            is SessionEvent.DisplayChanged -> {
+                if (event.display != ctx.display) return ignored(state, out)
+                val observed = event.observed
+                val hdrToggled = observed.hdr != ctx.original.hdr ||
+                    observed.mode.bitsPerColor != ctx.original.mode.bitsPerColor
+                // P4-22: the recorded original follows the user's HDR choice; the rate to go back to stays.
+                val now = if (!hdrToggled) ctx else ctx.copy(
+                    original = ctx.original.copy(
+                        hdr = observed.hdr,
+                        mode = ctx.original.mode.copy(bitsPerColor = observed.mode.bitsPerColor),
+                    ),
+                )
+                when {
+                    sameRate(observed.mode.refresh, ctx.target.refresh) -> {
+                        if (hdrToggled) out.reasons += "hdr-changed"
+                        Handled.To(SessionState.Switched(now))
+                    }
+                    hdrToggled && ctx.hdrReswitches < MAX_HDR_RESWITCHES -> {
+                        // Toggling Windows HDR resets the temporary mode to the registry rate (P4-22).
+                        out.reasons += "hdr-toggled"
+                        out.switchTo(ctx.display, ctx.target)
+                        Handled.To(SessionState.Switching(now.copy(hdrReswitches = ctx.hdrReswitches + 1)))
+                    }
+                    !ctx.reswitchUsed -> {
+                        // Monitor off/on dropped our temporary mode (kill-test case H): switch back once (Q13).
+                        out.reasons += "mode-lost"
+                        out.switchTo(ctx.display, ctx.target)
+                        Handled.To(SessionState.Switching(now.copy(reswitchUsed = true)))
+                    }
+                    else -> {
+                        out.reasons += "mode-lost-again"
+                        out.timing = Timing.Upstream
+                        Handled.To(SessionState.Idle)
+                    }
                 }
             }
             is SessionEvent.SwitchFinished, is SessionEvent.RestoreFinished -> ignored(state, out)
@@ -252,7 +273,11 @@ object RefreshRateSession {
         val keep = { rate: Rational, target: DisplayMode ->
             out.reasons += if (target == ctx.target) "same-target" else "retarget"
             out.timing = Timing.DisplaySync(rate)
-            Handled.To(SessionState.Switched(ctx.copy(target = target, owner = event.playerId, reswitchUsed = false)))
+            Handled.To(
+                SessionState.Switched(
+                    ctx.copy(target = target, owner = event.playerId, reswitchUsed = false, hdrReswitches = 0),
+                ),
+            )
         }
         return when (val sel = event.selection) {
             is Selection.Switch -> when {
@@ -262,7 +287,9 @@ object RefreshRateSession {
                     out.reasons += "switching"
                     out.switchTo(ctx.display, sel.target)
                     Handled.To(
-                        SessionState.Switching(ctx.copy(target = sel.target, owner = event.playerId, reswitchUsed = false)),
+                        SessionState.Switching(
+                            ctx.copy(target = sel.target, owner = event.playerId, reswitchUsed = false, hdrReswitches = 0),
+                        ),
                     )
                 }
             }
