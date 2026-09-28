@@ -539,5 +539,74 @@ first change on a player and puts exactly those back on revert.
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
+### Phase 6 — Settings toggle + plumbing (written 2026-09-28, before code; awaiting owner approval, Q23–Q26)
+Scope: replace the `NUVIO_RR_ENABLE=1` dev knob with a user setting **"Match display refresh rate"** in Playback
+settings, Windows only, default OFF. The feature's behaviour (Phases 3–5) is unchanged.
+**Not in Phase 6:** the test matrix (Phase 7), app identity / updater / Sentry (Phase 8), Nuvio-only driver profiles.
+Design:
+- Storage: new desktop store `DesktopStorage.store("nuvio_refresh_rate")`, key `match_display_refresh_rate`. Per PC:
+  not profile-scoped, not in the sync payload (see **Q23**). `PlayerSettingsRepository` / `PlayerSettingsStorage` untouched.
+- Common API for the settings page (commonMain can't see desktop code): new `expect object RefreshRateMatchSetting`
+  (`available`, `enabled: StateFlow<Boolean>`, `setEnabled`) with actuals in desktopMain (`available = isWindows`, backed
+  by the store) and androidMain/iosMain (`available = false`, no-op) — the same 3-actual pattern as `isWindows`.
+- UI: new composable `RefreshRateMatchSettingsSection(isTablet)` in a new file in package `...features.settings` (so the
+  `internal` `SettingsSection`/`SettingsGroup`/`SettingsSwitchRow` are reachable); draws nothing when `!available`. Called
+  by ONE fully qualified line in `PlaybackSettingsPage.kt` right after the "NVIDIA RTX Video" section (H9). Its 3 strings
+  go in `values/strings.xml` only (H10; other locales fall back to English).
+- Enable path: the native H2 (`onMpvInitialized`) asks Kotlin per player through a new JNI upcall
+  `RefreshRateMatch.nativeFeatureEnabled(): Boolean`, using the existing attach helper. Kotlin answers: env
+  `NUVIO_RR_ENABLE=1` ⇒ on, `=0` ⇒ off (dev/measure override, **Q24**), otherwise the stored setting. So the value is
+  read at each playback start and no upstream Kotlin line pushes it (the planned H7 is not needed).
+- A change takes effect at the next playback start (**Q25**); a running session is left alone and restores as usual.
+
+**Footprint and tests first**
+- P6-1 — Upstream diff ≤ 7 changed code lines in 4 files: the 6 Phase 4 lines + H9 (1 line, `PlaybackSettingsPage.kt`),
+  plus ≤ 3 added lines in `composeApp/src/commonMain/composeResources/values/strings.xml` (H10). Each carries a
+  `nuvio-rr fork hook Hn` comment on the same line (XML comment for H10). `PlayerSettingsRepository.kt`,
+  `PlayerSettingsStorage.*`, `NativePlayerController.kt`, `NativePlayerBridge.kt`, the `create()` signature, the attach
+  `LaunchedEffect` keys, all Gradle files and all other locales untouched; no new dependency — auto (`verify.ps1 -Full`)
+- P6-2 — `verify.ps1 -Full` green with only the known upstream failures; nothing written to either official folder;
+  nothing pushed — auto
+- P6-3 — Tests first (commit A = tests + stubs, red; commit B = implementation, green; empty test diff A→B; changed
+  Phase 3–5 tests listed in commit A with the reason). Tests cover: the enable rule (env `1`/`0`/unset/other × setting
+  on/off, 8 cases); store round trip with default OFF when no file/key exists; `setEnabled` updates the `StateFlow`;
+  `nativeFeatureEnabled()` false ⇒ no dispatcher, no thread, no shutdown hook created; an exception while reading ⇒
+  `false` — auto (tests)
+- P6-4 — Not synced, per PC: the key is absent from `PlayerSettingsStorage.exportToSyncPayload()` (test) and the store
+  key is not wrapped by `ProfileScopedKey` (code review) — auto
+
+**Behaviour**
+- P6-5 — Default OFF = upstream: fresh dev profile (no `nuvio_refresh_rate.properties`), no env knob, `sdr-1080p-23.976`
+  ⇒ 279.961 throughout, no `player pN created` line, `refresh-rate.log` not created or appended, no `nuvio-rr` thread, and
+  the mpv option/property lines in the mpv log equal those of the Phase 5 feature-off run of the same clip — auto
+  (measure.ps1 in the new setting mode, P6-8)
+- P6-6 — Setting ON, no env knob ⇒ the feature runs exactly as in Phase 5: `sdr-1080p-23.976` windowed meets every P5-12
+  limit, and the log names the source (`enabled=setting`) — auto (measure.ps1)
+- P6-7 — Env override: `NUVIO_RR_ENABLE=0` + setting ON ⇒ off as in P6-5; `NUVIO_RR_ENABLE=1` + setting OFF ⇒ on as in
+  P6-6 (`enabled=env`). measure.ps1 without `-Feature` now passes `NUVIO_RR_ENABLE=0`, so baseline runs stay off whatever
+  the dev profile holds — auto (tests + one measure run each)
+- P6-8 — measure.ps1 gets `-Setting on|off`: writes the key into the run's dev-profile store before launch (never the
+  official profile) and leaves `NUVIO_RR_ENABLE` unset; `-Feature` keeps its meaning (env `1`) — auto (the P6-5/P6-6 runs)
+- P6-9 — Takes effect per playback start: two measure runs back to back on one dev profile, setting flipped between them
+  (off ⇒ on ⇒ off), each run matches P6-5 or P6-6. The upcall runs once per player on the H2 thread, before `loadfile`,
+  and its time is logged (≤ 50 ms) — auto
+- P6-10 — Fail-safe: if the H2 upcall can't run (no JVM, class/method missing, Java exception) the player is treated as
+  OFF (no hook), one native `[nuvio-rr]` line records why, playback starts normally — auto (code review; fault kind
+  `enable-upcall` added to `NUVIO_RR_FAULT`, one measure run: plays ≥ 10 s, 279.961 throughout)
+
+**UI and docs**
+- P6-11 — UI (**Q26** for the wording): Playback settings shows a section "Display" with the switch "Match display refresh
+  rate" and a one-line description, only on Windows, directly below "NVIDIA RTX Video"; default off; the value survives an
+  app restart and a Nuvio profile switch — [HUMAN] (P6-12), persistence also auto (store file content after the runs)
+- P6-12 — [HUMAN] checklist: (1) Settings → Playback: the new section is there, switch off; (2) turn it on, play a 24 fps
+  title ⇒ ≈ 1 s black, 240 Hz, smooth; leave ⇒ 280; (3) turn it off, play ⇒ no black, stays 280; (4) close and reopen
+  Nuvio ⇒ the switch kept its value; (5) RTX Video Super Resolution switch still works independently
+- P6-13 — Docs: SPEC §1–3 (H9, H10, new files; `NUVIO_RR_ENABLE` described as the override), FORK.md (how to turn the
+  feature on, the override, conflict hot spot: the RTX section of `PlaybackSettingsPage.kt`), run-dev.ps1/measure.ps1 help
+  text, PROGRESS — auto (files exist)
+
+**Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
+evidence folder list).
+
 ## 5. Upkeep limits
 - Upstream-file diff budget: _TBD_ lines (reported by `verify.ps1 -Full`).

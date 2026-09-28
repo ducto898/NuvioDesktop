@@ -47,6 +47,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   Known limits (verifier, documented, not fixed): H6 `onScreenGone()` restores whichever player owns the session (the
   host effect spans episodes, F3, so it fires only when the screen is left); a window close during a settle times out
   the 2 s wait and the restore then relies on the JVM shutdown hook or Windows' revert (D7).
+- **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); waiting at the gate for Q23–Q26.** Design: per-PC store
+  `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
+  in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
+  H7 line is not needed. Upstream diff target: 7 code lines + 3 string lines.
 - **Phase 5 carry-overs from Phase 4:** apply `Timing` (it is computed and logged; hook worker in
   display_mode_matcher.cpp `runHook`, "logged only in Phase 4"); a Q15 move / `mode-lost-again` / screen-gone restore
   mid-playback must switch mpv back to upstream timing at runtime; audio sync at 240 shows a few drops at 59.94 and VFR
@@ -206,6 +210,13 @@ suite, ≈ 15 s with only the patch tests.
   the feature; 25/50 stay at 280. Told the owner.
 
 ## Open questions for owner
+- Q23 (Phase 6): setting stored **per PC** (one value for every Nuvio profile, not synced to other devices)? It is about
+  this monitor, so recommended **yes**. Alternative: per Nuvio profile like the RTX VSR switch.
+- Q24 (Phase 6): keep `NUVIO_RR_ENABLE` as a dev/measure override (`1` forces on, `0` forces off, unset = the setting)?
+  measure.ps1 needs it so baseline runs stay off. Recommended **yes**.
+- Q25 (Phase 6): a change applies from the next video; a video already playing is left alone. Recommended **yes**.
+- Q26 (Phase 6): wording. Section "Display", switch "Match display refresh rate", description "Switch the monitor to a
+  multiple of the video's frame rate while playing (e.g. 240 Hz for 24 fps), then back." OK or other text?
 - Q20 (ANSWERED, see Phase 5 gate answers): Max Frame Rate set below ~252 fps (e.g. the old 200 cap) makes display-resample collapse. Then:
   (a) **don't switch at all** (stay 280, upstream timing; log `frame-cap`) — recommended: at 240 without display sync the
   motion is no smoother than at 280 (Phase 2 fixed-240 run) and you'd get the black flash for nothing; or (b) switch
@@ -242,7 +253,7 @@ suite, ≈ 15 s with only the patch tests.
 | 3 Logic (TDD) | ~250k | ≈ 290k (main ≈ 175k incl. criteria + gate; verifier 114k) — ~15 % over, the verifier again the biggest single item |
 | 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
 | 5 mpv timing / OLED | ~400k | ≈ 470k so far (criteria + gate ≈ 140k, code + 22 runs + fixes ≈ 215k, verifier 115k); the owner's PresentMon/checklist session still to come ⇒ ~500k, ~25 % over (verifier again the largest item) |
-| 6 Settings/JNI | ~200k | |
+| 6 Settings/JNI | ~200k | ≈ 140k so far (criteria + gate, mostly reading PROGRESS/SPEC/plan) |
 | 7 Matrix + review | ~500k | |
 | 8 Upkeep | ~250k | |
 
