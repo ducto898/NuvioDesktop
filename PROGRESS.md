@@ -76,6 +76,10 @@ suite, ≈ 15 s with only the patch tests.
 - D11 (owner, 2026-09-28): insert **Phase 2b, a display-resample diagnosis spike, before Phase 3.** Reason: a fixed 240 Hz
   with upstream audio sync is NOT smooth (measured below), so the project's value depends on display-synced timing,
   which is currently broken in the embedded player. Find out if it's fixable before building Phases 3–4.
+- D12 (owner, 2026-09-28): **no lower picture quality.** Keep upstream's scale/cscale=spline36 + deband when the feature is
+  active (no bilinear/cheaper scalers). The 4K HDR render margin must come from GPU clocks instead: NVIDIA "Power management
+  mode: Prefer maximum performance" (a driver setting ⇒ owner sets it, ideally Nuvio-only once Phase 8 gives the app its own
+  exe); measure its extra watts. Q10(d) answered by this.
 - D8: `verify.ps1` runs Gradle with APPDATA/LOCALAPPDATA redirected to `NuvioRate\testprofile` and fails if the official
   `%APPDATA%\Nuvio` / `%LOCALAPPDATA%\Nuvio` changed (upstream desktopTests write through real storage).
 
@@ -125,7 +129,7 @@ suite, ≈ 15 s with only the patch tests.
 - Q10 (Phase 2b, 2026-09-28): (a) accept P2b-13 with startup excluded (all mistimes in the first 1.2 s)? (b) PresentMon
   cadence run (UAC) or waive it (PresentMon perturbs display-sync)? (c) Max Frame Rate: keep global off, or restore 200 and
   plan a Nuvio-only driver profile (needs Phase 8 app identity/own exe; profile creation by Claude was blocked by the
-  permission classifier)? (d) 4K render cost: which option set for Phase 5 (bilinear tested; dscale-only untested)?
+  permission classifier)? (d) answered by D12.
 - Q9 (answered 2026-09-28: owner turned the GLOBAL Max Frame Rate off themselves; backup of all driver profiles in
   NuvioRate\drs-backup-2026-09-28.nip). Original: approve ONE driver-profile experiment: a new NVIDIA application profile for `java.exe` with
   Max Frame Rate = Off (the global 200 cap untouched), re-run S1 at 239.901 windowed + fullscreen, then delete the profile?
