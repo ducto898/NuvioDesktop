@@ -24,8 +24,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   ≤1e-6 accept test, `retarget` reason code, starts queued behind app exit are dropped — added to P3-20), 2 carried into
   Phase 4 below. verify -Full green (1397 tests, only baseline failures), upstream diff still 2 lines, not pushed.
   Mutation check: app exit without restore ⇒ the fuzz test fails. **Next: Phase 4** (write P4 criteria, stop at the gate).
-- **Phase 4 (2026-09-28): code done, automated checks done, waiting for the owner** (Q17–Q19 below + the [HUMAN]
-  checklist P4-21). Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
+- **Phase 4 DONE 2026-09-28 (owner accepted 18:15).** Next: **Phase 5** (write P5 criteria, stop at the gate).
+  History: code + automated checks, then the owner's [HUMAN] checklist P4-21/P4-22 and Q17–Q19. Commits: A `38244812` (tests red 40/91), B `41605034` (green), C `5a0e80ef` (native + 4 hooks),
   `88939e67` (tooling/docs), `858b9620` (verifier follow-ups). Upstream diff: **6 lines in 3 files** (PB H1/H2/H4/H5,
   PED H6, Main.kt H8). verify -Full green (1437 tests, 7 known failures). Not pushed. Lean verifier round 1: all criteria
   PASS except P4-5/P4-10 (environment: no 100 Hz; VFR header) and P4-12 (H5-mid-settle not reachable by a window close),
@@ -174,6 +174,12 @@ suite, ≈ 15 s with only the patch tests.
   settle ended normally, no stop) ⇒ retried 17:57: **Q19 PASS** — Back 0.3 s and 2.0 s into the slow settle: H5 continued the
   hook, settle stopped (`stop-requested`) within 14 ms, restore ⇒ 279.961 10 bpc HDR on, no crash. P4-14a PASS (leave the
   player 17:56:18 ⇒ restored in 0.17 s).
+- Final checklist (owner, 18:09–18:10, then "all OK" + "that's fine, I think it's OK" when told the log was incomplete):
+  **owner-attested** P4-15, P4-16, P4-18, P4-21, P4-22. **Log evidence only for:** one display reset with HDR on at 18:09:49 ⇒
+  `mode-lost` re-switch to 239.901 OK (monitor off/on or driver restart), exit restore OK. That session still ran with the
+  slow-settle knob (Q19 window reused). **Not in the log:** Win+Alt+B under P4-22 (`hdr-toggled` never logged), sleep/resume,
+  a second display reset, next episode ⇒ **carry into the Phase 7 matrix** (HDR toggle mid-playback, sleep/resume, driver
+  reset, next episode) with log evidence. P4-13 wording fix (player id = native counter): not explicitly acknowledged yet.
 - Q17 follow-up (17:35): owner created a 250 Hz custom mode. It appears only in GDI EDS_RAWMODE (with 100 and 265),
   not in the normal GDI list or DXGI ⇒ the feature still does not see it; 25 fps stays at 280 (run `*p4-250check`).
 
@@ -184,8 +190,6 @@ suite, ≈ 15 s with only the patch tests.
   Result: 25/50 fps stay at 280 (`no-suitable-mode`, fail-safe). Did anything change (NVIDIA App reset, monitor OSD,
   cable/DSC)? Options: (a) accept; (b) owner restores 100 Hz (e.g. NVCP custom resolution) — then it works with no code
   change; (c) also consider raw modes — NOT recommended (a pruned mode can mean "no signal" while Windows reports success).
-- Pending [HUMAN]: Win+Alt+B twice during a 23.976 playback (P4-22); monitor off/on; Win+Ctrl+Shift+B; sleep/resume;
-  next episode (P4-15). P4-13 wording fix (player id) to be acknowledged.
 - Q10 (Phase 2b, 2026-09-28): (a) YES (rule added). (b) deferred to Phase 5 (no remote UAC). (c) Max Frame Rate: keep global off, or restore 200 and
   plan a Nuvio-only driver profile (needs Phase 8 app identity/own exe; profile creation by Claude was blocked by the
   permission classifier)? (d) answered by D12.
@@ -203,7 +207,7 @@ suite, ≈ 15 s with only the patch tests.
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
 | 2b Resample spike | ~150–250k | ≈ 330k (criteria 45k + 33 runs/diagnosis ≈ 165k + verifier 117k) — ~30 % over the top estimate; the verifier again cost the most |
 | 3 Logic (TDD) | ~250k | ≈ 290k (main ≈ 175k incl. criteria + gate; verifier 114k) — ~15 % over, the verifier again the biggest single item |
-| 4 Native switching | ~500k | ≈ 400k so far (main ≈ 285k incl. 36 measure runs; verifier 117k); the [HUMAN] checklist and any follow-ups remain |
+| 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
 | 5 mpv timing / OLED | ~400k | |
 | 6 Settings/JNI | ~200k | |
 | 7 Matrix + review | ~500k | |
@@ -326,3 +330,6 @@ suite, ≈ 15 s with only the patch tests.
   (on_preloaded hook worker, JNI upcall, DXGI/QDC/CDS, log sink, fault knob), 4 upstream hook lines (6 total).
   36 measure runs; lean verifier round: 3 env/test-design issues to the owner (Q17–Q19), 1 logging fix. Stopped for the
   owner's checklist.
+- 2026-09-28 Phase 4 gate: Q17 (no 100 Hz; owner's 250 Hz custom mode also only in EDS_RAWMODE ⇒ 25/50 fps stay at 280),
+  Q18 accepted, P4-22 added on the owner's request (option B, HDR toggle ⇒ re-switch in the new HDR state), Q19 proven by
+  hand (stop during settle), checklist accepted by the owner. **Phase 4 DONE.**
