@@ -2,7 +2,8 @@
 
 Question (D11): can `video-sync=display-resample` be made to work in Nuvio's embedded mpv player, and how?
 Status: **cause found — the NVIDIA global Max Frame Rate (200 fps). With it off, display-resample works** (see
-"FRL off" below). PASS as written is blocked only by startup mistimes and the missing PresentMon cadence run (owner decisions).
+"FRL off" below). **Final: spike PASS** on mpv's counters under the owner-approved P2b-13 rule (see "P2b-13 verdict" at the end);
+PresentMon clause deferred to Phase 5. The sections below are in the order the work happened.
 Legend: **[measured]** = run data on this PC; **[inferred]** = my reading of the data, not proven.
 
 ## Setup
@@ -70,7 +71,8 @@ and `video-draw` takes 0.23 ms median [measured]. `display-resample-vdrop` wasn'
    So either the limiter misbehaves below its cap with vsync on, or there is a second cause.
 
 ## Status of the P2b pass criteria
-- P2b-13 (spike PASS): **not met** by any option set tried. The best states have ≈ 450 mistimed/min at 240 Hz.
+- P2b-13 (spike PASS): not met by any option set tried *with the 200 fps limiter on* (best ≈ 450 mistimed/min at 240 Hz);
+  met once it was off — see the final verdict.
 - P2b-1..5: done (knobs, measure.ps1 `-Opts`/`-HideOverlay`/`-Cadence`/`-PresentMonCsv`; the cadence analysis
   reproduces the Phase 2 fixed-240 result exactly: 10 ×1476 / 11 ×250 / 9 ×238, std 2.08 ms).
 - P2b-7 (S1), P2b-9 (S3), P2b-10 (S4), P2b-11 (S5 except resample-vdrop): run. P2b-8 (S2) skipped as ruled out (above).
@@ -148,3 +150,8 @@ decays toward 10.0 (one early long hold averaged in) [measured]. Cut down one ca
 PresentMon clause: **deferred** (owner not at the PC for UAC; PresentMon perturbs display-sync) ⇒ Phase 5.
 **Spike result: PASS on mpv's own counters, with two driver settings: Max Frame Rate off and "Prefer maximum
 performance".** Both must become Nuvio-only (a driver profile for Nuvio's own exe, Phase 8) or be documented as manual steps.
+
+Verifier notes (lean round, 2026-09-28): "within 0.1 %" was judged on the median; single samples dip to 239.66 (−0.10 %)
+at 12–24 s in the 13:48 run and to 238.93–239.66 in the last 1–2 s before close in the 1080p runs. The 1080p
+confirmations ran at Normal power and the 4K one at max performance (no 1080p fullscreen run under max performance).
+33 run folders in total (11:04–14:54).

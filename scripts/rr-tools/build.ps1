@@ -18,7 +18,7 @@ if (-not $vcvars) {
 if (-not $vcvars) { throw 'vcvars64.bat not found (see FORK.md toolchain)' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $src = $PSScriptRoot
-$cmds = foreach ($tool in 'observer', 'switcher', 'restore', 'drsprobe', 'drsfrl') {
+$cmds = foreach ($tool in 'observer', 'switcher', 'restore', 'drsprobe') {
     "cl /nologo /EHsc /O2 /W4 /DUNICODE /D_UNICODE /Fe:`"$OutDir\$tool.exe`" /Fo:`"$OutDir\\`" `"$src\$tool.cpp`" user32.lib || exit /b 1"
 }
 $bat = Join-Path $OutDir 'build.bat'

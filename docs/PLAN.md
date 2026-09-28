@@ -80,7 +80,7 @@ FpsSnapper (standard rates, ±0.1%), ModeSelector (highest k·f within ratio tol
 Enumeration, switch, verify, restore, settle, all hooks H2–H8 native side, JNI upcall, log sink, races (dispose mid-switch, two players, monitor move/PiP, sleep/resume, HDR toggle, driver reset → fail-safe), crash fallback per kill-test result.
 
 **Phase 5 — mpv timing + OLED stability** · est. 400k
-display-resample + exact display-fps-override; confirm via measure.ps1 that mpv uses the new rate with ~0 drops/mistimes; VRR mitigation only if Phase 2 showed VRR engaging.
+display-resample + exact display-fps-override; confirm via measure.ps1 that mpv uses the new rate with ~0 drops/mistimes (counted after the first 5 s, P2b-13 rule); VRR mitigation only if Phase 2 showed VRR engaging. **Phase 2b result (docs/research/10):** display-resample works only with the NVIDIA driver's Max Frame Rate off (the owner's global 200 fps cap collapses it) and, for 4K HDR at full quality (D12, no cheaper scalers), "Power management: Prefer maximum performance" (+~9 W). Plan both as Nuvio-only driver settings once Phase 8 gives the app its own exe, or document them as manual owner steps; detect/log the FRL value at start (read-only) so a capped setup is visible. Re-check the deferred PresentMon cadence clause with the owner present.
 
 **Phase 6 — Setting + plumbing** · est. 200k
 Toggle (default OFF, Windows only), separate storage, strings, H6/H7 wiring; OFF ⇒ byte-identical mpv options to upstream (checked by a test/log assertion).

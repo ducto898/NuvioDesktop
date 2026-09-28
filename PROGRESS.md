@@ -16,7 +16,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   spline36+deband ⇒ −0.8 %, 38 mistimed, GPU stuck at 210 MHz). Q10 answered: startup-exclusion rule added to P2b-13 (owner-approved); PresentMon clause deferred to Phase 5 (owner
   can't accept UAC remotely); owner resets the NVIDIA settings themselves via Cowork. **Spike PASS on mpv counters** (1080p
   win/fs/repeat + 4K HDR full quality with max-performance power: 0 drops+mistimed/min after 5 s). Next: one lean
-  verifier round, then Phase 3 (write P3 criteria, stop at the gate). Phase 5 must plan the two driver settings
+  verifier round DONE (P2b-16 fixed after it) ⇒ **Phase 2b DONE 2026-09-28. Next: Phase 3** (write P3 criteria, stop at the gate). Phase 5 must plan the two driver settings
   (FRL off, Prefer max performance) as Nuvio-only or documented manual steps.
 - **Afterwards:** Phase 3 (pure logic, tests first): write P3 acceptance criteria into SPEC.md, stop at the
   gate. Carry into later phases: Phase 4 must handle monitor off/on dropping the mode (case H), move display queries off
@@ -149,7 +149,7 @@ suite, ≈ 15 s with only the patch tests.
 | 0 Setup | ~300k | ~260k (main ≈140k + existing-work subagent ≈123k) |
 | 1 Research | ~600k (subagents) | ~1.09M (5 subagents ≈ 980k: API 183k, mpv 181k, prior art 267k, VRR 150k, codebase 198k; main ≈ 110k) — ~80% over |
 | 2 Measure | ~400k (incl. kill test A–J) | ~800k (main ≈ 355k + 3 verifier rounds ≈ 445k: 154k, 178k, 114k) — 2× over; the verifier rounds found real issues (2 official-profile leaks) but were the main overrun. For later phases: give the verifier a tighter evidence list and one criterion table to cut its cost |
-| 2b Resample spike | ~150–250k | ≈ 205k so far (criteria 45k + 28 runs/diagnosis ≈ 160k); verifier round not yet run |
+| 2b Resample spike | ~150–250k | ≈ 330k (criteria 45k + 33 runs/diagnosis ≈ 165k + verifier 117k) — ~30 % over the top estimate; the verifier again cost the most |
 | 3 Logic (TDD) | ~250k | |
 | 4 Native switching | ~500k | |
 | 5 mpv timing / OLED | ~400k | |
@@ -252,3 +252,8 @@ suite, ≈ 15 s with only the patch tests.
   -PresentMonCsv built (upstream diff still 2 lines). 21 runs: overlay ruled out (S4), render cost ruled out, sync modes
   and swapchain options don't fix it; found the driver's 200 fps limiter. Q9: owner turned FRL off ⇒ display-resample works
   (1080p clean; 4K HDR clean with bilinear scalers). Stopped for Q10.
+- 2026-09-28 Phase 2b closed: max-performance power ⇒ 4K HDR full quality clean (D12); startup mistimes isolated (not shaders,
+  seeks or audio); P2b-13 startup rule added (owner-approved); lean verifier round: all criteria PASS except P2b-16 (PLAN.md
+  Phase 5 line not updated) ⇒ fixed; drsfrl.cpp (driver-profile writer; only its `backup` ran, `create` was blocked) removed
+  as scope creep. Driver-profile backup kept at NuvioRate\drs-backup-2026-09-28.nip. Owner's global FRL 0 + PSTATE 1 still set
+  (Q10c open; owner changes them via Cowork).
