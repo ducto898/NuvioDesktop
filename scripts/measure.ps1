@@ -10,7 +10,7 @@
   3. After file-loaded: optional F11 fullscreen, optional PresentMon (UAC prompt) and nvidia-smi power,
      optional key actions; plays -Seconds; closes the window normally.
   4. Writes measurements/<stamp>-<clip>[-label]/summary.json and prints it.
-  Exit 1 if the app did not start/load, or the desktop is not back at ~279.961 Hz afterwards
+  Exit 1 if the app did not start/load, or the desktop is not back at ~-ExpectHz afterwards
   (it then runs restore.exe and says so), or the official %APPDATA%\Nuvio was written.
 
   -Kill ends the run with a hard kill of the app process (java.exe) instead of a normal close.
@@ -59,8 +59,10 @@ param(
     # instead of one UAC prompt per run (Phase 2b).
     [string]$PresentMonCsv = '',
     # Live rate expected before/after. Only for runs where switcher.exe holds a mode around the run (P2-19);
-    # the registry mode must still be 280 before/during/after in every run.
-    [double]$ExpectHz = 279.961,
+    # the registry mode must still be -ExpectRegHz before/during/after in every run.
+    # Desktop default since 2026-09-28 23:00 (owner, Q27): 240 Hz = 239.901 live, 240 in the registry (was 280/279.961).
+    [double]$ExpectHz = 239.901,
+    [int]$ExpectRegHz = 240,
     [switch]$Feature,
     [string]$Fault = '',
     [int]$CloseAfterSwitchMs = -1,
@@ -495,11 +497,11 @@ $lastFs = if ($samples.Count) { $samples[-1].fs } else { 'na' }   # first ~2 s m
 $summary.mpv.fullscreenAtEnd = $lastFs
 if (($lastFs -eq 'yes') -ne [bool]$Fullscreen) { $problems += "window mode at end fs=$lastFs, requested fullscreen=$([bool]$Fullscreen)" }
 foreach ($phase in 'before', 'after') {
-    if ($summary.windows.$phase.regHz -ne 280) { $problems += "registry mode $phase the run: $($summary.windows.$phase.regHz) (expected 280)" }
+    if ($summary.windows.$phase.regHz -ne $ExpectRegHz) { $problems += "registry mode $phase the run: $($summary.windows.$phase.regHz) (expected $ExpectRegHz)" }
 }
 $regDuring = @($summary.windows.during.distinctRegHz)
 # Early close (-CloseAfterSwitchMs): no "during" window; observer.csv still has every reg_hz sample.
-if (-not $closedEarlyAt -and ($regDuring.Count -ne 1 -or $regDuring[0] -ne 280)) { $problems += "registry mode during run: $($regDuring -join ',') (expected 280)" }
+if (-not $closedEarlyAt -and ($regDuring.Count -ne 1 -or $regDuring[0] -ne $ExpectRegHz)) { $problems += "registry mode during run: $($regDuring -join ',') (expected $ExpectRegHz)" }
 if (Test-Path "$out\power.csv") {
     $pw = Get-Content "$out\power.csv" | ForEach-Object { $c = $_ -split ',\s*'; [pscustomobject]@{ W = [double]$c[1]; Clock = [double]$c[2]; Util = [double]$c[4] } }
     $summary.power = [ordered]@{ samples = @($pw).Count; wattsMedian = Median ($pw.W); clockMedian = Median ($pw.Clock); utilMedian = Median ($pw.Util) }
@@ -561,7 +563,7 @@ $summary.enable = [ordered]@{
     env = $enableValue; setting = $Setting
     storeAfter = if (Test-Path $settingStore) { @(Get-Content $settingStore | Where-Object { $_ -notmatch '^#' }) } else { $null }
     featureLogExists = Test-Path $featureLog
-    lines = $enableLines
+    lines = @($enableLines)
     upcallMs = @($enableLines | ForEach-Object { if ($_ -match '(?:upcall |\) in )([\d.]+) ms') { [double]$Matches[1] } })
 }
 

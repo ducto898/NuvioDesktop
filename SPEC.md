@@ -571,6 +571,11 @@ Design:
   `NUVIO_RR_ENABLE=1` ⇒ on, `=0` ⇒ off (dev/measure override, **Q24**), otherwise the stored setting. So the value is
   read at each playback start and no upstream Kotlin line pushes it (the planned H7 is not needed).
 - A change takes effect at the next playback start (**Q25**); a running session is left alone and restores as usual.
+- **Q27 (owner, 2026-09-28 23:15): the desktop default is now 240 Hz** (239.901 live, 240 in the registry), not 280.
+  Read every "279.961"/"280" in P6-5..P6-12 as that default (measure.ps1 `-ExpectHz`/`-ExpectRegHz` defaults). With
+  it, `sdr-1080p-23.976` is already at its target, so "on" = **no switch, no black**, display-synced timing only
+  (P5-12 limits except the switch/settle/restore ones); "off" = upstream audio sync at 240. The switch and restore
+  paths stay proven by the Phase 4/5 evidence (made at 280).
 
 **Footprint and tests first**
 - P6-1 — Upstream diff ≤ 7 changed code lines in 4 files: the 6 Phase 4 lines + H9 (1 line, `PlaybackSettingsPage.kt`),
@@ -612,7 +617,7 @@ Design:
   rate" and a one-line description, only on Windows, directly below "NVIDIA RTX Video"; default off; the value survives an
   app restart and a Nuvio profile switch — [HUMAN] (P6-12), persistence also auto (store file content after the runs)
 - P6-12 — [HUMAN] checklist: (1) Settings → Playback: the new section is there, switch off; (2) turn it on, play a 24 fps
-  title ⇒ ≈ 1 s black, 240 Hz, smooth; leave ⇒ 280; (3) turn it off, play ⇒ no black, stays 280; (4) close and reopen
+  title ⇒ no black (already 240, Q27), smooth; leave ⇒ still 240; (3) turn it off, play ⇒ stays 240 (upstream timing); (4) close and reopen
   Nuvio ⇒ the switch kept its value; (5) RTX Video Super Resolution switch still works independently
 - P6-13 — Docs: SPEC §1–3 (H9, H10, new files; `NUVIO_RR_ENABLE` described as the override), FORK.md (how to turn the
   feature on, the override, conflict hot spot: the RTX section of `PlaybackSettingsPage.kt`), run-dev.ps1/measure.ps1 help
