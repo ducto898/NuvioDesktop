@@ -2,6 +2,7 @@ package com.nuvio.app.features.settings
 
 import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.isWindows
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** Per-PC store (Q23): its own file, keys not wrapped by ProfileScopedKey, not in any sync payload. */
@@ -25,10 +26,15 @@ internal actual object RefreshRateMatchSetting {
 
 /** The setting over one store; default OFF when the file or the key is missing. */
 internal class RefreshRateMatchPreference(private val store: DesktopStorage.Store) {
+    private val state = MutableStateFlow(stored())
+
     val enabled: StateFlow<Boolean>
-        get() = TODO("Phase 6 commit B")
+        get() = state
 
-    fun setEnabled(value: Boolean): Unit = TODO("Phase 6 commit B")
+    fun setEnabled(value: Boolean) {
+        store.putBoolean(MATCH_DISPLAY_REFRESH_RATE_KEY, value)
+        state.value = value
+    }
 
-    fun stored(): Boolean = TODO("Phase 6 commit B")
+    fun stored(): Boolean = store.getBoolean(MATCH_DISPLAY_REFRESH_RATE_KEY) ?: false
 }

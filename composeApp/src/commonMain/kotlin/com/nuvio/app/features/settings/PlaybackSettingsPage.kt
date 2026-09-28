@@ -1008,6 +1008,7 @@ private fun PlaybackSettingsSection(
                 }
             }
         }
+        com.nuvio.app.features.settings.RefreshRateMatchSettingsSection(isTablet = isTablet) // nuvio-rr fork hook H9
 
         if (isIos) {
             SettingsSection(

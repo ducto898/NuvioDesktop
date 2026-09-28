@@ -2064,6 +2064,9 @@
     <string name="settings_playback_nvidia_rtx_video_section">NVIDIA RTX Video</string>
     <string name="settings_playback_nvidia_rtx_super_resolution">RTX Video Super Resolution</string>
     <string name="settings_playback_nvidia_rtx_super_resolution_desc">Upscale low-resolution video using NVIDIA RTX AI Super Resolution.</string>
+    <string name="settings_playback_display_section">Display</string> <!-- nuvio-rr fork hook H10 -->
+    <string name="settings_playback_match_refresh_rate">Match display refresh rate</string> <!-- nuvio-rr fork hook H10 -->
+    <string name="settings_playback_match_refresh_rate_desc">Switch the monitor to a multiple of the video's frame rate while playing (e.g. 240 Hz for 24 fps), then back.</string> <!-- nuvio-rr fork hook H10 -->
     <!-- Playback settings iOS video output -->
     <string name="settings_playback_ios_video_output">iOS VIDEO OUTPUT</string>
     <string name="settings_playback_ios_hardware_decoder">Hardware decoder</string>

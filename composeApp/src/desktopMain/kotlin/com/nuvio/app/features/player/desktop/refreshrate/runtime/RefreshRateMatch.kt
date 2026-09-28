@@ -1,16 +1,14 @@
 package com.nuvio.app.features.player.desktop.refreshrate.runtime
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.features.settings.RefreshRateMatchSetting
 
 /**
- * Process-global entry points (SPEC P4-13, P4-14): the native upcall at mpv's on_preloaded hook,
- * and the upstream hooks H6 (player screen gone) and H8 (main window close).
- * Every entry returns at once when the feature is off, before creating anything.
+ * Process-global entry points (SPEC P4-13, P4-14, P6-9): the native upcalls at H2 (is the feature on for this
+ * player?) and at mpv's on_preloaded hook, and the upstream hooks H6 (player screen gone) and H8 (main window close).
+ * Nothing is created until a player the feature is on for reaches its first playback start.
  */
 object RefreshRateMatch {
-    /** Dev knob until the Phase 6 setting (Q14). */
-    private val enabled = System.getenv("NUVIO_RR_ENABLE") == "1"
-
     /** The native hook waits at most this long; the mpv hook must be continued within 5 s (P4-9). */
     private const val START_TIMEOUT_MS = 4_500L
 
@@ -31,19 +29,22 @@ object RefreshRateMatch {
      * Creates nothing.
      */
     @JvmStatic
-    fun nativeFeatureEnabled(): Int = TODO("Phase 6 commit B")
+    fun nativeFeatureEnabled(): Int = enablementCode(System.getenv("NUVIO_RR_ENABLE")) { RefreshRateMatchSetting.stored() }
 
     /** H6: the player screen went away. Returns at once. */
     fun onScreenGone() {
-        if (enabled) dispatcher?.screenGone()
+        dispatcher?.screenGone()
     }
 
     /** H8: main window close. Waits at most 2 s for the restore. */
     fun onAppExit() {
-        if (enabled) dispatcher?.appExit(EXIT_TIMEOUT_MS)
+        dispatcher?.appExit(EXIT_TIMEOUT_MS)
     }
 
-    /** Upcall from the native glue worker (never the mpv event thread). Returns [NativeCodec.timing]. */
+    /**
+     * Upcall from the native glue worker (never the mpv event thread), only for players H2 found the feature on for.
+     * Returns [NativeCodec.timing].
+     */
     @JvmStatic
     fun nativePlaybackStart(
         playerId: Long,
@@ -53,19 +54,15 @@ object RefreshRateMatch {
         isImage: Boolean,
         frameCap: Double,
     ): LongArray = try {
-        if (!enabled) {
-            NativeCodec.timing(null)
-        } else {
-            val input = StartInput(
-                playerId = playerId,
-                display = display,
-                containerFps = containerFps.takeIf { it.isFinite() },
-                estimatedFps = estimatedFps.takeIf { it.isFinite() },
-                isImage = isImage,
-                frameCap = NativeCodec.frameCap(frameCap),
-            )
-            NativeCodec.timing(dispatcher().playbackStart(input, START_TIMEOUT_MS))
-        }
+        val input = StartInput(
+            playerId = playerId,
+            display = display,
+            containerFps = containerFps.takeIf { it.isFinite() },
+            estimatedFps = estimatedFps.takeIf { it.isFinite() },
+            isImage = isImage,
+            frameCap = NativeCodec.frameCap(frameCap),
+        )
+        NativeCodec.timing(dispatcher().playbackStart(input, START_TIMEOUT_MS))
     } catch (t: Throwable) {
         log("start p$playerId unexpected-error ${t.javaClass.simpleName}: ${t.message}")
         NativeCodec.timing(null)
