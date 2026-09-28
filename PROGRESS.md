@@ -181,6 +181,16 @@ suite, ≈ 15 s with only the patch tests.
   refresh while the 0.06 % rate mismatch drifts the frame phase across a refresh boundary. ⇒ A fixed 240 Hz alone is not
   smooth; it trades the constant 11/12 wobble at 280 for bursts of ±4 ms 9/11 hitches. Display-synced timing is needed
   for a clean 10/10 cadence (→ D11). All intervals on the 4.168 ms grid (max err 0.21 ms): fixed refresh, no VRR.
+- **Owner slow-motion videos (iPhone Slo-mo 240 fps, 1080p; `G:\My Drive\IMG_3035.MOV` = 280 Hz, run `*slomo-280`;
+  `IMG_3036.MOV` = fixed 240 Hz, run `*slomo-240`; both fullscreen, sdr-1080p-23.976, audio sync).** Analysis
+  (scratchpad `slomo/analyze.py`: 1-px strip through the stripes, pattern phase tracking, transition time = midpoint
+  crossing on real camera timestamps; the phone skips ~1 in 8 frames as 12.5 ms gaps; timing precision ≈ ±1 ms):
+  280 Hz: 705 holds, mean 41.71 ms (ideal 41.71), std 2.69 ms; refreshes 11 ×225, 12 ×341, 13 ×78, 10 ×41, 14 ×8.
+  240 Hz: 424 holds, mean 41.71 ms, std 2.65 ms; refreshes 10 ×247 (58 %), 9 ×81, 11 ×82, 8 ×7, 12 ×6.
+  Confirms PresentMon (camera noise spreads counts). Exact PresentMon spread: 280 windowed std 2.03 ms / mean |dev|
+  1.79 ms; fixed 240 std 2.08 ms / mean |dev| 1.05 ms ⇒ same total unevenness, different shape (constant fine wobble vs
+  mostly-perfect with ±4.2 ms bursts). Owner also reports edges look smeared by eye: sample-and-hold blur, 640 px/s × 41.7 ms
+  ≈ 27 px, inherent to 24 fps (not changed by refresh rate). Reference "before" for Phase 2b.
 - Kill test A–J: see docs/research/09-kill-test.md (CDS_FULLSCREEN reverts on every death path; monitor off/on drops the
   temporary mode; "240" = 239.901; blank ≈ 1 s per switch).
 - Audio note: mpv outputs 96 kHz 7.1 float to the current default device (Arctis base: `Remix: stereo -> 7.1`).
