@@ -166,6 +166,12 @@ suite, ≈ 15 s with only the patch tests.
   restore the old monitor, keep playing, no switch until the next video: **yes**. Q16 fault knob `NUVIO_RR_FAULT=<kind>` +
   measure.ps1 `-Feature`/window-close runs: **yes**.
 - Q18 VFR clip switching by its header: **accepted** (option a); P4-10 amended.
+- Checklist so far (owner, 17:37–17:53, log `devprofile\Local\Nuvio\Cache\refresh-rate.log`): switch and exit restore OK;
+  a second player with the same target did not re-switch (P4-15 evidence). **Toggling Windows HDR resets the temporary mode
+  to 280** (HDR off ⇒ 8 bpc): the old logic re-switched once, then verify-mismatch ⇒ restore ⇒ 280 SDR. Owner chose
+  **option B** ⇒ P4-22 (re-switch in the new HDR state, own cap of 3): commits `c4186101` (red 6/96) + `30be0da6` (green),
+  verify -Full green, upstream diff still 6 lines. Q19 (leave during settle): both owner runs missed the 3 s window (the
+  settle ended normally, no stop) ⇒ still open.
 - Q17 follow-up (17:35): owner created a 250 Hz custom mode. It appears only in GDI EDS_RAWMODE (with 100 and 265),
   not in the normal GDI list or DXGI ⇒ the feature still does not see it; 25 fps stays at 280 (run `*p4-250check`).
 
@@ -176,10 +182,9 @@ suite, ≈ 15 s with only the patch tests.
   Result: 25/50 fps stay at 280 (`no-suitable-mode`, fail-safe). Did anything change (NVIDIA App reset, monitor OSD,
   cable/DSC)? Options: (a) accept; (b) owner restores 100 Hz (e.g. NVCP custom resolution) — then it works with no code
   change; (c) also consider raw modes — NOT recommended (a pruned mode can mean "no signal" while Windows reports success).
-- Q19 (Phase 4): P4-12 (player shutdown during a running settle) cannot be reached by a window close (upstream disposes the
-  player ~1.8 s after the 2 s close wait). Proposed: prove it by hand in the P4-21 checklist (slow-settle knob, leave the
-  player within 3 s) and amend P4-12's "20 window-close runs" to "20 close runs (done: no crash, 279.961 after) + 1 manual
-  leave-during-settle". Also acknowledge the P4-13 wording fix (player id = native counter, not the JNI handle).
+- Q19 (Phase 4): leave-during-settle still to be caught by hand (press Back while the spinner shows, right after the black
+  flash, with NUVIO_RR_MEASURE=1 + NUVIO_RR_FAULT=slow-settle). P4-13 wording fix (player id) to be acknowledged.
+- Pending [HUMAN]: Win+Alt+B twice during a 23.976 playback (P4-22), and the rest of P4-21.
 - Q10 (Phase 2b, 2026-09-28): (a) YES (rule added). (b) deferred to Phase 5 (no remote UAC). (c) Max Frame Rate: keep global off, or restore 200 and
   plan a Nuvio-only driver profile (needs Phase 8 app identity/own exe; profile creation by Claude was blocked by the
   permission classifier)? (d) answered by D12.
