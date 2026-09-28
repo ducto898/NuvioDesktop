@@ -31,7 +31,22 @@ struct MeasureConfig {
     std::string sync;      // NUVIO_RR_MEASURE_SYNC
     int switchHz = 0;      // NUVIO_RR_MEASURE_SWITCH_HZ
     bool ipc = false;      // NUVIO_RR_MEASURE_IPC=1: mpv input-ipc-server on \\.\pipe\nuvio-rr-<pid> (measure.ps1 actions)
+    std::vector<std::pair<std::string, std::string>> opts;  // NUVIO_RR_MEASURE_OPTS="k=v;k=v" (Phase 2b spike)
+    bool hideOverlay = false;  // NUVIO_RR_MEASURE_HIDE_OVERLAY=1 (Phase 2b spike)
 };
+
+std::string asciiValue(const std::wstring &value) {
+    std::string result;
+    for (wchar_t ch : value) result.push_back(ch < 0x80 ? (char)ch : '?');  // mpv option values are ASCII
+    return result;
+}
+
+std::string trimmed(const std::string &value) {
+    size_t first = value.find_first_not_of(" \t");
+    if (first == std::string::npos) return std::string();
+    size_t last = value.find_last_not_of(" \t");
+    return value.substr(first, last - first + 1);
+}
 
 std::wstring envValue(const wchar_t *name) {
     wchar_t buffer[4096] = {};
@@ -52,10 +67,20 @@ const MeasureConfig &measureConfig() {
             std::wstring local = envValue(L"LOCALAPPDATA");
             if (!local.empty()) config.directory = local + L"\\Nuvio\\Cache\\nuvio-rr";
         }
-        std::wstring sync = envValue(L"NUVIO_RR_MEASURE_SYNC");
-        for (wchar_t ch : sync) config.sync.push_back(ch < 0x80 ? (char)ch : '?');  // mpv option values are ASCII
+        config.sync = asciiValue(envValue(L"NUVIO_RR_MEASURE_SYNC"));
         config.switchHz = _wtoi(envValue(L"NUVIO_RR_MEASURE_SWITCH_HZ").c_str());
         config.ipc = envValue(L"NUVIO_RR_MEASURE_IPC") == L"1";
+        std::string opts = asciiValue(envValue(L"NUVIO_RR_MEASURE_OPTS"));
+        size_t begin = 0;
+        while (begin < opts.size()) {
+            size_t end = opts.find(';', begin);
+            if (end == std::string::npos) end = opts.size();
+            std::string pair = trimmed(opts.substr(begin, end - begin));
+            size_t eq = pair.find('=');
+            if (eq != std::string::npos && eq > 0) config.opts.emplace_back(trimmed(pair.substr(0, eq)), trimmed(pair.substr(eq + 1)));
+            begin = end + 1;
+        }
+        config.hideOverlay = envValue(L"NUVIO_RR_MEASURE_HIDE_OVERLAY") == L"1";
     });
     return config;
 }
@@ -201,6 +226,7 @@ public:
         if (now - lastSample_ >= 0.9) {  // events arrive at least every 0.5 s => sample starts <= 1.4 s apart
             lastSample_ = now;
             sample(mpv, hwnd);
+            if (measureConfig().hideOverlay) hideOverlay(hwnd, false);
         }
     }
 
@@ -235,7 +261,8 @@ private:
         int logResult = requestLog ? requestLog(mpv, "v") : -1;
         write("start: pid=" + std::to_string(GetCurrentProcessId()) + " log_request=" + std::to_string(logResult) +
             " sync_knob=" + (config.sync.empty() ? std::string("none") : config.sync) +
-            " switch_knob=" + std::to_string(config.switchHz));
+            " switch_knob=" + std::to_string(config.switchHz) + " opts_knob=" + std::to_string(config.opts.size()) +
+            " hide_overlay_knob=" + (config.hideOverlay ? "1" : "0"));
         write("before: " + displayText(queryDisplay(hwnd)));
         if (config.ipc) {
             std::string pipe = "\\\\.\\pipe\\nuvio-rr-" + std::to_string(GetCurrentProcessId());
@@ -246,6 +273,39 @@ private:
             int result = api.setPropertyString(mpv, "video-sync", config.sync.c_str());
             write("knob: video-sync=" + config.sync + " result=" + std::to_string(result));
         }
+        // Before the file loads (the event thread starts right after loadfile; the VO is created later).
+        // After mpv_initialize, mpv_set_option_string behaves like mpv_set_property_string.
+        for (const auto &opt : config.opts) {
+            int result = api.setOptionString(mpv, opt.first.c_str(), opt.second.c_str());
+            write("opt " + opt.first + "=" + opt.second + " rc=" + std::to_string(result) +
+                (result < 0 ? " (" + api.errorText(result) + ", skipped)" : std::string()));
+        }
+    }
+
+    // Measure-only knob (NUVIO_RR_MEASURE_HIDE_OVERLAY): hide the direct children of the player container
+    // that are not mpv's own window (class "mpv"), i.e. the WebView2 controls overlay. Async, because those
+    // windows belong to the UI thread. Re-checked every sample in case upstream layout shows it again.
+    void hideOverlay(HWND hwnd, bool logAll) {
+        struct Ctx { HWND parent; std::vector<std::string> seen; int hidden; } ctx{hwnd, {}, 0};
+        EnumChildWindows(hwnd, [](HWND child, LPARAM param) -> BOOL {
+            auto *c = reinterpret_cast<Ctx *>(param);
+            if (GetParent(child) != c->parent) return TRUE;
+            wchar_t cls[128] = {};
+            GetClassNameW(child, cls, 128);
+            bool visible = IsWindowVisible(child) != FALSE;
+            char buffer[200];
+            std::snprintf(buffer, sizeof(buffer), "%ls(visible=%d)", cls, visible ? 1 : 0);
+            c->seen.push_back(buffer);
+            if (wcscmp(cls, L"mpv") != 0 && visible) {
+                ShowWindowAsync(child, SW_HIDE);
+                ++c->hidden;
+            }
+            return TRUE;
+        }, reinterpret_cast<LPARAM>(&ctx));
+        if (!logAll && ctx.hidden == 0) return;
+        std::string line = "hide-overlay: children=" + std::to_string(ctx.seen.size()) + " hidden=" + std::to_string(ctx.hidden);
+        for (const auto &seen : ctx.seen) line += " " + seen;
+        write(line);
     }
 
     void write(const std::string &line, const std::string &stamp = std::string()) {
@@ -270,6 +330,7 @@ private:
             loaded_ = true;
             write("loaded: " + displayText(queryDisplay(hwnd)));
             const MeasureConfig &config = measureConfig();
+            if (config.hideOverlay) hideOverlay(hwnd, true);
             if (config.switchHz > 0 && !switched_) {
                 switched_ = true;
                 DisplayState display = queryDisplay(hwnd);
