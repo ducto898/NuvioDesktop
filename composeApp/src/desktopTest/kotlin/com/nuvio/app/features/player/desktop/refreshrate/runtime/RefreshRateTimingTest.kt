@@ -303,6 +303,17 @@ class RefreshRateTimingTest {
     }
 
     @Test
+    fun `a stall that bends the rate estimate for a moment is logged and keeps display sync (Q28)`() {
+        switched()
+        play(25)
+        play(2) { stats(est = 235.649) } // measured 2026-09-28 23:23:12, one 1.3 s stall
+        play(20)
+        assertEquals(emptyList(), timingCalls(), "$lines")
+        assertTrue(!logged("resample-unhealthy"), "$lines")
+        assertTrue(lines.any { "rate-off p1 2 samples" in it && "235.649" in it && "recovered" in it }, "$lines")
+    }
+
+    @Test
     fun `broken timing on a steady display is still caught`() {
         switched()
         play(12)

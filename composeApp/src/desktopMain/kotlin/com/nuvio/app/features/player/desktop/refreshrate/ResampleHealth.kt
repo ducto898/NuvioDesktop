@@ -11,6 +11,9 @@ data class TimingSample(
     val paused: Boolean,
 )
 
+/** A stretch of judged samples whose rate estimate was off, that ended by itself before the limit (Q28, Phase 7 data). */
+data class RateStreak(val samples: Int, val worstFps: Double)
+
 sealed interface HealthVerdict {
     /** Not enough samples yet, or the window can't be judged (pause, seek, buffering, counter reset). */
     data object Wait : HealthVerdict
@@ -24,7 +27,11 @@ sealed interface HealthVerdict {
  * Health of display-synced timing for one playback start (SPEC P5-11, Q21). Catches only clear breakage,
  * e.g. the display-resample collapse under a driver frame cap (Phase 2b), never normal runs.
  */
-class ResampleHealth(private val target: Rational, private val startedAt: Double) {
+class ResampleHealth(
+    private val target: Rational,
+    private val startedAt: Double,
+    private val onRateStreak: (RateStreak) -> Unit = {},
+) {
     private val samples = ArrayDeque<TimingSample>()
 
     /** Judged samples in a row whose rate estimate was off; one stall bends it for a sample or two. */
