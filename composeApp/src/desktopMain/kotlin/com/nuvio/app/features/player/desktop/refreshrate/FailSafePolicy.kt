@@ -16,5 +16,8 @@ data class FailSafeAction(val restore: Boolean, val reason: String)
 
 /** Requirement 10: any failure keeps playback going at the current rate (SPEC P3-23). */
 object FailSafePolicy {
-    fun decide(kind: FailureKind, switchAttempted: Boolean): FailSafeAction = TODO()
+    fun decide(kind: FailureKind, switchAttempted: Boolean): FailSafeAction =
+        // Restoring is idempotent (it re-applies the registry mode), so any failure after an attempt restores.
+        // A failed restore is not retried: Windows reverts CDS_FULLSCREEN when the process exits (D7).
+        FailSafeAction(restore = switchAttempted && kind != FailureKind.RESTORE_FAILED, reason = kind.code)
 }

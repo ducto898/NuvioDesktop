@@ -34,11 +34,44 @@ object FpsSnapper {
     )
 
     /** Nearest standard rate within [SNAP_TOLERANCE], or null. */
-    fun snap(fps: Double?): Rational? = TODO()
+    fun snap(fps: Double?): Rational? {
+        val f = fps.validFps() ?: return null
+        val nearest = STANDARD_RATES.minBy { relativeError(f, it.toDouble()) }
+        return nearest.takeIf { relativeError(f, it.toDouble()) <= SNAP_TOLERANCE }
+    }
 
     /** Container fps first, the estimate as a fallback (SPEC P3-6..P3-9). */
-    fun resolve(containerFps: Double?, estimatedFps: Double?, isImage: Boolean = false): FpsResult = TODO()
+    fun resolve(containerFps: Double?, estimatedFps: Double?, isImage: Boolean = false): FpsResult {
+        if (isImage) return FpsResult.Rejected("image", containerFps, estimatedFps)
+        val container = containerFps.validFps()
+        val estimate = estimatedFps.validFps()
+
+        if (container != null) {
+            val rate = snap(container)
+            if (rate != null) {
+                if (estimate != null && relativeError(estimate, rate.toDouble()) > CROSS_CHECK_TOLERANCE) {
+                    return FpsResult.Rejected("fps-disagree", containerFps, estimatedFps)
+                }
+                return snapped(rate, FpsSource.CONTAINER, container)
+            }
+        }
+        if (estimate != null) {
+            val rate = snap(estimate)
+            if (rate != null) return snapped(rate, FpsSource.ESTIMATE, estimate)
+        }
+        val reason = if (container == null && estimate == null) "fps-missing" else "fps-not-standard"
+        return FpsResult.Rejected(reason, containerFps, estimatedFps)
+    }
 
     /** After playback started: does a later estimate still match the snapped rate? */
-    fun crossCheck(snapped: Rational, estimatedFps: Double?): CrossCheck = TODO()
+    fun crossCheck(snapped: Rational, estimatedFps: Double?): CrossCheck {
+        val estimate = estimatedFps.validFps()
+        if (estimate == null || !snapped.isValid) return CrossCheck.UNAVAILABLE
+        return if (relativeError(estimate, snapped.toDouble()) <= CROSS_CHECK_TOLERANCE) CrossCheck.AGREE else CrossCheck.DISAGREE
+    }
+
+    private fun Double?.validFps(): Double? = this?.takeIf { it.isFinite() && it > 0.0 }
+
+    private fun snapped(rate: Rational, source: FpsSource, input: Double) =
+        FpsResult.Snapped(rate, source, input, (input / rate.toDouble() - 1.0) * 1e6)
 }
