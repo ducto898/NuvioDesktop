@@ -1,6 +1,5 @@
 package com.nuvio.app.features.player.desktop.refreshrate.runtime
 
-import com.nuvio.app.features.player.desktop.refreshrate.DisplayState
 import com.nuvio.app.features.player.desktop.refreshrate.MODE_240
 import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
 import com.nuvio.app.features.player.desktop.refreshrate.Timing

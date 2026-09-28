@@ -1,6 +1,8 @@
 package com.nuvio.app.features.player.desktop.refreshrate.runtime
 
-import com.nuvio.app.features.player.desktop.refreshrate.*
+import com.nuvio.app.features.player.desktop.refreshrate.DisplayMode
+import com.nuvio.app.features.player.desktop.refreshrate.DisplayState
+import com.nuvio.app.features.player.desktop.refreshrate.SwitchOutcome
 
 /** What the native glue reads at mpv's on_preloaded hook for one playback start (SPEC P4-9). */
 data class StartInput(
