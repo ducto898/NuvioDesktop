@@ -17,8 +17,8 @@ P8-7  run-dev.ps1 sets NUVIO_FORK_IDENTITY=off (all dev/measure runs keep devpro
 P8-8  updater: ForkIdentityTest (off with the identity), H13 gates AppUpdater's auto-check and banner; the packaged
       run's log has no update activity (neither has a dev run in smoke-player mode, so the log alone proves little);
       banner: owner checklist item 6.
-P8-9  H16: the build fails when SENTRY_DESKTOP_DSN is non-blank and the fork identity is on (code review; not run,
-      no DSN is configured anywhere on this PC).
+P8-9  H16 tested: `gradlew :composeApp:help` with SENTRY_DESKTOP_DSN=https://dummy@example.invalid/1 => exit 1,
+      "fork build (Nuvio RR): SENTRY_DESKTOP_DSN must be blank, no crash upload (SPEC P8-9)"; without it => exit 0.
 P8-10 package-fork.ps1: ..\dist\Nuvio-RR-1.1.26-a8dc135f.zip (195 MB); checks: Nuvio RR.exe, launcher option
       -Dnuvio.fork.name=Nuvio RR, player_bridge.dll/libmpv-2.dll/WebView2Loader.dll in the app jar (unpacked at run time
       into the fork's cache, DesktopCache -> DesktopStorage.cacheDir).
