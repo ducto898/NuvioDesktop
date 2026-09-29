@@ -333,4 +333,28 @@ class SessionBehaviourTest {
         assertTrue("same-target" in step.reasons, "${step.reasons}")
         assertEquals(Timing.DisplaySync(MODE_120.refresh), step.timing)
     }
+
+    // Review round 2: after a verified switch the session keeps the rate Windows really runs
+    @Test
+    fun `a same-target next start keeps the observed rate, not the rounded DXGI one`() {
+        val snap60 = FpsResult.Snapped(Rational(60, 1), FpsSource.CONTAINER, 60.0, 0.0)
+        val at120 = DisplayState(MODE_120, hdr = true)
+        val first = RefreshRateSession.step(
+            sessionIn(SessionState.Switching(CTX.copy(target = qhd(12000, 100)))), switchOk(at120),
+        )
+        val already = RefreshRateSession.step(first.session, start(2, Selection.AlreadyAtTarget(MODE_120, 2, 0.0, snap60, 6), current = at120))
+        assertEquals(Timing.DisplaySync(MODE_120.refresh), already.timing)
+        val again = RefreshRateSession.step(first.session, start(3, Selection.Switch(qhd(12000, 100), 2, 0.0, snap60, 6), current = at120))
+        assertEquals(emptyList(), again.commands)
+        assertEquals(Timing.DisplaySync(MODE_120.refresh), again.timing)
+    }
+
+    // Review round 2: the 100 ppm match never joins real neighbours (143.973 vs 144 = 188 ppm)
+    @Test
+    fun `a switch observed 188 ppm off its target is a mismatch`() {
+        val step = RefreshRateSession.step(
+            sessionIn(SessionState.Switching(CTX.copy(target = MODE_144))), switchOk(DisplayState(qhd(144, 1), hdr = true)),
+        )
+        assertTrue("verify-mismatch" in step.reasons, "${step.reasons}")
+    }
 }

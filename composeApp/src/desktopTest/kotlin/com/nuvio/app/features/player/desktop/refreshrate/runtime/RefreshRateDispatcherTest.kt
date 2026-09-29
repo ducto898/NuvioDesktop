@@ -178,4 +178,18 @@ class RefreshRateDispatcherTest {
         assertTrue(dispatcher.appExit(5_000), "serial: the late start has finished")
         assertEquals(emptyList(), port.callsNamed("setTiming"))
     }
+
+    // Review round 2: with the real 1 s watcher, a tick runs between the timed-out start and the late-start task
+    @Test
+    fun `a late successful start routes display-sync even with the watcher running`() {
+        dispatcher.close()
+        dispatcher = RefreshRateDispatcher(RefreshRateController(port, log), log, watchPeriodMs = 20)
+        val release = CountDownLatch(1)
+        slowSwitch(release)
+        assertNull(dispatcher.playbackStart(startInput(1), 200))
+        Thread.sleep(100) // several watcher ticks queue up behind the blocked start
+        release.countDown()
+        assertEquals(listOf("setTiming p1 display-sync(239901/1000)"), awaitCalls("setTiming"))
+        assertTrue(dispatcher.appExit(5_000))
+    }
 }

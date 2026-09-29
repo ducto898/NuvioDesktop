@@ -760,6 +760,73 @@ Design notes:
 **Verification:** `verify.ps1 -Full` + the runs above + the owner batch, then the P7-19 review (it replaces the usual
 lean verifier round).
 
+### Phase 8 — Upkeep: own app identity, updater/Sentry off, patch export, docs (written 2026-09-29, before code; AWAITING owner approval, Q39–Q43)
+Scope: make the fork a separate app that can run next to the official Nuvio (requirement 20, D6), switch off what must
+not run in a private build (updater, crash upload), export the patch, and finish FORK.md so an upstream update can be
+re-applied without this session. **Not in Phase 8:** new feature behaviour; any NVIDIA/Windows setting change by Claude
+(the owner creates the per-exe driver entry, FORK §9); pushing, a PR or the upstream feature request (Q2/Q3 stay: keep
+local, hold).
+Design (see **Q39–Q42**):
+- One identity switch, owned by the fork: Gradle property `nuvio.fork.identity` (default on in this fork through a
+  fork-owned properties file read by the build, not `gradle.properties`) sets the package name, exe name, start-menu
+  group and a new MSI `upgradeUuid`, and passes `-Dnuvio.appDirName=<name>` to the app (run task and packaged
+  launcher). Without it every value is upstream's.
+- App code reads the folder name in one place: `DesktopStorage` (Roaming + Local/Cache, one hook line each) and the
+  bridge's `webViewUserDataDirectory()` (one hook line; the name reaches native code through the existing create call's
+  environment, or `WEBVIEW2_USER_DATA_FOLDER` set by the launcher — decided at implementation, both keep the diff ≤ 1
+  line) ⇒ fixes the D6 WebView2 leak for good.
+- Updater: the desktop `AppFeaturePolicy.inAppUpdaterEnabled` becomes false when the fork identity is on (one hook
+  line). Sentry: the fork build refuses a non-blank `SENTRY_DESKTOP_DSN`.
+
+**Footprint and tests first**
+- P8-1 — Upstream diff ≤ 11 code lines + 3 string lines + ≤ 6 lines in `composeApp/build.gradle.kts` (**Q42**), each
+  tagged `nuvio-rr fork hook Hn` (H11–H15); no new dependency; nothing pushed — auto (`verify.ps1 -Full`, which gets the
+  new budget)
+- P8-2 — `verify.ps1 -Full` green with only the known upstream failures; no run writes either official folder — auto
+- P8-3 — Tests first for every Kotlin change (commit A red, commit B green, empty test diff): folder name from the
+  property, upstream `Nuvio` without it, blank/invalid property ⇒ upstream; updater policy off with the identity, on
+  without — auto
+
+**Identity and side-by-side (Q39)**
+- P8-4 — With the identity on: app data in `%APPDATA%\<name>`, cache in `%LOCALAPPDATA%\<name>\Cache`, WebView2 in
+  `%LOCALAPPDATA%\<name>\WebView2`, window title/taskbar/start menu `<name>`, exe `<name>.exe`, MSI upgradeUuid ≠
+  upstream's — auto (a packaged run; file-system diff of both official folders before/after = 0 files)
+- P8-5 — Side by side: the official Nuvio (installed) and the fork run at the same time, each with its own profile and
+  settings; closing one leaves the other running — [HUMAN] (P8-13) + auto (folder diff)
+- P8-6 — Profile import (**Q41**): `scripts/import-profile.ps1` copies the official Roaming profile into the fork's
+  folder once (refuses if the fork profile exists, never writes the official folder, prints what it copied) — auto
+- P8-7 — `run-dev.ps1` keeps working (its redirected dev profile wins over the identity); `measure.ps1` gets
+  `-Packaged` to launch the built app image instead of Gradle, and one packaged `sdr-1080p-23.976` feature run meets
+  P5-12 (already at target) plus one capped switch run — auto
+
+**Private-build safety**
+- P8-8 — Updater off in the fork: no update check at start (policy test + no request to the release feed in a
+  packaged run's log), no update banner — auto
+- P8-9 — Crash upload off: the fork build fails with a clear message if `SENTRY_DESKTOP_DSN` is non-blank; the packaged
+  app logs Sentry inert — auto
+
+**Distribution (Q40)**
+- P8-10 — `./gradlew :composeApp:createDistributable` (app image, no WiX, no admin) builds `<name>\<name>.exe` with the
+  bundled runtime, libmpv and the bridge DLL; `scripts/package-fork.ps1` builds it and zips it with the commit id —
+  auto. (MSI only if the owner picks it in Q40: needs the WiX toolset + a UAC prompt.)
+- P8-11 — Driver entry for the own exe: FORK §9 gives the exe path and the three per-app settings (Monitor Technology
+  = Fixed Refresh, Max Frame Rate off, Power = Prefer maximum performance); the owner creates them in the NVIDIA
+  Control Panel; the feature's `driver` log line then shows `exe=<name>.exe app_profile=yes` — [HUMAN] + log
+
+**Upkeep**
+- P8-12 — Patch export: `scripts/export-patch.ps1` writes `patches/nuvio-rr-<upstream base>-<head>.patch` (product
+  files + tests + fork scripts/docs, never measurements/testdata) and proves it with `git apply --check` on a clean
+  worktree at the upstream base — auto
+- P8-13 — [HUMAN] one checklist: install/unzip the fork, run it next to the official Nuvio, sign in/check the imported
+  profile, NVCP entry for the exe, play a 24 fps title (smooth, no flicker), updater banner absent; **plus the still-open
+  Phase 7 checklist** (`docs/phase7-owner-checklist.md`, **Q43**)
+- P8-14 — Docs: FORK.md has no `TBD` left: §4 upstream-update runbook (fetch, rebase, hot spots §5, `verify.ps1 -Full`,
+  §6 re-verify recipe, export), §7 identity/updater/Sentry, §9 exe path; `docs/ci-proposal.md` (a windows-latest job:
+  build, patch tests, upstream-diff budget, not installed since nothing is pushed); SPEC §1–3; PROGRESS — auto
+- P8-15 — One lean verifier round (this table, commit ids, evidence folders) — auto
+
+**Verification:** `verify.ps1 -Full` + the packaged runs above + the owner checklist, then ONE lean verifier round.
+
 ## 5. Upkeep limits
 - Upstream-file diff budget: **7 code lines + 3 string lines in 5 files** (P6-1; measured again in Phase 7), each tagged
   `nuvio-rr fork hook Hn`; reported by `verify.ps1 -Full`. Anything more needs the owner's OK.

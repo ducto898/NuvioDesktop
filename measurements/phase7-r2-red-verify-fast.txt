@@ -1,0 +1,13 @@
+### verify.ps1 -Fast
+==> incremental compile
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop
+    OK in 2s
+==> unit tests (com.nuvio.app.features.player.desktop.refreshrate.*)
+    gradlew :composeApp:desktopTest --tests com.nuvio.app.features.player.desktop.refreshrate.*
+    160 tests completed, 2 failed
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateDispatcherTest#a late successful start routes display-sync even with the watcher running[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.SessionBehaviourTest#a same-target next start keeps the observed rate, not the rounded DXGI one[desktop]
+    FAIL in 12s
+
+VERIFY FAILED in 14s:
+  - unit tests (com.nuvio.app.features.player.desktop.refreshrate.*) (2 new failing test(s))
