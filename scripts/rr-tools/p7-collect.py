@@ -174,11 +174,11 @@ def judge(folder):
         steady = [h for h in during if not near(h, DESKTOP_HZ, 0.01)] if kind == 'switch' else during
         if kind == 'switch' and not steady:
             f.append('never at the target during playback (%s)' % during)
-        if steady and not all(near(h, target, 0.01) for h in steady):
+        if steady and not all(near(h, target, target * 1e-4) for h in steady):  # 100 ppm, as the app (F1)
             f.append('during hz %s (target %.3f)' % (during, target))
         if sync != ['display-resample']:
             f.append('video-sync %s' % sync)
-        if not all(near(float(v), target, 0.001) for v in (L(mpv.get('displayFpsOverride')) or ['0']) if v not in ('na', '')):
+        if not all(near(float(v), target, target * 1e-4) for v in (L(mpv.get('displayFpsOverride')) or ['0']) if v not in ('na', '')):
             f.append('display-fps-override %s' % mpv.get('displayFpsOverride'))
         est = a5.get('estimatedDisplayFpsMedian')
         if not near(est, target, target * 0.001):
