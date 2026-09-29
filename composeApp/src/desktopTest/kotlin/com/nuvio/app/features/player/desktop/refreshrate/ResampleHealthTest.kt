@@ -53,26 +53,27 @@ class ResampleHealthTest {
 
     @Test
     fun `a collapsed display rate is unhealthy (Phase 2b, 6_5 Hz under a 200 fps cap)`() {
-        val verdicts = feed(ResampleHealth(target, 0.0), 20) { sample(it.toDouble(), est = 6.5) }
-        // the rate error has to hold for 5 judged samples in a row (Phase 6 run p6-env1-set-off: one stall; Q28)
-        assertTrue(verdicts.take(19).none { it is HealthVerdict.Unhealthy }, "$verdicts")
-        val u = assertIs<HealthVerdict.Unhealthy>(verdicts[19])
+        val verdicts = feed(ResampleHealth(target, 0.0), 30) { sample(it.toDouble(), est = 6.5) }
+        // the rate error has to hold for 9 judged samples in a row (Q28; Phase 7 P7-15: f11 bent it for 7, so 7 + 2)
+        assertTrue(verdicts.take(23).none { it is HealthVerdict.Unhealthy }, "$verdicts")
+        val u = assertIs<HealthVerdict.Unhealthy>(verdicts[23])
         assertTrue("6.5" in u.detail, u.detail)
     }
 
     @Test
     fun `display rate more than 1 percent off is unhealthy, 0_8 percent is not`() {
-        val off12 = feed(ResampleHealth(target, 0.0), 20) { sample(it.toDouble(), est = rate * 0.988) }
-        assertIs<HealthVerdict.Unhealthy>(off12[19])
+        val off12 = feed(ResampleHealth(target, 0.0), 30) { sample(it.toDouble(), est = rate * 0.988) }
+        assertIs<HealthVerdict.Unhealthy>(off12[23])
         // Phase 2b 4K HDR at Normal power: -0.795 %, 19 mistimed/min ⇒ degraded but not "clearly broken"
         val off08 = feed(ResampleHealth(target, 0.0), 40) { sample(it.toDouble(), mistimed = it / 3L, est = rate * 0.992) }
         assertTrue(off08.none { it is HealthVerdict.Unhealthy }, "$off08")
     }
 
     @Test
-    fun `one stall that bends the rate estimate for 1 to 4 samples is not unhealthy`() {
+    fun `one stall that bends the rate estimate for 1 to 8 samples is not unhealthy`() {
         // Measured 2026-09-28 23:23:12: 25 s at 239.897, then one 1.3 s stall (1 drop) ⇒ estimate 235.649 (-1.8 %).
-        for (badSamples in 1..4) {
+        // Phase 7 (2026-09-29 07:53): a fullscreen toggle bent it for 7 samples at 143.973, 3-4 at 239.901.
+        for (badSamples in 1..8) {
             val verdicts = feed(ResampleHealth(target, 0.0), 40) {
                 sample(it.toDouble(), drops = if (it >= 25) 1L else 0L, est = if (it in 25 until 25 + badSamples) 235.649 else rate)
             }
@@ -82,12 +83,12 @@ class ResampleHealthTest {
     }
 
     @Test
-    fun `a rate error that lasts 5 samples is unhealthy, and a good sample restarts the count`() {
+    fun `a rate error that lasts 9 samples is unhealthy, and a good sample restarts the count`() {
         val lasting = feed(ResampleHealth(target, 0.0), 40) { sample(it.toDouble(), est = if (it >= 25) 235.649 else rate) }
-        assertTrue(lasting.take(29).none { it is HealthVerdict.Unhealthy }, "$lasting")
-        assertIs<HealthVerdict.Unhealthy>(lasting[29])
-        // 4 bad, 1 good, 4 bad, 1 good ... never 5 in a row
-        val broken = feed(ResampleHealth(target, 0.0), 60) { sample(it.toDouble(), est = if (it >= 20 && it % 5 != 0) 235.649 else rate) }
+        assertTrue(lasting.take(33).none { it is HealthVerdict.Unhealthy }, "$lasting")
+        assertIs<HealthVerdict.Unhealthy>(lasting[33])
+        // 8 bad, 1 good, 8 bad, 1 good ... never 9 in a row
+        val broken = feed(ResampleHealth(target, 0.0), 80) { sample(it.toDouble(), est = if (it >= 20 && it % 9 != 0) 235.649 else rate) }
         assertTrue(broken.none { it is HealthVerdict.Unhealthy }, "$broken")
     }
 

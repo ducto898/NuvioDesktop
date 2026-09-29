@@ -314,6 +314,17 @@ class RefreshRateTimingTest {
     }
 
     @Test
+    fun `a fullscreen toggle that bends the rate estimate for 7 samples keeps display sync (Phase 7)`() {
+        switched()
+        play(25)
+        play(7) { stats(est = 235.0) } // measured 2026-09-29: f11 at 143.973 ⇒ 141.43 (-1.8 %) for 7 samples
+        play(20)
+        assertEquals(emptyList(), timingCalls(), "$lines")
+        assertTrue(!logged("resample-unhealthy"), "$lines")
+        assertTrue(lines.any { "rate-off p1 7 samples" in it && "recovered" in it }, "$lines")
+    }
+
+    @Test
     fun `broken timing on a steady display is still caught`() {
         switched()
         play(12)

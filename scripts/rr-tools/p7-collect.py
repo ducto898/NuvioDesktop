@@ -8,7 +8,7 @@ Expected outcome per run, from the clip name and summary.json (maxHz, feature on
   feature off                          -> no feature log, upstream timing
   cap 0:   23.976/24/29.97/59.94/60/vfr -> already-at-target at 239.901, no switch call
            25/50                        -> no-suitable-mode, upstream timing
-  cap 144: 23.976/24 -> switch to 143.973; 29.97/59.94/60/vfr -> switch to 120.000; 25/50 -> no switch
+  cap 144: 23.976/24 -> 143.973; 29.97/59.94 -> 59.951; 60/vfr -> 120.000; 25/50 -> no switch
 Desktop default (Q27): 239.901 live, registry 240, before/during/after.
 """
 import glob
@@ -37,12 +37,78 @@ def expected(clip, max_hz, feature_on):
     if fps in ('25', '50'):
         return ('none', None)
     if max_hz and max_hz < 239:
-        return ('switch', 143.973 if fps in ('23.976', '24') else 120.0)
+        # this monitor under the 144 cap lists 143.973, 120 (12000/100) and 59.951: 120/119.88 is just outside the
+        # 1000/1001 tolerance, so 29.97/59.94 take 59.951 (x2 / x1)
+        if fps in ('23.976', '24'):
+            return ('switch', 143.973)
+        return ('switch', 59.951 if fps in ('29.97', '59.94') else 120.0)
     return ('already', DESKTOP_HZ)
+
+
+def L(v):
+    """PowerShell's ConvertTo-Json writes a one-element array as a scalar."""
+    if v is None:
+        return []
+    return v if isinstance(v, list) else [v]
 
 
 def near(a, b, tol):
     return a is not None and b is not None and abs(a - b) <= tol
+
+
+def exit_wall(folder):
+    """Wall time of the feature's app-exit line: samples and underruns from there on show the close/restore."""
+    p = os.path.join(folder, 'refresh-rate.log')
+    if os.path.isfile(p):
+        with open(p, encoding='utf-8', errors='replace') as fh:
+            for line in fh:
+                if ' K app-exit' in line:
+                    return line[:12]
+    return None
+
+
+def late_underruns(folder):
+    """Audio underruns from 5 s after file-loaded until app-exit."""
+    end = exit_wall(folder) or '99'
+    n, loaded = 0, None
+    for p in glob.glob(os.path.join(folder, 'nuvio-rr-*.log')):
+        with open(p, encoding='utf-8', errors='replace') as fh:
+            for line in fh:
+                if loaded is None and re.search(r'\bE file-loaded\b', line):
+                    h, m, sec = line[:12].split(':')
+                    loaded = int(h) * 3600 + int(m) * 60 + float(sec)
+                if 'Audio device underrun detected' in line and loaded is not None and line[:12] < end:
+                    h, m, sec = line[:12].split(':')
+                    if int(h) * 3600 + int(m) * 60 + float(sec) - loaded > 5:
+                        n += 1
+    return n
+
+
+def late_speed(folder):
+    """Min/max video and audio speed correction over the samples with time-pos >= 5 s, before app-exit."""
+    end = exit_wall(folder) or '99'
+    vals = {'video': [], 'audio': []}
+    for p in glob.glob(os.path.join(folder, 'nuvio-rr-*.log')):
+        with open(p, encoding='utf-8', errors='replace') as fh:
+            for line in fh:
+                if ' S ' not in line[:15] or line[:12] >= end:
+                    continue
+                d = dict(re.findall(r'(\S+?)=(\S+)', line))
+                try:
+                    if float(d.get('time-pos', 'x')) < 5:
+                        continue
+                except ValueError:
+                    continue
+                for k in vals:
+                    try:
+                        vals[k].append(float(d.get(k + '-speed-correction', 'x')))
+                    except ValueError:
+                        pass
+    out = {}
+    for k, v in vals.items():
+        out[k + 'Min'] = min(v) if v else None
+        out[k + 'Max'] = max(v) if v else None
+    return out
 
 
 def judge(folder):
@@ -58,8 +124,8 @@ def judge(folder):
     win = s.get('windows') or {}
     a5 = mpv.get('after5s') or {}
     fault = feat.get('fault') or ''
-    early = (feat.get('closeAfterSwitchMs') or -1) >= 0
-    for p in s.get('problems') or []:
+    early = feat.get('closeAfterSwitchMs') is not None and feat.get('closeAfterSwitchMs') >= 0
+    for p in L(s.get('problems')):
         f.append('problem: ' + p)
     if s.get('officialProfileWrites'):
         f.append('official profile written')
@@ -67,14 +133,14 @@ def judge(folder):
         f.append('after hz %s' % (win.get('after') or {}).get('hz'))
     if (win.get('before') or {}).get('regHz') != DESKTOP_REG or (win.get('after') or {}).get('regHz') != DESKTOP_REG:
         f.append('registry before/after not 240')
-    reg = (win.get('during') or {}).get('distinctRegHz') or []
+    reg = L((win.get('during') or {}).get('distinctRegHz'))
     if reg and reg != [DESKTOP_REG]:
         f.append('registry during %s' % reg)
     if (s.get('crash') or {}).get('hsErr') or (s.get('crash') or {}).get('werEvents'):
         f.append('crash evidence')
-    during = (win.get('during') or {}).get('distinctHz') or []
-    switches = feat.get('switchCalls') or []
-    sync = mpv.get('videoSync') or []
+    during = L((win.get('during') or {}).get('distinctHz'))
+    switches = L(feat.get('switchCalls'))
+    sync = L(mpv.get('videoSync'))
     judged_playback = not early and not fault
     if kind == 'off':
         if (s.get('enable') or {}).get('featureLogExists'):
@@ -86,7 +152,7 @@ def judge(folder):
             f.append('switch call(s) %d' % len(switches))
         if sync and sync != ['audio']:
             f.append('video-sync %s' % sync)
-        if any(v not in (None, '', 'na', '0.000000') for v in (mpv.get('displayFpsOverride') or [])):
+        if any(v not in (None, '', 'na', '0.000000') for v in (L(mpv.get('displayFpsOverride')))):
             f.append('display-fps-override set %s' % mpv.get('displayFpsOverride'))
         if during and not all(near(h, DESKTOP_HZ, 0.01) for h in during):
             f.append('during hz %s' % during)
@@ -94,16 +160,16 @@ def judge(folder):
         if kind == 'already':
             if switches:
                 f.append('switch call(s) %d at an already-at-target rate' % len(switches))
-            if 'already-at-target' not in (feat.get('reasons') or []):
+            if 'already-at-target' not in (L(feat.get('reasons'))):
                 f.append('no already-at-target reason')
         else:
             if not switches:
                 f.append('no switch call')
             if feat.get('switchBeforeFileLoaded') is False:
                 f.append('switch after file-loaded')
-            if any(ms > 4000 for ms in feat.get('settleMs') or []):
+            if any(ms > 4000 for ms in L(feat.get('settleMs'))):
                 f.append('settle > 4 s %s' % feat.get('settleMs'))
-            if not feat.get('restoreCalls') and not s.get('actions', '').count('kill'):
+            if not L(feat.get('restoreCalls')) and '-p7-kill' not in os.path.basename(os.path.normpath(folder)):
                 f.append('no restore call')
         steady = [h for h in during if not near(h, DESKTOP_HZ, 0.01)] if kind == 'switch' else during
         if kind == 'switch' and not steady:
@@ -112,23 +178,22 @@ def judge(folder):
             f.append('during hz %s (target %.3f)' % (during, target))
         if sync != ['display-resample']:
             f.append('video-sync %s' % sync)
-        if not all(near(float(v), target, 0.001) for v in (mpv.get('displayFpsOverride') or ['0']) if v not in ('na', '')):
+        if not all(near(float(v), target, 0.001) for v in (L(mpv.get('displayFpsOverride')) or ['0']) if v not in ('na', '')):
             f.append('display-fps-override %s' % mpv.get('displayFpsOverride'))
         est = a5.get('estimatedDisplayFpsMedian')
         if not near(est, target, target * 0.001):
             f.append('estimated-display-fps %s' % est)
-        under = (mpv.get('audioUnderruns') or {}).get('afterFirst5s')
+        under = late_underruns(folder)
         if under:
             f.append('underruns %s' % under)
         dpm = a5.get('dropsPlusMistimedPerMinute')
         if not vfr and (dpm is None or dpm > 1):
             f.append('drops+mistimed/min %s' % dpm)
-        sc = mpv.get('speedCorrection') or {}
         if not vfr:
-            for k in ('videoMin', 'videoMax', 'audioMin', 'audioMax'):
-                v = sc.get(k)
+            # P5-12 / P2b-13: judged after the first 5 s (mpv starts with a larger audio correction)
+            for k, v in late_speed(folder).items():
                 if v is not None and abs(v - 1.0) > 0.002:
-                    f.append('%s %s' % (k, v))
+                    f.append('%s %s (after 5 s)' % (k, v))
         if vfr:
             logs = glob.glob(os.path.join(folder, 'nuvio-rr-*.log'))
             if any('desynchronisation' in open(p, encoding='utf-8', errors='replace').read() for p in logs):
