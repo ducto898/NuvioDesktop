@@ -1,0 +1,16 @@
+### verify.ps1 -Fast
+==> incremental compile
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop
+    OK in 20s
+==> unit tests (com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*)
+    gradlew :composeApp:desktopTest --tests com.nuvio.app.features.player.desktop.refreshrate.* --tests com.nuvio.app.fork.*
+    165 tests completed, 5 failed
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#the updater is on upstream and off in the fork[desktop]
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#no property is upstream[desktop]
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#a valid name is used, trimmed[desktop]
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#blank or unsafe names fall back to upstream[desktop]
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#the upstream name itself is not a fork[desktop]
+    FAIL in 21s
+
+VERIFY FAILED in 41s:
+  - unit tests (com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*) (5 new failing test(s))

@@ -20,7 +20,7 @@
 param(
     [Parameter(ParameterSetName = 'Fast')][switch]$Fast,
     [Parameter(ParameterSetName = 'Full')][switch]$Full,
-    [string]$Tests = 'com.nuvio.app.features.player.desktop.refreshrate.*',
+    [string]$Tests = 'com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*',
     [string]$UpstreamRef = 'upstream/Dev'
 )
 
@@ -180,7 +180,8 @@ if ($Full) {
     Invoke-Gradle @(':composeApp:buildWindowsPlayerBridge', ':composeApp:compileKotlinDesktop') 'incremental compile'
     if ($failures.Count -eq 0) {
         if (Test-PatchTestsExist) {
-            Invoke-Tests @(':composeApp:desktopTest', '--tests', $Tests) "unit tests ($Tests)"
+            $filters = @($Tests -split ',' | Where-Object { $_ } | ForEach-Object { '--tests', $_.Trim() })  # Phase 8: + com.nuvio.app.fork
+            Invoke-Tests (@(':composeApp:desktopTest') + $filters) "unit tests ($Tests)"
         } else {
             Write-Host '    (no patch tests yet; running the whole desktopTest suite)'
             Invoke-Tests @(':composeApp:desktopTest') 'unit tests (all desktop)'

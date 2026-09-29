@@ -764,7 +764,7 @@ Design notes:
 **Verification:** `verify.ps1 -Full` + the runs above + the owner batch, then the P7-19 review (it replaces the usual
 lean verifier round).
 
-### Phase 8 — Upkeep: own app identity, updater/Sentry off, patch export, docs (written 2026-09-29, before code; AWAITING owner approval, Q39–Q43)
+### Phase 8 — Upkeep: own app identity, updater/Sentry off, patch export, docs (written 2026-09-29, before code; owner-approved 2026-09-29 with Q39–Q43 as recommended)
 Scope: make the fork a separate app that can run next to the official Nuvio (requirement 20, D6), switch off what must
 not run in a private build (updater, crash upload), export the patch, and finish FORK.md so an upstream update can be
 re-applied without this session. **Not in Phase 8:** new feature behaviour; any NVIDIA/Windows setting change by Claude
