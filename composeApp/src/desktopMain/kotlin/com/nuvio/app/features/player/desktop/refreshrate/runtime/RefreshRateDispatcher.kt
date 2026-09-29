@@ -27,7 +27,10 @@ class RefreshRateDispatcher(
     /** Blocks at most [timeoutMs]; null on timeout (the start still completes on the thread). */
     fun playbackStart(input: StartInput, timeoutMs: Long): Timing? {
         val future = submit("start") { controller.playbackStart(input) } ?: return null
-        return await(future, timeoutMs, "start p${input.playerId}")
+        val timing = await(future, timeoutMs, "start p${input.playerId}")
+        // Review #3: the start still finishes on the thread; queued behind it, apply its timing if it switched.
+        if (timing == null) submit("late-start") { controller.startTimedOut(input.playerId) }
+        return timing
     }
 
     /** Returns at once. */

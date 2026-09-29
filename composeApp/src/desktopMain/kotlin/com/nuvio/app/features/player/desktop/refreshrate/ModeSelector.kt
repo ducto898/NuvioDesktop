@@ -74,8 +74,9 @@ object ModeSelector {
             )
         }
         val ppm = bestError * 1e6
-        return if (best.refresh.sameAs(current.refresh)) {
-            Selection.AlreadyAtTarget(best, bestK, ppm, fps, candidates.size)
+        return if (best.refresh.sameRateAs(current.refresh)) {
+            // The display's own exact rate, not a rounded DXGI twin (F1), becomes mpv's display-fps-override.
+            Selection.AlreadyAtTarget(best.copy(refresh = current.refresh), bestK, ppm, fps, candidates.size)
         } else {
             Selection.Switch(best, bestK, ppm, fps, candidates.size)
         }

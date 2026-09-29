@@ -734,7 +734,9 @@ bool enumerateModes(const std::wstring &device, const DisplayState &current, std
 bool sameRate(UINT32 num, UINT32 den, int64_t targetNum, int64_t targetDen) {
     if (!num || !den || targetNum <= 0 || targetDen <= 0) return false;
     double a = (double)num / (double)den, b = (double)targetNum / (double)targetDen;
-    return std::fabs(a / b - 1.0) <= 1e-6;
+    // Same value as Kotlin's RATE_MATCH_TOLERANCE (Phase 7, F1): DXGI lists 120 Hz as 12000/100, Windows then runs
+    // 119998/1000 (16.7 ppm); real neighbours are >= 188 ppm apart (143.973/144).
+    return std::fabs(a / b - 1.0) <= 1e-4;
 }
 
 bool sameState(const DisplayState &a, const DisplayState &b) {

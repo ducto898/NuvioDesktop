@@ -67,8 +67,8 @@ data class Step(
 
 /** Process-global refresh-rate session as a pure state machine (SPEC P3-16..P3-24). */
 object RefreshRateSession {
-    /** Largest relative difference between the requested and the observed rate after a switch. */
-    const val VERIFY_TOLERANCE = 1e-6
+    /** Largest relative difference between the requested and the observed rate after a switch (F1: 100 ppm). */
+    const val VERIFY_TOLERANCE = RATE_MATCH_TOLERANCE
 
     /** HDR-toggle re-switches allowed per playback start before the P3-22 rules apply (SPEC P4-22). */
     const val MAX_HDR_RESWITCHES = 3
@@ -282,7 +282,7 @@ object RefreshRateSession {
         return when (val sel = event.selection) {
             is Selection.Switch -> when {
                 !sel.target.refresh.isValid -> restore("no-suitable-mode")
-                sel.target.refresh.sameAs(ctx.target.refresh) -> keep(ctx.target.refresh, ctx.target)
+                sel.target.refresh.sameRateAs(ctx.target.refresh) -> keep(ctx.target.refresh, ctx.target)
                 else -> {
                     out.reasons += "switching"
                     out.switchTo(ctx.display, sel.target)
@@ -295,7 +295,7 @@ object RefreshRateSession {
             }
             is Selection.AlreadyAtTarget -> when {
                 !sel.mode.refresh.isValid -> restore("no-suitable-mode")
-                sel.mode.refresh.sameAs(ctx.target.refresh) -> keep(ctx.target.refresh, ctx.target)
+                sel.mode.refresh.sameRateAs(ctx.target.refresh) -> keep(ctx.target.refresh, ctx.target)
                 // The display already shows a fitting mode other than the one we recorded: keep our session on it.
                 else -> keep(sel.mode.refresh, sel.mode)
             }
@@ -312,8 +312,7 @@ object RefreshRateSession {
         is SessionEvent.SwitchFinished, is SessionEvent.DisplayChanged -> ignored(state, out)
     }
 
-    private fun sameRate(a: Rational, b: Rational): Boolean =
-        a.sameAs(b) || relativeError(a.toDouble(), b.toDouble()) <= VERIFY_TOLERANCE
+    private fun sameRate(a: Rational, b: Rational): Boolean = a.sameRateAs(b)
 
     private fun verified(ctx: SessionContext, observed: DisplayState): Boolean =
         sameRate(observed.mode.refresh, ctx.target.refresh) &&

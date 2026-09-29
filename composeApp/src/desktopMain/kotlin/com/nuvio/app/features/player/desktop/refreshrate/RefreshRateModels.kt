@@ -36,5 +36,15 @@ data class DisplayState(val mode: DisplayMode, val hdr: Boolean)
 internal fun relativeError(a: Double, b: Double): Double =
     if (a.isFinite() && b.isFinite() && a > 0.0 && b > 0.0) kotlin.math.abs(a / b - 1.0) else Double.NaN
 
+/**
+ * Two rates closer than this are the same display mode (Phase 7, F1): DXGI lists this monitor's 120 Hz as 12000/100
+ * while Windows then runs 119998/1000 (16.7 ppm). Real neighbours are far apart: 143.973/144 = 188 ppm,
+ * 239.901/240 = 412 ppm, 1000/1001 twins = 1000 ppm. The native settle uses the same value.
+ */
+internal const val RATE_MATCH_TOLERANCE = 1e-4
+
+internal fun Rational.sameRateAs(other: Rational): Boolean =
+    sameAs(other) || relativeError(toDouble(), other.toDouble()) <= RATE_MATCH_TOLERANCE
+
 internal fun DisplayMode.describe(): String =
     "${width}x$height@$refresh ${bitsPerColor}bpc${if (interlaced) " interlaced" else ""}"

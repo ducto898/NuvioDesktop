@@ -53,6 +53,9 @@ class RefreshRateController(
 
     private var health: HealthWatch? = null
 
+    /** The last start's player and timing, for a start the hook stopped waiting for (review #3). */
+    private var lastStart: Pair<Long, Timing>? = null
+
     /** One playback start: decide, switch, verify. Returns the timing for that player. */
     fun playbackStart(input: StartInput): Timing {
         if (exited) {
@@ -65,7 +68,24 @@ class RefreshRateController(
         val timing = apply(event) ?: Timing.Upstream
         // The hook applies it (P5-5); the newest player is the one whose health is watched.
         watchHealth(input.playerId, input.display, timing)
+        lastStart = input.playerId to timing
         return timing
+    }
+
+    /**
+     * The hook stopped waiting for [playerId]'s start (timeout) and continued with upstream timing. If the start
+     * then ended with display-synced timing, that player still gets it, unless the session has moved on since
+     * (screen gone, app exit, a newer start: they all replace or clear the health watch).
+     */
+    fun startTimedOut(playerId: Long) {
+        val (id, timing) = lastStart ?: return
+        val watch = health
+        if (id != playerId || timing !is Timing.DisplaySync || watch?.playerId != playerId) {
+            log("start p$playerId late: nothing to apply")
+            return
+        }
+        log("start p$playerId late: applying ${timing.text()}")
+        route(playerId, timing, watch.display)
     }
 
     /**
@@ -86,6 +106,8 @@ class RefreshRateController(
         val timing = apply(SessionEvent.ScreenGone(owner))
         if (reason == "screen-gone") {
             if (health?.playerId == owner) health = null
+            // Review #5: the owner may still be playing on another surface; a gone player just answers false.
+            route(owner, Timing.Upstream, display = null)
         } else if (timing != null) {
             route(owner, timing, display = null)
         }
@@ -231,7 +253,7 @@ class RefreshRateController(
             val owner = (session.state as? SessionState.Switching)?.context?.owner ?: 0L
             val outcome = try {
                 port.switchTo(command.display, command.mode, owner)
-            } catch (e: Exception) {
+            } catch (e: Throwable) { // review #4: an Error must not leave the session in Switching
                 log("switch ${FailureKind.UNEXPECTED_ERROR.code} ${e.describeError()}")
                 SwitchOutcome.Failed(FailureKind.UNEXPECTED_ERROR)
             }
@@ -244,7 +266,7 @@ class RefreshRateController(
         is Command.Restore -> {
             val ok = try {
                 port.restore(command.display)
-            } catch (e: Exception) {
+            } catch (e: Throwable) { // review #4: an Error must not leave the session in Restoring
                 log("restore ${FailureKind.UNEXPECTED_ERROR.code} ${e.describeError()}")
                 false
             }
@@ -300,7 +322,7 @@ class RefreshRateController(
 
         fun DisplayState?.text() = if (this == null) "na" else "${mode.describe()} hdr=$hdr"
 
-        fun Exception.describeError() = "${javaClass.simpleName}: $message"
+        fun Throwable.describeError() = "${javaClass.simpleName}: $message"
 
         fun SessionState.text() = when (this) {
             SessionState.Idle -> "idle"
