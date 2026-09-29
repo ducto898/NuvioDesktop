@@ -84,7 +84,20 @@ The only memory between phases. Read it at the start of every phase; update it a
   10 lines). Live: 60 fps capped now switches (settled 388 ms at 119.998, override 119.998000, 0 d+m). Kotlin-only ⇒
   no round 3. **Phase 7 status: everything automatic DONE; open = the owner checklist P7-17/18 (and P4-15/18, P5-13,
   P7-10c inside it) ⇒ combined into the Phase 8 owner batch (Q43).**
-- **Phase 8 criteria written 2026-09-29 (SPEC P8-1..P8-15), AT THE GATE: owner approval + Q39–Q43.** No code before.
+- **Phase 8 criteria written 2026-09-29 (SPEC P8-1..P8-15); owner approved with Q39–Q43 as recommended.**
+  Built 2026-09-29 (`measurements/phase8-evidence.txt`): `ForkIdentity` tests-first (`a5208c45` red / `4b01b44b` green),
+  hooks H11–H20 (storage ×2, updater, WebView2 via JNI, 6 Gradle lines incl. Sentry guard); `fork-identity.properties`
+  (`name=Nuvio RR`); run-dev keeps upstream names (`NUVIO_FORK_IDENTITY=off`); verify.ps1 now enforces the hook budget
+  (every added upstream line tagged; code 11/11, strings 3/3, Gradle 6/6). Scripts: `measure.ps1 -Packaged`,
+  `package-fork.ps1` (zip `..\dist\Nuvio-RR-1.1.26-d1fc4173.zip`), `import-profile.ps1` (tested into a temp folder;
+  skips updates\, *.part, sync client id), `export-patch.ps1` (`..\patches\...patch`, `git apply --check` OK).
+  Packaged runs: already-at-target and capped switch PASS, 0 official writes, 169 files in the fork's WebView2.
+  Sentry guard tested (dummy DSN ⇒ build fails). Docs: FORK 0 TBD (§4 runbook, §5, §7, §9 exe entry, §10), CI
+  proposal, SPEC §1–3. Deviation: window title stays "Nuvio" (budget). **Verifier round (≈ 129k): FAIL** — the
+  native feature log still went to the official `%LOCALAPPDATA%\Nuvio\Cache` (fixed in the fork file, `d1fc4173`,
+  proven by a packaged run without the measure redirect: 0 official writes); upstream's App icon setting touches the
+  official shortcuts ⇒ **Q44**; 3 small fixes done. **Status: all automatic P8 work DONE; open = Q44 and the owner
+  checklist `docs/phase8-owner-checklist.md` (incl. the Phase 7 one, Q43).** After both: Phase 8 and the project done.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -278,15 +291,19 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
-- Q39 (Phase 8): fork app name **"Nuvio RR"** (exe `Nuvio RR.exe`, folders `%APPDATA%\Nuvio RR`, start menu group)?
+- Q44 (Phase 8): upstream's Settings → App icon rewrites the **official** Nuvio shortcuts and writes
+  `%LOCALAPPDATA%\Nuvio\icons` (8 hard-coded names in `WindowsAppShortcutIconUpdater.kt`). Fix with ONE hook line that
+  makes that updater do nothing in the fork (the portable fork has no shortcuts of its own), raising the code budget
+  11 ⇒ 12? Alternative: leave it and just never use that setting in Nuvio RR (FORK §10). Recommended **the one line**.
+- Q39 (Phase 8, ANSWERED 2026-09-29: as recommended): fork app name **"Nuvio RR"** (exe `Nuvio RR.exe`, folders `%APPDATA%\Nuvio RR`, start menu group)?
   Recommended **yes** (any short name works; it only must differ from "Nuvio").
-- Q40 (Phase 8): distribution as a **portable app folder** (`createDistributable`, zipped; no installer, no WiX, no admin)
+- Q40 (Phase 8, ANSWERED 2026-09-29: as recommended): distribution as a **portable app folder** (`createDistributable`, zipped; no installer, no WiX, no admin)
   instead of an MSI (needs the WiX toolset + UAC)? Recommended **app folder**.
-- Q41 (Phase 8): copy your official Nuvio profile into the fork once (script you run; official folder untouched), or
+- Q41 (Phase 8, ANSWERED 2026-09-29: as recommended): copy your official Nuvio profile into the fork once (script you run; official folder untouched), or
   start the fork empty? Recommended **copy**.
-- Q42 (Phase 8): raise the upstream-diff budget to ≤ 11 code lines + 3 strings + ≤ 6 lines in `build.gradle.kts`
+- Q42 (Phase 8, ANSWERED 2026-09-29: as recommended): raise the upstream-diff budget to ≤ 11 code lines + 3 strings + ≤ 6 lines in `build.gradle.kts`
   (identity: 2 storage lines, 1 WebView2 line, 1 updater line, the Gradle identity block)? Recommended **yes**.
-- Q43 (Phase 8): do the still-open Phase 7 checklist in the same owner session as Phase 8's; Phase 7 is closed then.
+- Q43 (Phase 8, ANSWERED 2026-09-29: as recommended): do the still-open Phase 7 checklist in the same owner session as Phase 8's; Phase 7 is closed then.
   Recommended **yes**.
 - Q36 (Phase 7, ANSWERED 2026-09-29: yes): fix F1 with one shared 100 ppm rate tolerance (native settle + Kotlin verify/mode-lost/atTarget/
   already-at-target, override from the observed rate), tests first + a native rebuild + one more review round
@@ -371,7 +388,7 @@ suite, ≈ 15 s with only the patch tests.
 | 5 mpv timing / OLED | ~400k | ≈ 470k so far (criteria + gate ≈ 140k, code + 22 runs + fixes ≈ 215k, verifier 115k); the owner's PresentMon/checklist session still to come ⇒ ~500k, ~25 % over (verifier again the largest item) |
 | 6 Settings/JNI | ~200k | ≈ 140k so far (criteria + gate, mostly reading PROGRESS/SPEC/plan) |
 | 7 Matrix + review | ~500k; re-estimated at the gate ≈ 550k (criteria ≈ 90k, tooling ≈ 80k, ~90 runs + soaks ≈ 130k, owner batch ≈ 50k, N change ≈ 25k, review ≈ 150k, docs ≈ 25k) | ≈ 790k: main ≈ 455k (criteria, tooling, ~95 runs, F1/F2 analysis, N change, Q36/Q37 fixes, docs) + review 228k + round 2 107k — ~45 % over; the reviews were the largest items and round 1 caused the extra fix round |
-| 8 Upkeep | ~250k; re-estimated at the gate ≈ 350k (criteria ≈ 40k done, identity code + tests ≈ 90k, packaging + runs ≈ 60k, patch export/docs ≈ 50k, verifier ≈ 110k) | |
+| 8 Upkeep | ~250k; re-estimated at the gate ≈ 350k | ≈ 330k so far: main ≈ 200k (identity code + tests, hooks, packaging, 3 packaged runs, 4 scripts, docs) + verifier 129k; within the re-estimate (Q44 + the owner checklist review ≈ 30k more) |
 
 ## Measurements
 - 2026-09-28 (read-only enumeration, 02-mode-enumeration.md): 2560x1440 modes 279.961 (current+registry),

@@ -27,3 +27,21 @@ P8-12 export-patch.ps1: ..\patches\nuvio-rr-fe92d414-f6df6234.patch (84 files, 8
       in a temporary worktree (removed).
 P8-14 FORK.md: 0 TBD (§4 runbook, §5 hot spots incl. H11-H20, §7 identity/updater/Sentry/distribution, §9 exe entry,
       §10 known limits); docs/ci-proposal.md; SPEC §1-3 (H11-H20, ForkIdentity, fork-identity.properties).
+
+Verifier round (fresh agent, ~129k): FAIL on 2 confirmed findings, the rest PASS/HUMAN.
+- F1 (fixed d1fc4173): the native refresh-rate.log and the measure stats default used a hard-coded
+  %LOCALAPPDATA%\Nuvio\Cache => the packaged fork would write the OFFICIAL folder (measure runs redirect the log, so
+  every packaged evidence run missed it). Now %LOCALAPPDATA%\<fork name>\Cache via nuvioRrAppDirName() (fork file).
+  Direct test 19:40 (packaged exe, feature on by env, no measure redirect, throwaway profile): log in
+  Local\Nuvio RR\Cache\refresh-rate.log, folders Local: Microsoft (WebView2's own), Nuvio RR; Roaming: Nuvio RR;
+  official files written: 0. (The ad-hoc script's close used a stale window handle and was killed; the measure.ps1
+  packaged runs close normally: forcedClose false, app-exit logged.)
+- F2 (open, Q44): upstream's App icon setting (WindowsAppShortcutIconUpdater.kt) writes %LOCALAPPDATA%\Nuvio\icons and
+  repoints the official Nuvio.lnk shortcuts (8 hard-coded "Nuvio" lines). FORK §10; owner decision.
+- F3 (fixed): "nuvio" in any case mapped to the official folder => upstream name (ca38cbea red 1/166, d1fc4173 green).
+- F4 (fixed/documented): NUVIO_FORK_IDENTITY=off in any case; configuration-cache note in FORK §7.
+- F6 (fixed): export-patch exit checks; package-fork dirty check includes fork-identity.properties.
+- verify -Full after the fixes: 1512 tests, only known upstream failures, budget code 11/11, strings 3/3, gradle 6/6.
+  New zip: ..\dist\Nuvio-RR-1.1.26-d1fc4173.zip (the a8dc135f zip was removed).
+- Note: the portable app folder has no installer, so no start-menu entry exists; menuGroup/upgradeUuid (H19/H20) only
+  matter for an MSI build.
