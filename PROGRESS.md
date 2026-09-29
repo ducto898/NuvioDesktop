@@ -75,6 +75,16 @@ The only memory between phases. Read it at the start of every phase; update it a
   `setTiming(Upstream)`; (6) no monitor-move check for an already-at-target player; (7) narrow H5/hook race (release
   then relies on mpv_terminate_destroy); (8) unchecked `NewString`. Lock order, JNI, knob gating, off = upstream,
   exit paths: no finding. P7-20 doc gaps fixed (`10f36b1c`, `ce479f31`). ⇒ Q36–Q38.
+  **Owner 2026-09-29 (away from the PC): Q36–Q38 yes; "do what you can automated, else move on to the next phase".**
+  Fixes tests-first: `8d8e2239`/`0764a655` (100 ppm `RATE_MATCH_TOLERANCE` Kotlin + native settle, late start routed,
+  Throwable, screen gone ⇒ upstream); known limits 2/6/7/8 ⇒ FORK §10 (`f94ae173`). Review round 2 (≈ 107k): FAIL on
+  the late start (a live 1 s watcher tick drops the health watch before the late-start task) and on a same-target next
+  start still getting the rounded 12000/100 ⇒ `492e65cd`/`6941fcf8` (late start keys on the session owner; a verified
+  switch keeps the observed rate; 188 ppm edge test). verify -Full green (1506, 7 known failures; upstream 5 files /
+  10 lines). Live: 60 fps capped now switches (settled 388 ms at 119.998, override 119.998000, 0 d+m). Kotlin-only ⇒
+  no round 3. **Phase 7 status: everything automatic DONE; open = the owner checklist P7-17/18 (and P4-15/18, P5-13,
+  P7-10c inside it) ⇒ combined into the Phase 8 owner batch (Q43).**
+- **Phase 8 criteria written 2026-09-29 (SPEC P8-1..P8-15), AT THE GATE: owner approval + Q39–Q43.** No code before.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -268,13 +278,23 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
-- Q36 (Phase 7): fix F1 with one shared 100 ppm rate tolerance (native settle + Kotlin verify/mode-lost/atTarget/
+- Q39 (Phase 8): fork app name **"Nuvio RR"** (exe `Nuvio RR.exe`, folders `%APPDATA%\Nuvio RR`, start menu group)?
+  Recommended **yes** (any short name works; it only must differ from "Nuvio").
+- Q40 (Phase 8): distribution as a **portable app folder** (`createDistributable`, zipped; no installer, no WiX, no admin)
+  instead of an MSI (needs the WiX toolset + UAC)? Recommended **app folder**.
+- Q41 (Phase 8): copy your official Nuvio profile into the fork once (script you run; official folder untouched), or
+  start the fork empty? Recommended **copy**.
+- Q42 (Phase 8): raise the upstream-diff budget to ≤ 11 code lines + 3 strings + ≤ 6 lines in `build.gradle.kts`
+  (identity: 2 storage lines, 1 WebView2 line, 1 updater line, the Gradle identity block)? Recommended **yes**.
+- Q43 (Phase 8): do the still-open Phase 7 checklist in the same owner session as Phase 8's; Phase 7 is closed then.
+  Recommended **yes**.
+- Q36 (Phase 7, ANSWERED 2026-09-29: yes): fix F1 with one shared 100 ppm rate tolerance (native settle + Kotlin verify/mode-lost/atTarget/
   already-at-target, override from the observed rate), tests first + a native rebuild + one more review round
   (≈ 80k)? Recommended **yes**.
-- Q37 (Phase 7): also fix review findings 3 (start timeout vs settle cap), 4 (catch Throwable), 5 (H6 routes Upstream)
+- Q37 (Phase 7, ANSWERED 2026-09-29: yes): also fix review findings 3 (start timeout vs settle cap), 4 (catch Throwable), 5 (H6 routes Upstream)
   tests first in the same round, and list 2 (1000/1001 on TVs, not testable here), 6, 7, 8 as known limits in FORK?
   Recommended **yes**.
-- Q38 (Phase 7): confirm `RATE_ERROR_SAMPLES` = 9 (P7-15). Recommended **yes**.
+- Q38 (Phase 7, ANSWERED 2026-09-29: yes): confirm `RATE_ERROR_SAMPLES` = 9 (P7-15). Recommended **yes**.
 - Q30 (Phase 7, ANSWERED 2026-09-29: as recommended): how to test switch/restore at the 240 default? (a) measure-only `NUVIO_RR_MEASURE_MAX_HZ=144` (only with
   NUVIO_RR_MEASURE=1): 23.976/24 ⇒ 143.973, 29.97/59.94 ⇒ 119.998, 60 ⇒ 120, restore to 240 — **recommended** (no
   Windows change, real switch + real registry restore); (b) owner sets the Windows default to 280 for one matrix block and
@@ -350,8 +370,8 @@ suite, ≈ 15 s with only the patch tests.
 | 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
 | 5 mpv timing / OLED | ~400k | ≈ 470k so far (criteria + gate ≈ 140k, code + 22 runs + fixes ≈ 215k, verifier 115k); the owner's PresentMon/checklist session still to come ⇒ ~500k, ~25 % over (verifier again the largest item) |
 | 6 Settings/JNI | ~200k | ≈ 140k so far (criteria + gate, mostly reading PROGRESS/SPEC/plan) |
-| 7 Matrix + review | ~500k; re-estimated at the gate ≈ 550k (criteria ≈ 90k, tooling ≈ 80k, ~90 runs + soaks ≈ 130k, owner batch ≈ 50k, N change ≈ 25k, review ≈ 150k, docs ≈ 25k) | so far ≈ 330k main (criteria + tooling + 85 runs + F1/F2 analysis + N change) + review (running) |
-| 8 Upkeep | ~250k | |
+| 7 Matrix + review | ~500k; re-estimated at the gate ≈ 550k (criteria ≈ 90k, tooling ≈ 80k, ~90 runs + soaks ≈ 130k, owner batch ≈ 50k, N change ≈ 25k, review ≈ 150k, docs ≈ 25k) | ≈ 790k: main ≈ 455k (criteria, tooling, ~95 runs, F1/F2 analysis, N change, Q36/Q37 fixes, docs) + review 228k + round 2 107k — ~45 % over; the reviews were the largest items and round 1 caused the extra fix round |
+| 8 Upkeep | ~250k; re-estimated at the gate ≈ 350k (criteria ≈ 40k done, identity code + tests ≈ 90k, packaging + runs ≈ 60k, patch export/docs ≈ 50k, verifier ≈ 110k) | |
 
 ## Measurements
 - 2026-09-28 (read-only enumeration, 02-mode-enumeration.md): 2560x1440 modes 279.961 (current+registry),
