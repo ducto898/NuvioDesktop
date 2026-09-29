@@ -87,7 +87,10 @@ class ResampleHealth(
         /** A larger relative difference between mpv's measured display rate and the target is unhealthy. */
         const val MAX_RATE_ERROR = 0.01
 
-        /** ...in this many judged samples in a row (≈ 5 s at the 1 s watch; owner Q28). */
-        const val RATE_ERROR_SAMPLES = 5
+        /**
+         * ...in this many judged samples in a row (≈ 9 s at the 1 s watch). Phase 7 rule (owner Q31): the longest
+         * stretch that recovered by itself + 2; a fullscreen toggle bent the estimate for 7 samples at 143.973.
+         */
+        const val RATE_ERROR_SAMPLES = 9
     }
 }
