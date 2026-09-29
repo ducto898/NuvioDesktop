@@ -1,0 +1,17 @@
+### verify.ps1 -Fast
+    native sources changed (display_mode_matcher.cpp); forcing bridge rebuild
+==> incremental compile
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop
+'vswhere.exe' is not recognized as an internal or external command,
+operable program or batch file.
+player_bridge.cpp
+   Creating library C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop\composeApp\build\native\windows\player_bridge.lib and object C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop\composeApp\build\native\windows\player_bridge.exp
+    OK in 5s
+==> unit tests (com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*)
+    gradlew :composeApp:desktopTest --tests com.nuvio.app.features.player.desktop.refreshrate.* --tests com.nuvio.app.fork.*
+    166 tests completed, 1 failed
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#the upstream name in any case is not a fork[desktop]
+    FAIL in 15s
+
+VERIFY FAILED in 20s:
+  - unit tests (com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*) (1 new failing test(s))

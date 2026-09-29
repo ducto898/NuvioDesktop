@@ -34,6 +34,16 @@ class ForkIdentityTest {
         assertFalse(ForkIdentity.isFork("Nuvio"))
     }
 
+    // Phase 8 verifier round: Windows paths ignore case, so "nuvio" is the official folder too
+    @Test
+    fun `the upstream name in any case is not a fork`() {
+        for (name in listOf("nuvio", "NUVIO", " nUvIo ")) {
+            assertEquals("Nuvio", ForkIdentity.appDirName(name), "'$name'")
+            assertFalse(ForkIdentity.isFork(name), "'$name'")
+            assertTrue(ForkIdentity.updaterEnabled(name), "'$name'")
+        }
+    }
+
     // P8-8: the in-app updater would fetch the official build; it is off whenever the fork identity is on
     @Test
     fun `the updater is on upstream and off in the fork`() {
