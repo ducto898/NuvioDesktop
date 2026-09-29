@@ -64,8 +64,17 @@ The only memory between phases. Read it at the start of every phase; update it a
   video; at 240 f11 bends it 3–4 samples. Rule Q31 ⇒ **N = 9** (`c5ef3e5a` red 4/149, `120453b9` green, verify -Full
   green); re-measured: display sync kept, known-bad still falls back (bad frames, ~16 s). **F1 (open, Q36):** DXGI lists
   120 Hz as 12000/100 but Windows runs 119998/1000 ⇒ settle/verify (1e-6) time out ⇒ fail-safe restore; latent (120
-  is picked only under the cap on this monitor). Independent review (P7-19) started; owner checklist
-  `docs/phase7-owner-checklist.md` (P7-17) still to do.
+  is picked only under the cap on this monitor). Owner checklist `docs/phase7-owner-checklist.md` (P7-17) still to do.
+  **Independent review P7-19 (fresh agent, ≈ 228k, read-only, verify -Full green):** every P3–P7 criterion mapped
+  except P7-9 (F1) and the open HUMAN items (P4-15/18, P5-13, P7-10c, P7-17/18). Findings: (1) F1 confirmed and wider:
+  watcher mode-lost, health `atTarget` after a same-target keep, and already-at-target use the same 1e-6 ⇒ proposed one
+  shared 1e-4 tolerance (above the 16.7 ppm gap, below 143.973/144 = 188 ppm); (2) `hz = llround(num/den)` in the CDS
+  call can't select a 1000/1001 mode when an integer twin exists (TVs; not this monitor); (3) START_TIMEOUT 4.5 s <
+  CDS + 4 s settle cap ⇒ a late switch can leave the display switched with upstream timing; (4) controller catches
+  `Exception`, not `Throwable` ⇒ an Error leaves the session stuck until exit; (5) H6 restore doesn't route
+  `setTiming(Upstream)`; (6) no monitor-move check for an already-at-target player; (7) narrow H5/hook race (release
+  then relies on mpv_terminate_destroy); (8) unchecked `NewString`. Lock order, JNI, knob gating, off = upstream,
+  exit paths: no finding. P7-20 doc gaps fixed (`10f36b1c`, `ce479f31`). ⇒ Q36–Q38.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -259,6 +268,13 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
+- Q36 (Phase 7): fix F1 with one shared 100 ppm rate tolerance (native settle + Kotlin verify/mode-lost/atTarget/
+  already-at-target, override from the observed rate), tests first + a native rebuild + one more review round
+  (≈ 80k)? Recommended **yes**.
+- Q37 (Phase 7): also fix review findings 3 (start timeout vs settle cap), 4 (catch Throwable), 5 (H6 routes Upstream)
+  tests first in the same round, and list 2 (1000/1001 on TVs, not testable here), 6, 7, 8 as known limits in FORK?
+  Recommended **yes**.
+- Q38 (Phase 7): confirm `RATE_ERROR_SAMPLES` = 9 (P7-15). Recommended **yes**.
 - Q30 (Phase 7, ANSWERED 2026-09-29: as recommended): how to test switch/restore at the 240 default? (a) measure-only `NUVIO_RR_MEASURE_MAX_HZ=144` (only with
   NUVIO_RR_MEASURE=1): 23.976/24 ⇒ 143.973, 29.97/59.94 ⇒ 119.998, 60 ⇒ 120, restore to 240 — **recommended** (no
   Windows change, real switch + real registry restore); (b) owner sets the Windows default to 280 for one matrix block and
