@@ -1459,6 +1459,48 @@ void throwJava(JNIEnv *env, const char *what) {
 }  // namespace nuvio_rr
 }  // namespace
 
+// Phase 8 (H14, Q39): the bridge's WebView2 folder follows the fork's app identity, so the packaged "Nuvio RR" never
+// writes the official %LOCALAPPDATA%\Nuvio\WebView2 (D6). One rule for all folders: Kotlin ForkIdentity.appDirName.
+// Asked once; if the JVM, the class or the call is unavailable, upstream's "Nuvio" stays. Declared at block scope in
+// player_bridge.cpp's webViewUserDataDirectory(); MSVC binds that to the global name, so it is defined at file scope.
+std::wstring nuvioRrAppDirName() {
+    static std::wstring name;
+    static std::once_flag once;
+    std::call_once(once, []() {
+        name = L"Nuvio";
+        JavaVM *vm = nuvio_rr::javaVm();
+        if (!vm) return;
+        JNIEnv *env = nullptr;
+        bool attached = false;
+        if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
+            if (vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) return;
+            attached = true;
+        }
+        if (!env) return;
+        jclass type = env->FindClass("com/nuvio/app/fork/ForkIdentity");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (type) {
+            jmethodID get = env->GetStaticMethodID(type, "getAppDirName", "()Ljava/lang/String;");
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            if (get) {
+                auto value = static_cast<jstring>(env->CallStaticObjectMethod(type, get));
+                if (env->ExceptionCheck()) {
+                    env->ExceptionClear();
+                } else if (value) {
+                    const jchar *chars = env->GetStringChars(value, nullptr);
+                    jsize length = env->GetStringLength(value);
+                    if (chars && length > 0) name.assign(reinterpret_cast<const wchar_t *>(chars), (size_t)length);
+                    if (chars) env->ReleaseStringChars(value, chars);
+                }
+                if (value) env->DeleteLocalRef(value);
+            }
+            env->DeleteLocalRef(type);
+        }
+        if (attached) vm->DetachCurrentThread();
+    });
+    return name;
+}
+
 // ---------------------------------------------------------------- JNI exports (Kotlin NativeDisplayPort)
 extern "C" {
 

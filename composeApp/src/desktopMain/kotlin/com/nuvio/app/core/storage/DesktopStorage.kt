@@ -47,7 +47,7 @@ internal object DesktopStorage {
             osName.contains("mac") -> userHome.resolve("Library/Application Support/Nuvio")
             osName.contains("win") -> {
                 val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }
-                (appData?.let(Paths::get) ?: userHome.resolve("AppData/Roaming")).resolve("Nuvio")
+                (appData?.let(Paths::get) ?: userHome.resolve("AppData/Roaming")).resolve(com.nuvio.app.fork.ForkIdentity.appDirName) // nuvio-rr fork hook H11
             }
             else -> {
                 val xdgConfig = System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
@@ -63,7 +63,7 @@ internal object DesktopStorage {
             osName.contains("mac") -> userHome.resolve("Library/Caches/Nuvio")
             osName.contains("win") -> {
                 val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
-                (localAppData?.let(Paths::get) ?: userHome.resolve("AppData/Local")).resolve("Nuvio/Cache")
+                (localAppData?.let(Paths::get) ?: userHome.resolve("AppData/Local")).resolve("${com.nuvio.app.fork.ForkIdentity.appDirName}/Cache") // nuvio-rr fork hook H12
             }
             else -> {
                 val xdgCache = System.getenv("XDG_CACHE_HOME")?.takeIf { it.isNotBlank() }

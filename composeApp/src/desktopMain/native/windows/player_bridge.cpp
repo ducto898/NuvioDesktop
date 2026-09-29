@@ -475,7 +475,7 @@ std::wstring webViewUserDataDirectory() {
     }
     std::wstring directory(localAppData);
     CoTaskMemFree(localAppData);
-    directory += L"\\Nuvio\\WebView2";
+    std::wstring nuvioRrAppDirName(); directory += L"\\" + nuvioRrAppDirName() + L"\\WebView2"; // nuvio-rr fork hook H14
     int createResult = SHCreateDirectoryExW(nullptr, directory.c_str(), nullptr);
     if (createResult != ERROR_SUCCESS && createResult != ERROR_ALREADY_EXISTS && createResult != ERROR_FILE_EXISTS) {
         throw std::runtime_error("Failed to create WebView2 user data directory");

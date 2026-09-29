@@ -122,7 +122,7 @@ function Write-DiffReport {
     Write-Host "    base: $UpstreamRef @ $($base.Substring(0, 10))"
 
     # Paths that are patch infrastructure (docs, tooling), reported separately from product code.
-    $infra = '^(SPEC\.md|PROGRESS\.md|FORK\.md|docs/|scripts/|\.claude/)'
+    $infra = '^(SPEC\.md|PROGRESS\.md|FORK\.md|docs/|scripts/|\.claude/|measurements/|patches/)'
 
     $rows = @()
     # Tracked changes (committed + staged + unstaged) vs base.
@@ -149,6 +149,27 @@ function Write-DiffReport {
     Write-Host ("    new product files      : {0,3}   lines: {1}" -f @($newProduct).Count, (& $sum $newProduct))
     foreach ($r in $newProduct) { Write-Host ("      A {0}  (+{1})" -f $r.Path, $r.Added) }
     Write-Host ("    new infra/doc files    : {0,3}   lines: {1}" -f @($newInfra).Count, (& $sum $newInfra))
+
+    # Phase 8 (SPEC P8-1, owner Q42): every line added to an upstream file carries its hook tag, and the tagged lines
+    # stay within the budget: 11 code lines, 3 strings.xml lines, 6 build.gradle.kts lines.
+    $budget = @{ code = 11; strings = 3; gradle = 6 }
+    $count = @{ code = 0; strings = 0; gradle = 0 }
+    $untagged = @()
+    foreach ($r in $up) {
+        $added = @(git diff -U0 $base -- $r.Path 2>$null | Where-Object { $_ -match '^\+' -and $_ -notmatch '^\+\+\+' })
+        foreach ($l in $added) {
+            if ($l -notmatch 'nuvio-rr fork hook H\d+') { $untagged += "$($r.Path): $($l.Trim())"; continue }
+            $kind = if ($r.Path -like '*strings.xml') { 'strings' } elseif ($r.Path -like '*build.gradle.kts') { 'gradle' } else { 'code' }
+            $count[$kind]++
+        }
+    }
+    Write-Host ("    hook lines (budget)    : code {0}/{1}, strings {2}/{3}, gradle {4}/{5}" -f
+        $count.code, $budget.code, $count.strings, $budget.strings, $count.gradle, $budget.gradle)
+    foreach ($u in $untagged) { Write-Host "      untagged: $u" -ForegroundColor Red }
+    if ($untagged) { $failures.Add("upstream diff: $($untagged.Count) added line(s) without a 'nuvio-rr fork hook Hn' tag") }
+    foreach ($k in $budget.Keys) {
+        if ($count[$k] -gt $budget[$k]) { $failures.Add("upstream diff: $k hook lines $($count[$k]) > budget $($budget[$k])") }
+    }
 }
 
 $total = [Diagnostics.Stopwatch]::StartNew()

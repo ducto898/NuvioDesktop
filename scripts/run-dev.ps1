@@ -57,6 +57,9 @@ $env:LOCALAPPDATA = $local
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $local 'Nuvio\WebView2'
 New-Item -ItemType Directory -Force $env:WEBVIEW2_USER_DATA_FOLDER | Out-Null
 Write-Host "Dev profile: $ProfileRoot (APPDATA/LOCALAPPDATA redirected for this process)"
+# Phase 8 (P8-7): dev and measure runs keep upstream folder names inside the dev profile (devprofile\Roaming\Nuvio, ...);
+# only the packaged fork app uses its own identity (fork-identity.properties, Gradle hook H15).
+$env:NUVIO_FORK_IDENTITY = 'off'
 if ($Feature) {
     $env:NUVIO_RR_ENABLE = '1'
     Write-Host "Refresh-rate matching ON; log: $(Join-Path $local 'Nuvio\Cache\refresh-rate.log')"

@@ -530,6 +530,7 @@ val desktopReleaseVersionCode = (
     ?: 1
 val desktopReleasePackageVersion = jpackageCompatibleVersion(desktopReleaseVersionName)
 val windowsMsiUpgradeUuid = "395990ee-9b8a-3548-922c-e7a23a495b8d"
+val nuvioForkName: String? = rootProject.file("fork-identity.properties").takeIf { it.isFile && System.getenv("NUVIO_FORK_IDENTITY") != "off" }?.let { f -> Properties().apply { f.reader().use { load(it) } }.getProperty("name")?.trim()?.takeIf { it.isNotEmpty() } } // nuvio-rr fork hook H15
 val iosDistribution = (
     providers.gradleProperty("nuvio.ios.distribution").orNull
         ?: System.getenv("NUVIO_IOS_DISTRIBUTION")
@@ -598,6 +599,7 @@ fun runtimeConfigValue(key: String, fallback: String = ""): String =
     runtimeLocalProperties.getProperty(key)?.trim()?.takeIf { it.isNotBlank() }
         ?: providers.environmentVariable(key).orNull?.trim()?.takeIf { it.isNotBlank() }
         ?: fallback
+if (nuvioForkName != null) check(runtimeConfigValue("SENTRY_DESKTOP_DSN").isBlank()) { "fork build ($nuvioForkName): SENTRY_DESKTOP_DSN must be blank, no crash upload (SPEC P8-9)" } // nuvio-rr fork hook H16
 
 fun runtimeConfigBoolean(key: String, default: Boolean): Boolean =
     when (runtimeConfigValue(key).lowercase()) {
@@ -1326,6 +1328,7 @@ compose.desktop {
             // Keep AWT from loading its own GTK (Swing L&F/file dialogs): the
             // bridge owns the process's GTK via initGtkEarly (skoruppa's fix).
             "-Djdk.gtk.version=0",
+            nuvioForkName?.let { "-Dnuvio.fork.name=$it" }, // nuvio-rr fork hook H17
             "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
@@ -1336,7 +1339,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage)
-            packageName = "Nuvio"
+            packageName = nuvioForkName ?: "Nuvio" // nuvio-rr fork hook H18
             packageVersion = desktopReleasePackageVersion
             vendor = "Nuvio Media"
             if (isMacHost) {
@@ -1389,10 +1392,10 @@ compose.desktop {
             }
             windows {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon-transparent.ico"))
-                upgradeUuid = windowsMsiUpgradeUuid
+                upgradeUuid = if (nuvioForkName != null) "26fd1299-c8e4-4d89-a8b0-10446ec35bb1" else windowsMsiUpgradeUuid // nuvio-rr fork hook H19
                 shortcut = true
                 menu = true
-                menuGroup = "Nuvio"
+                menuGroup = nuvioForkName ?: "Nuvio" // nuvio-rr fork hook H20
             }
             linux {
                 iconFile.set(project.file("src/desktopMain/resources/icons/nuvio-app-icon-transparent.png"))

@@ -18,9 +18,17 @@ object ForkIdentity {
     @JvmStatic
     val updaterEnabled: Boolean get() = updaterEnabled(current)
 
-    fun appDirName(property: String?): String = TODO("Phase 8 commit B")
+    /** A usable Windows folder name: 1–64 chars, none of `\ / : * ? " < > |`, not `.`/`..`, no trailing dot. */
+    private val SAFE = Regex("""[^\\/:*?"<>|\x00-\x1f]{1,64}""")
 
-    fun isFork(property: String?): Boolean = TODO("Phase 8 commit B")
+    fun appDirName(property: String?): String {
+        val name = property?.trim().orEmpty()
+        val usable = SAFE.matches(name) && name != "." && name != ".." && !name.endsWith(".")
+        return if (usable) name else UPSTREAM_NAME
+    }
 
-    fun updaterEnabled(property: String?): Boolean = TODO("Phase 8 commit B")
+    fun isFork(property: String?): Boolean = appDirName(property) != UPSTREAM_NAME
+
+    /** The in-app updater would install the official build, so it is off in the fork (P8-8). */
+    fun updaterEnabled(property: String?): Boolean = !isFork(property)
 }
