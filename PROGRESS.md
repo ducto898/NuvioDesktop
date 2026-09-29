@@ -89,7 +89,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   hooks H11–H20 (storage ×2, updater, WebView2 via JNI, 6 Gradle lines incl. Sentry guard); `fork-identity.properties`
   (`name=Nuvio RR`); run-dev keeps upstream names (`NUVIO_FORK_IDENTITY=off`); verify.ps1 now enforces the hook budget
   (every added upstream line tagged; code 11/11, strings 3/3, Gradle 6/6). Scripts: `measure.ps1 -Packaged`,
-  `package-fork.ps1` (zip `..\dist\Nuvio-RR-1.1.26-d1fc4173.zip`), `import-profile.ps1` (tested into a temp folder;
+  `package-fork.ps1` (zip `..\dist\Nuvio-RR-1.1.26-14aca000.zip`), `import-profile.ps1` (tested into a temp folder;
   skips updates\, *.part, sync client id), `export-patch.ps1` (`..\patches\...patch`, `git apply --check` OK).
   Packaged runs: already-at-target and capped switch PASS, 0 official writes, 169 files in the fork's WebView2.
   Sentry guard tested (dummy DSN ⇒ build fails). Docs: FORK 0 TBD (§4 runbook, §5, §7, §9 exe entry, §10), CI
