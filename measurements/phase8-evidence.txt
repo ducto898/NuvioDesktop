@@ -1,0 +1,29 @@
+Phase 8 evidence (2026-09-29; owner approved P8 with Q39-Q43 as recommended)
+
+P8-1  verify -Full (measurements/phase8-verify-full.txt): "hook lines (budget): code 11/11, strings 3/3, gradle 6/6",
+      no untagged added upstream line (the check now fails the run otherwise); 8 upstream files; no new dependency;
+      nothing pushed.
+P8-2  verify -Full green: 1511 tests, only known upstream failures; official folders untouched in every run.
+P8-3  ForkIdentity tests first: a5208c45 (A, red 5/165) / 4b01b44b (B, green); test diff A->B empty.
+P8-4  packaged run 20260929-192215-*-p8-packaged: appDirName "Nuvio RR", data in packprofile\Roaming\Nuvio RR, cache in
+      packprofile\Local\Nuvio RR\Cache, forkWebView2Writes 169 (real %LOCALAPPDATA%\Nuvio RR\WebView2, hook H14),
+      officialProfileWrites [] (official %APPDATA%\Nuvio and %LOCALAPPDATA%\Nuvio incl. WebView2); exe "Nuvio RR.exe",
+      MSI upgradeUuid 26fd1299-... (H19). Deviation: window title stays "Nuvio" (SPEC P8 note).
+P8-5  side by side: owner checklist (docs/phase8-owner-checklist.md part 1).
+P8-6  import-profile.ps1 tested into a temp target: 33 files copied, updates\*.msi, *.part and the sync client id
+      skipped, a second run refused, official profile's newest file time unchanged.
+P8-7  run-dev.ps1 sets NUVIO_FORK_IDENTITY=off (all dev/measure runs keep devprofile\...\Nuvio); measure.ps1 -Packaged:
+      p8-packaged (already at target 239.901, est 239.8972, 0 d+m) and p8-packaged-cap (143.973, 0 d+m) PASS (judge).
+P8-8  updater: ForkIdentityTest (off with the identity), H13 gates AppUpdater's auto-check and banner; the packaged
+      run's log has no update activity (neither has a dev run in smoke-player mode, so the log alone proves little);
+      banner: owner checklist item 6.
+P8-9  H16: the build fails when SENTRY_DESKTOP_DSN is non-blank and the fork identity is on (code review; not run,
+      no DSN is configured anywhere on this PC).
+P8-10 package-fork.ps1: ..\dist\Nuvio-RR-1.1.26-a8dc135f.zip (195 MB); checks: Nuvio RR.exe, launcher option
+      -Dnuvio.fork.name=Nuvio RR, player_bridge.dll/libmpv-2.dll/WebView2Loader.dll in the app jar (unpacked at run time
+      into the fork's cache, DesktopCache -> DesktopStorage.cacheDir).
+P8-11 driver line of the packaged run: "exe=Nuvio RR.exe app_profile=no" (no NVCP entry yet; owner checklist item 3).
+P8-12 export-patch.ps1: ..\patches\nuvio-rr-fe92d414-f6df6234.patch (84 files, 802 KB), git apply --check on fe92d414 OK
+      in a temporary worktree (removed).
+P8-14 FORK.md: 0 TBD (§4 runbook, §5 hot spots incl. H11-H20, §7 identity/updater/Sentry/distribution, §9 exe entry,
+      §10 known limits); docs/ci-proposal.md; SPEC §1-3 (H11-H20, ForkIdentity, fork-identity.properties).
