@@ -6,7 +6,7 @@ re-verifying the patch after an upstream update. Keep it in sync with the code.
 Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `fe92d414` (rebased 2026-09-28; forked at `083921cf` on 2026-09-27).
 
 ## 1. Behaviour
-State after Phase 7 (details in §4 per phase):
+State after Phase 8 (details in §4 per phase):
 - On/off: the setting **"Match display refresh rate"** (Settings → Playback → Display, Windows only, default OFF, per
   PC in `nuvio_refresh_rate.properties`, not synced). Read once per player at H2, so a change applies from the next
   video. `NUVIO_RR_ENABLE` is a dev/measure override: `1` forces on, `0` forces off, unset = the setting. Off ⇒ no mpv
@@ -20,6 +20,9 @@ State after Phase 7 (details in §4 per phase):
   restore and put the saved mpv values back (playback continues); display-resample clearly broken (health check) ⇒
   mpv's own timing, the mode stays (rate error: 9 judged samples in a row, P5-11 / P7-15).
 - Restore on player screen gone, window close, JVM exit; Windows reverts on crash/kill (D7).
+- Fork app identity (Phase 8): the packaged fork is "Nuvio RR" (own exe, start-menu group, MSI upgrade UUID) with its
+  own `%APPDATA%\Nuvio RR`, `%LOCALAPPDATA%\Nuvio RR\Cache` and `...\WebView2`; in-app updater off; the build refuses a
+  crash-upload DSN. Without `fork-identity.properties` (or with `NUVIO_FORK_IDENTITY=off`) every name is upstream's.
 
 Original summary of intent:
 - Opt-in setting "Match display refresh rate" (Playback settings, Windows), default OFF.
@@ -42,12 +45,20 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/PlaybackSettingsPage.kt` | H9 `RefreshRateMatchSettingsSection(isTablet = isTablet)` (fully qualified) right after the `if (isWindows)` "NVIDIA RTX Video" section | 1 |
 | `composeApp/src/commonMain/composeResources/values/strings.xml` | H10 3 strings after `settings_playback_nvidia_rtx_super_resolution_desc` (`settings_playback_display_section`, `settings_playback_match_refresh_rate`, `settings_playback_match_refresh_rate_desc`), XML comment on each; other locales fall back to English | 3 |
 
+| `composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt` | H11 Roaming folder, H12 Local cache folder: `ForkIdentity.appDirName` instead of `"Nuvio"` (Windows branches only) | 2 |
+| `composeApp/src/desktopMain/kotlin/com/nuvio/app/core/build/AppFeaturePolicy.desktop.kt` | H13 `inAppUpdaterEnabled = ForkIdentity.updaterEnabled` | 1 |
+| `composeApp/src/desktopMain/native/windows/player_bridge.cpp` | H14 `webViewUserDataDirectory()`: `\<nuvioRrAppDirName()>\WebView2` (block-scope declaration + use on one line) | 1 |
+| `composeApp/build.gradle.kts` | H15 `nuvioForkName` from `fork-identity.properties` (off with `NUVIO_FORK_IDENTITY=off`), H16 Sentry DSN guard, H17 `-Dnuvio.fork.name` in `application.jvmArgs`, H18 `packageName`, H19 Windows `upgradeUuid`, H20 Windows `menuGroup` | 6 |
+
 H7 (a Kotlin line pushing the setting to native) was planned but is not needed: H2 asks Kotlin itself (Phase 6).
+Budget (owner Q42, enforced by `verify.ps1 -Full`): 11 code lines, 3 string lines, 6 Gradle lines; every added line tagged.
 
 ## 3. New files
 | File | Purpose |
 |---|---|
 | `composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp` | Native side (`namespace nuvio_rr`, `#include`d by `player_bridge.cpp`; closes/reopens its anonymous namespace for `<dxgi1_2.h>` and the JNI exports; `#pragma comment(lib, "dxgi.lib")`). Phase 2/2b: measure-only sampler + knobs. Phase 4: feature config (`NUVIO_RR_ENABLE`, `NUVIO_RR_FAULT`), `refresh-rate.log` sink, player registry, `on_preloaded` hook worker + JNI upcall, Win32 port (QDC query, DXGI modes, CDS switch + settle, restore), JNI exports for `NativeDisplayPort`. Phase 5: timing apply/revert with saved values (`applyDisplaySyncLocked`, `setTiming`), `timingStats`, read-only NVAPI DRS read (`readDriverSettings`), fault kinds `timing-set`/`drop-mode`, query-failure log once per change. Phase 6: per-player enable at H2 through the `nativeFeatureEnabled` upcall (`upcallFeatureEnabled`, `gFeatureUsed` gates H4/H5), fault kind `enable-upcall`. Phase 7: measure-only mode cap `NUVIO_RR_MEASURE_MAX_HZ` in `enumerateModes` (only with `NUVIO_RR_MEASURE=1`, Q30) |
+| `composeApp/src/desktopMain/kotlin/com/nuvio/app/fork/ForkIdentity.kt` + `desktopTest/.../fork/ForkIdentityTest.kt` | Phase 8 app identity: folder name from `-Dnuvio.fork.name` (validated, else "Nuvio"), updater flag; read by H11–H13 and, through JNI, by H14 (`nuvioRrAppDirName()` at file scope in `display_mode_matcher.cpp`) |
+| `fork-identity.properties` (repo root) | `name=Nuvio RR`, read by Gradle hook H15 |
 | `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSetting.kt` + `.desktop.kt`/`.android.kt`/`.ios.kt` | `expect object RefreshRateMatchSetting` (`available`, `enabled`, `setEnabled`); desktop: store `nuvio_refresh_rate`, key `match_display_refresh_rate`, `RefreshRateMatchPreference`; android/iOS: unavailable no-op (P6-3, P6-4) |
 | `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSettingsSection.kt` | the "Display" section with the switch, nothing when unavailable (P6-11) |
 | `.../refreshrate/runtime/RefreshRateEnablement.kt` | the enable rule: env override, else the setting; native codes 0/1/2, -1 on error (P6-3, P6-7) |
@@ -765,6 +776,11 @@ Design notes:
 lean verifier round).
 
 ### Phase 8 — Upkeep: own app identity, updater/Sentry off, patch export, docs (written 2026-09-29, before code; owner-approved 2026-09-29 with Q39–Q43 as recommended)
+Deviations found while building (2026-09-29): P8-4's "window title `<name>`" is dropped — the title is hard-coded
+`"Nuvio"` in `Main.kt` and a 12th code hook would exceed Q42; exe, taskbar grouping, start menu and folders carry the
+name. The patch and zip go outside the repo (`..\patches`, `..\dist`), not into `patches/`. The WebView2 name reaches
+native code through a JNI read of `ForkIdentity` (MSVC binds the block-scope declaration to a global function, so
+`nuvioRrAppDirName()` is defined at file scope).
 Scope: make the fork a separate app that can run next to the official Nuvio (requirement 20, D6), switch off what must
 not run in a private build (updater, crash upload), export the patch, and finish FORK.md so an upstream update can be
 re-applied without this session. **Not in Phase 8:** new feature behaviour; any NVIDIA/Windows setting change by Claude
