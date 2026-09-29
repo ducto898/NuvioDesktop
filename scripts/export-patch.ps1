@@ -26,7 +26,8 @@ try {
     $outDir = Join-Path $root 'patches'
     New-Item -ItemType Directory -Force $outDir | Out-Null
     $patch = Join-Path $outDir ("nuvio-rr-{0}-{1}.patch" -f $base.Substring(0, 8), $head.Substring(0, 8))
-    git diff --binary --full-index $base $head -- . ':(exclude)measurements/**' ':(exclude)testdata/**' | Set-Content -Encoding utf8NoBOM -NoNewline $patch
+    # --output writes git's bytes as they are (a PowerShell pipe would re-encode and re-join the lines)
+    git diff --binary --full-index --output=$patch $base $head -- . ':(exclude)measurements/**' ':(exclude)testdata/**'
     $files = @(git diff --name-only $base $head -- . ':(exclude)measurements/**' ':(exclude)testdata/**')
     Write-Host ("patch: {0} ({1} files, {2:n0} KB)" -f $patch, $files.Count, ((Get-Item $patch).Length / 1KB))
 
