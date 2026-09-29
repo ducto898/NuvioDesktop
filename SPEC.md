@@ -631,7 +631,11 @@ Design:
 **Verification:** `verify.ps1 -Full` + the measure runs above, then ONE lean verifier round (this table, commit ids,
 evidence folder list).
 
-### Phase 7 — Test matrix + independent review (written 2026-09-29, before code; owner-approved 2026-09-29 with Q30–Q35 as recommended)
+### Phase 7 — Test matrix + independent review (written 2026-09-29, before code; owner-approved 2026-09-29 with Q30–Q35 as recommended; Q36–Q38 yes)
+Amendments from the Phase 7 fixes (owner Q36/Q37): **P3-21** "within 1e-6" ⇒ within 100 ppm (`RATE_MATCH_TOLERANCE`, also
+mode-lost, same-target, already-at-target, native settle; a verified switch keeps the observed rate); **P5-7** "screen
+gone ⇒ no call needed" ⇒ screen gone routes `setTiming(Upstream)` to the owner; new: a start the hook stopped waiting
+for gets its display-sync when it lands; switch/restore catch `Throwable`. Known limits: FORK §10.
 Scope: prove the finished feature (Phases 3–6) across the clip matrix, the disturbance cases carried from Phases 4–5,
 10-min soaks and one owner checklist, at the **240 Hz desktop default** (Q27: 239.901 live, 240 in the registry); set
 `ResampleHealth.RATE_ERROR_SAMPLES` from measured data (Q28); end with a fresh, independent review of the whole patch.
@@ -646,7 +650,7 @@ Design notes:
   `NUVIO_RR_MEASURE_MAX_HZ=<n>`, honoured only when `NUVIO_RR_MEASURE=1`, that drops listed modes above `<n>` from the
   list handed to `decide()` (the current-state reads are untouched). With `144`: 23.976/24 ⇒ 143.973 (×6),
   29.97/59.94 ⇒ 59.951 (×2/×1; 120/119.88 is just outside the 1000/1001 tolerance, measured), 60 ⇒ 120.000 (listed
-  as 12000/100; see finding F1 in PROGRESS) — real switches away from 240 and a real `NULL` restore back to the registry mode
+  as 12000/100, runs 119998/1000: finding F1, fixed by a 100 ppm rate match, Q36) — real switches away from 240 and a real `NULL` restore back to the registry mode
   240, the same path a 280 desktop takes. Rejected alternative: `switcher.exe` holding 280 around a run — the feature's
   restore (`ChangeDisplaySettingsExW(NULL)`) goes to the **registry** mode 240, not to switcher's 280, so the run would
   test an artificial two-process state.

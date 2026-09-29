@@ -55,3 +55,14 @@ P7-13/14 phase7-rate-off.txt: live lines (13) + replay of 225 folders (118 judge
 P7-15/16 N = max(3, 7 + 2) = 9 (owner confirms at the end gate). Commits c5ef3e5a (A, red 4/149),
       120453b9 (B, green, test diff A->B empty). Re-measured: p7-actions-n9, p7-actions240-n9 (display sync kept),
       p7-badsync-240-n9 (fallback 08:09:21, bad frames).
+
+Q36/Q37 fixes (owner yes 2026-09-29) + review rounds
+- Round 1 review (fresh agent, ~228k): findings 1-8, see PROGRESS. Fixed tests-first: 8d8e2239 (A, red 9/157) /
+  0764a655 (B, green 1503): 100 ppm RATE_MATCH_TOLERANCE (Kotlin + native settle), late start routed, Throwable,
+  screen gone routes upstream. Known limits 2, 6, 7, 8: FORK §10 (f94ae173).
+- Round 2 review (fresh agent, ~107k): FAIL on the late start (a live watcher tick drops the health watch first) and the
+  observed rate not kept for a same-target next start; 188 ppm edge untested. Fixed tests-first: 492e65cd (A2, red
+  2/160) / 6941fcf8 (B2, green 1506, upstream 5 files / 10 lines). Kotlin only => no round 3 (P7-19).
+- Live after the fix: sdr-1080p-60 capped => settles in 388 ms at 119998/1000, display-fps-override 119.998000,
+  est 119.996, 0 d+m (was settle-timeout); vfr capped same; 23.976 capped 143.973 and 240 already-at-target unchanged
+  (runs *p7-q36-*, *p7-r2-*: 8/8 PASS; judge compares rates at 100 ppm).
