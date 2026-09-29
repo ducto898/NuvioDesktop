@@ -36,6 +36,11 @@
   Fault kind enable-upcall: the H2 upcall fails, so the player must play without the feature (P6-10).
   summary.json "enable" = the env passed, the store file after the run, the enable/upcall lines of the log.
 
+  Phase 8: -Packaged runs the built app image (composeApp\build\compose\binaries\main\app\<name>\<name>.exe, from
+  scripts\package-fork.ps1 or createDistributable) instead of Gradle, with APPDATA/LOCALAPPDATA redirected to
+  <root>\packprofile, so the fork's own profile stays untouched; the fork's folder name comes from fork-identity.properties.
+  WebView2 is NOT redirected: it goes to the real %LOCALAPPDATA%\<name>\WebView2 (hook H14 under test).
+
   Phase 7: -MaxHz <n> sets NUVIO_RR_MEASURE_MAX_HZ (measure-only mode cap, Q30): modes above <n> are hidden from the
   feature's decision, so at the 240 Hz desktop default a 23.976 clip switches to 143.973 and restores to 240.
   summary.json "health" = the feature's rate-off / resample-unhealthy lines (Q28); mpv.after5s sums only positive
@@ -73,6 +78,7 @@ param(
     [string]$Fault = '',
     [int]$CloseAfterSwitchMs = -1,
     [int]$MaxHz = 0,
+    [switch]$Packaged,
     [ValidateSet('', 'on', 'off', 'absent')][string]$Setting = '',
     [ValidateSet('', '0', '1')][string]$EnableEnv = ''
 )
@@ -241,7 +247,15 @@ Start-Sleep -Milliseconds 800
 
 # Start in the requested window mode: the app restores fullscreen from the DEV profile's window-state
 # file, and F11 cannot leave a restored fullscreen. Only the dev profile (run-dev.ps1 default) is edited.
-$windowState = Join-Path $root 'devprofile\Roaming\Nuvio\nuvio_window_state.properties'
+# Phase 8: a packaged run uses its own redirected profile and the fork's folder name.
+$forkName = 'Nuvio'
+if ($Packaged) {
+    $idFile = Join-Path $repo 'fork-identity.properties'
+    $line = if (Test-Path $idFile) { Get-Content $idFile | Where-Object { $_ -match '^\s*name\s*=' } | Select-Object -First 1 }
+    if ($line) { $forkName = ($line -split '=', 2)[1].Trim() }
+}
+$profileRoot = Join-Path $root $(if ($Packaged) { 'packprofile' } else { 'devprofile' })
+$windowState = Join-Path $profileRoot "Roaming\$forkName\nuvio_window_state.properties"
 $wantFs = if ($Fullscreen) { 'true' } else { 'false' }
 if (Test-Path $windowState) {
     $lines = @(Get-Content $windowState | Where-Object { $_ -notmatch '^was_fullscreen=' }) + "was_fullscreen=$wantFs"
@@ -252,7 +266,7 @@ if (Test-Path $windowState) {
 }
 
 # Phase 6 (P6-8): the setting goes into the DEV profile's store only (never the official one).
-$settingStore = Join-Path $root 'devprofile\Roaming\Nuvio\nuvio_refresh_rate.properties'
+$settingStore = Join-Path $profileRoot "Roaming\$forkName\nuvio_refresh_rate.properties"
 if ($Setting -eq 'absent') {
     Remove-Item $settingStore -ErrorAction SilentlyContinue   # fresh-profile case (P6-5)
 } elseif ($Setting) {
@@ -273,8 +287,18 @@ $envSet = @{
 }
 foreach ($k in $envSet.Keys) { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k); [Environment]::SetEnvironmentVariable($k, $envSet[$k]) }
 try {
-    $launcher = Start-Process pwsh -ArgumentList '-NoProfile', '-File', "`"$repo\scripts\run-dev.ps1`"" -PassThru -WindowStyle Minimized `
-        -RedirectStandardOutput "$out\app-stdout.txt" -RedirectStandardError "$out\app-stderr.txt"
+    if ($Packaged) {
+        $exe = Join-Path $repo "composeApp\build\compose\binaries\main\app\$forkName\$forkName.exe"
+        if (-not (Test-Path $exe)) { throw "packaged app not found: $exe (run scripts\package-fork.ps1)" }
+        foreach ($k in 'APPDATA', 'LOCALAPPDATA') { $savedEnv[$k] = [Environment]::GetEnvironmentVariable($k) }
+        [Environment]::SetEnvironmentVariable('APPDATA', (Join-Path $profileRoot 'Roaming'))
+        [Environment]::SetEnvironmentVariable('LOCALAPPDATA', (Join-Path $profileRoot 'Local'))
+        New-Item -ItemType Directory -Force (Join-Path $profileRoot 'Roaming'), (Join-Path $profileRoot 'Local') | Out-Null
+        $launcher = Start-Process $exe -PassThru -RedirectStandardOutput "$out\app-stdout.txt" -RedirectStandardError "$out\app-stderr.txt"
+    } else {
+        $launcher = Start-Process pwsh -ArgumentList '-NoProfile', '-File', "`"$repo\scripts\run-dev.ps1`"" -PassThru -WindowStyle Minimized `
+            -RedirectStandardOutput "$out\app-stdout.txt" -RedirectStandardError "$out\app-stderr.txt"
+    }
 } finally {
     foreach ($k in $savedEnv.Keys) { [Environment]::SetEnvironmentVariable($k, $savedEnv[$k]) }
 }
@@ -460,7 +484,7 @@ for ($i = 1; $i -lt $times.Count; $i++) { $gaps += ($times[$i] - $times[$i - 1])
 
 $summary = [ordered]@{
     run = $runName; clip = $clipName; seconds = $Seconds; fullscreenRequested = [bool]$Fullscreen; sync = $Sync; switchHz = $SwitchHz
-    maxHz = $MaxHz
+    maxHz = $MaxHz; packaged = [bool]$Packaged; appDirName = $forkName
     actions = $Actions; forcedClose = $forced; opts = $Opts; hideOverlay = [bool]$HideOverlay
     windows = [ordered]@{
         before = & $winState $first
@@ -646,6 +670,13 @@ if ($hsErr.Count -or $werEvents.Count) { $problems += "crash evidence: $($hsErr.
 $touched = @($officialProfile, $officialLocal | Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem $_ -Recurse -File -ErrorAction SilentlyContinue } |
     Where-Object { $_.LastWriteTime -gt $startTime })
 $summary.officialProfileWrites = @($touched | ForEach-Object { $_.FullName })
+if ($Packaged) {
+    # P8-4: the fork's WebView2 folder (known-folder LocalAppData, not redirected) must be the one written (hook H14).
+    $forkWebView = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) "$forkName\WebView2"
+    $summary.forkWebView2Writes = @(Get-ChildItem $forkWebView -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -gt $startTime }).Count
+    $summary.forkProfileFiles = @(Get-ChildItem (Join-Path $profileRoot "Roaming\$forkName") -File -ErrorAction SilentlyContinue | ForEach-Object Name)
+}
 if ($touched.Count) { $problems += "official profile written: $($touched.Count) file(s)" }
 
 if ([math]::Abs([double]$last.hz - $ExpectHz) -gt 0.01) {
