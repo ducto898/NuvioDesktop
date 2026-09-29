@@ -1,0 +1,12 @@
+### verify.ps1 -Fast
+==> incremental compile
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop
+    OK in 24s
+==> unit tests (com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*)
+    gradlew :composeApp:desktopTest --tests com.nuvio.app.features.player.desktop.refreshrate.* --tests com.nuvio.app.fork.*
+    167 tests completed, 1 failed
+    NEW FAILURE: com.nuvio.app.fork.ForkIdentityTest#the shortcut icon updater is on upstream and off in the fork[desktop]
+    FAIL in 21s
+
+VERIFY FAILED in 45s:
+  - unit tests (com.nuvio.app.features.player.desktop.refreshrate.*,com.nuvio.app.fork.*) (1 new failing test(s))

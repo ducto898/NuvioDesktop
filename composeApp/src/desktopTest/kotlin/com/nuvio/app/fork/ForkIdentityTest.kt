@@ -44,6 +44,14 @@ class ForkIdentityTest {
         }
     }
 
+    // Q44: upstream's App icon setting rewrites the OFFICIAL Nuvio shortcuts; the portable fork has none of its own
+    @Test
+    fun `the shortcut icon updater is on upstream and off in the fork`() {
+        assertTrue(ForkIdentity.shortcutIconsEnabled(null))
+        assertFalse(ForkIdentity.shortcutIconsEnabled("Nuvio RR"))
+        assertTrue(ForkIdentity.shortcutIconsEnabled("nuvio"), "the upstream name is upstream")
+    }
+
     // P8-8: the in-app updater would fetch the official build; it is off whenever the fork identity is on
     @Test
     fun `the updater is on upstream and off in the fork`() {
