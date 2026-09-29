@@ -135,3 +135,17 @@ playback start logs one line, e.g. `hook p1 driver frl=off(global) power=1(globa
 - Cost of max performance: GPU power in PROGRESS.md "Measurements" (Phase 5).
 - After **every NVIDIA driver update**: check the `driver` log line (an update or "restore defaults" can bring a cap
   back) and re-run `scripts/measure.ps1 -Feature` (§6).
+
+## 10. Known limits (Phase 7 review, owner-accepted Q37, 2026-09-29)
+- **1000/1001 twins on TVs:** the switch asks Windows for whole Hz (`ChangeDisplaySettingsExW` takes an integer), so on a
+  display that lists both 119.88 and 120 Hz a 23.976 video may land on 120.000 ⇒ verify-mismatch ⇒ restore and upstream
+  timing (fail-safe, plays normally). Not reachable on the MO27Q28G (one rate per integer). Fix idea: pick the DEVMODE
+  from `EnumDisplaySettings` or use `SetDisplayConfig` with the exact rational.
+- **Monitor move of an already-at-target player:** no switch happened, so the watcher does not follow the window; a
+  player dragged to a monitor with another rate keeps the old `display-fps-override` until the health check falls back
+  (≈ 20 s). Only relevant with two monitors.
+- **Player shutdown racing the hook:** if the player shuts down in the few microseconds between the hook arriving and
+  the worker taking it, the hook is released by `mpv_terminate_destroy` instead of by us (no hang, no crash).
+- **`NewString` out of memory** in one JNI upcall is not checked before the call (the JVM would already be failing).
+- Rates are "the same" within 100 ppm (F1): DXGI rounds some modes (this monitor's 120 Hz is listed 12000/100, runs
+  119998/1000). Distinct real modes are ≥ 188 ppm apart (143.973 vs 144).
