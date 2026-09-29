@@ -93,15 +93,15 @@ _Partial; completed in Phase 8._
 
 ## 6. Verifying after an update
 After an upstream rebase, an NVIDIA driver update or a Windows feature update (Phase 7 recipe, ~2 h unattended):
-1. `scriptserify.ps1 -Full` ⇒ green with only the known upstream failures; upstream diff 5 files / 10 lines (§2).
+1. `scripts\verify.ps1 -Full` ⇒ green with only the known upstream failures; upstream diff 5 files / 10 lines (§2).
 2. Check the `driver` line of one feature run (§9): `frl=off`, `power=1` (max performance).
-3. `scriptsr-tools\p7-matrix.ps1 -Set matrix,off,switch,lifecycle,faults,bad` (clips: `scripts\gen-testclips.ps1`;
+3. `scripts\rr-tools\p7-matrix.ps1 -Set matrix,off,switch,lifecycle,faults,bad` (clips: `scripts\gen-testclips.ps1`;
    the switch/lifecycle/fault sets use the measure-only cap `-MaxHz 144`, because at the 240 Hz desktop default
    24–60 fps are already at their target and nothing would switch). Soaks: `-Set soak` / `soak60` after
    `scripts\gen-soakclips.ps1`.
-4. `python scriptsr-tools\p7-collect.py judge <run folders>` ⇒ PASS, except the expected ones: the `badsync`
+4. `python scripts\rr-tools\p7-collect.py judge <run folders>` ⇒ PASS, except the expected ones: the `badsync`
    runs must show `resample-unhealthy` (the health fallback works), kill runs have no restore call.
-5. `python scriptsr-tools\p7-collect.py rateoff measurements` and `python scriptsr-tools\health-replay.py
+5. `python scripts\rr-tools\p7-collect.py rateoff measurements` and `python scripts\rr-tools\health-replay.py
    measurements`: no false fallback in healthy runs; a recovered `rate-off` stretch longer than 7 samples means
    `ResampleHealth.RATE_ERROR_SAMPLES` (9) needs re-checking.
 Evidence of the Phase 7 baseline: `measurements\phase7-evidence.txt`.
