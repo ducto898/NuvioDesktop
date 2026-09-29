@@ -530,7 +530,7 @@ val desktopReleaseVersionCode = (
     ?: 1
 val desktopReleasePackageVersion = jpackageCompatibleVersion(desktopReleaseVersionName)
 val windowsMsiUpgradeUuid = "395990ee-9b8a-3548-922c-e7a23a495b8d"
-val nuvioForkName: String? = rootProject.file("fork-identity.properties").takeIf { it.isFile && System.getenv("NUVIO_FORK_IDENTITY") != "off" }?.let { f -> Properties().apply { f.reader().use { load(it) } }.getProperty("name")?.trim()?.takeIf { it.isNotEmpty() } } // nuvio-rr fork hook H15
+val nuvioForkName: String? = rootProject.file("fork-identity.properties").takeIf { it.isFile && !System.getenv("NUVIO_FORK_IDENTITY").equals("off", ignoreCase = true) }?.let { f -> Properties().apply { f.reader().use { load(it) } }.getProperty("name")?.trim()?.takeIf { it.isNotEmpty() } } // nuvio-rr fork hook H15
 val iosDistribution = (
     providers.gradleProperty("nuvio.ios.distribution").orNull
         ?: System.getenv("NUVIO_IOS_DISTRIBUTION")

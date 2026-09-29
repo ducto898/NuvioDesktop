@@ -23,7 +23,8 @@ object ForkIdentity {
 
     fun appDirName(property: String?): String {
         val name = property?.trim().orEmpty()
-        val usable = SAFE.matches(name) && name != "." && name != ".." && !name.endsWith(".")
+        val usable = SAFE.matches(name) && name != "." && name != ".." && !name.endsWith(".") &&
+            !name.equals(UPSTREAM_NAME, ignoreCase = true) // Windows paths ignore case: "nuvio" is the official folder
         return if (usable) name else UPSTREAM_NAME
     }
 

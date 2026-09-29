@@ -132,6 +132,11 @@ Evidence of the Phase 7 baseline: `measurements\phase7-evidence.txt`.
   `%LOCALAPPDATA%\Nuvio RR\WebView2` (H14, fixes the D6 leak). Package/exe name, start-menu group and MSI upgrade UUID
   follow the name (H18–H20). The window title stays "Nuvio" (it is hard-coded upstream; changing it would exceed the
   owner's hook budget, Q42). An unusable name (path characters, `.`, > 64 chars) falls back to upstream's "Nuvio".
+- **Build note:** H15 reads `fork-identity.properties` while Gradle configures the build. The fork scripts pass
+  `--no-configuration-cache`; after editing that file, build with the scripts (or pass that flag), or a bare `gradlew`
+  may reuse the old name from the configuration cache.
+- **Feature log:** the packaged fork writes `%LOCALAPPDATA%\Nuvio RR\Cache\refresh-rate.log` (the native log folder
+  follows the same name since the Phase 8 verifier round; before that it went to the official `...\Nuvio\Cache`).
 - **Dev runs:** `scripts\run-dev.ps1` sets `NUVIO_FORK_IDENTITY=off`, so the dev profile keeps upstream folder names
   (`devprofile\Roaming\Nuvio`). `measure.ps1 -Packaged` runs the built app with a separate `..\packprofile`.
 - **Profile (Q41):** `scripts\import-profile.ps1` copies `%APPDATA%\Nuvio` to `%APPDATA%\Nuvio RR` once (refuses if
@@ -184,5 +189,9 @@ playback start logs one line, e.g. `hook p1 driver frl=off(global) power=1(globa
 - **Player shutdown racing the hook:** if the player shuts down in the few microseconds between the hook arriving and
   the worker taking it, the hook is released by `mpv_terminate_destroy` instead of by us (no hang, no crash).
 - **`NewString` out of memory** in one JNI upcall is not checked before the call (the JVM would already be failing).
+- **App icon setting (Phase 8 verifier, open, Q44):** upstream's Settings → App icon writes the chosen icon to
+  `%LOCALAPPDATA%\Nuvio\icons` and repoints the **official** `Nuvio.lnk` shortcuts (desktop, start menu, taskbar)
+  (`WindowsAppShortcutIconUpdater.kt`). In the fork this touches the official app. Until Q44 is decided: don't use
+  that setting in Nuvio RR.
 - Rates are "the same" within 100 ppm (F1): DXGI rounds some modes (this monitor's 120 Hz is listed 12000/100, runs
   119998/1000). Distinct real modes are ≥ 188 ppm apart (143.973 vs 144).

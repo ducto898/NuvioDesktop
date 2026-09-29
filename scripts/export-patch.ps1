@@ -28,11 +28,13 @@ try {
     $patch = Join-Path $outDir ("nuvio-rr-{0}-{1}.patch" -f $base.Substring(0, 8), $head.Substring(0, 8))
     # --output writes git's bytes as they are (a PowerShell pipe would re-encode and re-join the lines)
     git diff --binary --full-index --output=$patch $base $head -- . ':(exclude)measurements/**' ':(exclude)testdata/**'
+    if ($LASTEXITCODE) { throw "git diff failed (exit $LASTEXITCODE)" }
     $files = @(git diff --name-only $base $head -- . ':(exclude)measurements/**' ':(exclude)testdata/**')
     Write-Host ("patch: {0} ({1} files, {2:n0} KB)" -f $patch, $files.Count, ((Get-Item $patch).Length / 1KB))
 
     $wt = Join-Path ([IO.Path]::GetTempPath()) ("nuvio-rr-apply-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     git worktree add --detach --quiet $wt $base
+    if ($LASTEXITCODE) { throw "git worktree add failed (exit $LASTEXITCODE)" }
     try {
         git -C $wt apply --check $patch
         if ($LASTEXITCODE) { throw "git apply --check FAILED on $base" }

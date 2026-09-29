@@ -21,6 +21,8 @@
 #include <cstring>
 #include <map>
 #pragma comment(lib, "dxgi.lib")
+// Phase 8: the fork's folder name (ForkIdentity via JNI); defined at file scope near the end of this file.
+std::wstring nuvioRrAppDirName();
 namespace {
 
 namespace nuvio_rr {
@@ -80,7 +82,8 @@ const MeasureConfig &measureConfig() {
         config.directory = envValue(L"NUVIO_RR_MEASURE_DIR");
         if (config.directory.empty()) {
             std::wstring local = envValue(L"LOCALAPPDATA");
-            if (!local.empty()) config.directory = local + L"\\Nuvio\\Cache\\nuvio-rr";
+            // Phase 8 (verifier round 3): the fork's own cache, never the official %LOCALAPPDATA%\Nuvio.
+            if (!local.empty()) config.directory = local + L"\\" + nuvioRrAppDirName() + L"\\Cache\\nuvio-rr";
         }
         config.sync = asciiValue(envValue(L"NUVIO_RR_MEASURE_SYNC"));
         config.switchHz = _wtoi(envValue(L"NUVIO_RR_MEASURE_SWITCH_HZ").c_str());
@@ -539,7 +542,9 @@ const FeatureConfig &featureConfig() {
         std::wstring dir = measure.enabled ? envValue(L"NUVIO_RR_MEASURE_DIR") : std::wstring();
         if (dir.empty()) {
             std::wstring local = envValue(L"LOCALAPPDATA");
-            if (!local.empty()) dir = local + L"\\Nuvio\\Cache";
+            // Phase 8 (verifier round 3): the packaged fork logs into %LOCALAPPDATA%\<fork name>\Cache (DesktopStorage
+            // puts its cache there too); "Nuvio" when the identity is off (dev runs: LOCALAPPDATA is the dev profile).
+            if (!local.empty()) dir = local + L"\\" + nuvioRrAppDirName() + L"\\Cache";
         }
         if (!dir.empty()) {
             SHCreateDirectoryExW(nullptr, dir.c_str(), nullptr);

@@ -52,7 +52,7 @@ Write-Host "app folder: $app"
 if (-not $NoZip) {
     $version = (Select-String -Path $cfg -Pattern '-Djpackage.app-version=(\S+)').Matches.Groups[1].Value
     $commit = (git -C $repo rev-parse --short=8 HEAD)
-    $dirty = if (git -C $repo status --porcelain -- composeApp) { '-dirty' } else { '' }
+    $dirty = if (git -C $repo status --porcelain -- composeApp fork-identity.properties) { '-dirty' } else { '' }
     $dist = Join-Path $root 'dist'
     New-Item -ItemType Directory -Force $dist | Out-Null
     $zip = Join-Path $dist ("{0}-{1}-{2}{3}.zip" -f ($name -replace ' ', '-'), $version, $commit, $dirty)
