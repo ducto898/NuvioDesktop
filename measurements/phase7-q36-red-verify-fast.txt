@@ -1,0 +1,20 @@
+### verify.ps1 -Fast
+==> incremental compile
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop
+    OK in 11s
+==> unit tests (com.nuvio.app.features.player.desktop.refreshrate.*)
+    gradlew :composeApp:desktopTest --tests com.nuvio.app.features.player.desktop.refreshrate.*
+    157 tests completed, 9 failed
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.ModeSelectorTest#a current rate within 100 ppm of the best mode is already at target, with the exact current rate[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateControllerTest#an Error thrown by the port during a switch leaves the session usable[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateControllerTest#an Error thrown by the port during a restore leaves the session idle[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateDispatcherTest#a late successful start routes display-sync to its player[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateTimingTest#screen gone puts the owner back on upstream timing, app exit needs no timing call[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.SessionBehaviourTest#a switch observed within 100 ppm of a rounded DXGI rate is accepted with the observed rate[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.SessionBehaviourTest#a switch is accepted only if rate, HDR and bit depth are as expected[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.SessionBehaviourTest#a switched display reading the rounded twin of its target is not a lost mode[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.SessionBehaviourTest#a next start whose target is the rounded twin keeps the session[desktop]
+    FAIL in 22s
+
+VERIFY FAILED in 33s:
+  - unit tests (com.nuvio.app.features.player.desktop.refreshrate.*) (9 new failing test(s))

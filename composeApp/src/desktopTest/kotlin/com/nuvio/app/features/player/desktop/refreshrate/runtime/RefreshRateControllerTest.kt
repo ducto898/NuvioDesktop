@@ -305,4 +305,22 @@ class RefreshRateControllerTest {
         controller.watch()
         assertTrue(logged("unexpected-error"))
     }
+
+    // Phase 7 review #4: an Error (not an Exception) from a port call must not leave the session stuck
+    @Test
+    fun `an Error thrown by the port during a switch leaves the session usable`() {
+        port.onSwitch = { _, _, _ -> throw LinkageError("native") }
+        assertEquals(Timing.Upstream, controller.playbackStart(startInput(1)))
+        assertEquals(SessionState.Idle, controller.session.state)
+        port.onSwitch = null
+        assertEquals(Timing.DisplaySync(MODE_240.refresh), controller.playbackStart(startInput(2)))
+    }
+
+    @Test
+    fun `an Error thrown by the port during a restore leaves the session idle`() {
+        switched()
+        port.onRestore = { throw LinkageError("native") }
+        controller.screenGone()
+        assertEquals(SessionState.Idle, controller.session.state)
+    }
 }

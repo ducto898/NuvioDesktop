@@ -170,4 +170,12 @@ class ModeSelectorTest {
         val n = assertIs<Selection.NoSwitch>(decide(23.976, frameCap = 200.0))
         assertTrue("200" in n.detail && "239.901" in n.detail, n.detail)
     }
+
+    // Phase 7 F1: the desktop already runs the rounded DXGI rate's real value
+    @Test
+    fun `a current rate within 100 ppm of the best mode is already at target, with the exact current rate`() {
+        val sel = decide(60.0, current = MODE_120, modes = listOf(qhd(12000, 100), MODE_60))
+        val a = assertIs<Selection.AlreadyAtTarget>(sel, "$sel")
+        assertTrue(a.mode.refresh.sameAs(MODE_120.refresh), "${a.mode.refresh}")
+    }
 }

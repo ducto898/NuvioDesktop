@@ -148,4 +148,34 @@ class RefreshRateDispatcherTest {
         assertTrue(elapsedMs { dispatcher.appExit(5_000) } < 500)
         assertEquals(emptyList(), port.calls)
     }
+
+    private fun awaitCalls(prefix: String): List<String> {
+        val until = System.nanoTime() + 5_000_000_000L
+        while (System.nanoTime() < until && port.callsNamed(prefix).isEmpty()) Thread.sleep(10)
+        return port.callsNamed(prefix)
+    }
+
+    // Phase 7 review #3: the hook gave up (timeout) but the switch landed later: that player still gets display sync
+    @Test
+    fun `a late successful start routes display-sync to its player`() {
+        val release = CountDownLatch(1)
+        slowSwitch(release)
+        assertNull(dispatcher.playbackStart(startInput(1), 200))
+        release.countDown()
+        assertEquals(listOf("setTiming p1 display-sync(239901/1000)"), awaitCalls("setTiming"))
+        assertTrue(dispatcher.appExit(5_000))
+    }
+
+    @Test
+    fun `a late failed start needs no timing call`() {
+        val release = CountDownLatch(1)
+        port.onSwitch = { _, _, _ ->
+            release.await(10, TimeUnit.SECONDS)
+            SwitchOutcome.Failed(com.nuvio.app.features.player.desktop.refreshrate.FailureKind.SETTLE_TIMEOUT)
+        }
+        assertNull(dispatcher.playbackStart(startInput(1), 200))
+        release.countDown()
+        assertTrue(dispatcher.appExit(5_000), "serial: the late start has finished")
+        assertEquals(emptyList(), port.callsNamed("setTiming"))
+    }
 }

@@ -153,13 +153,15 @@ class SessionBehaviourTest {
         val exactOtherDenominator = DisplayState(qhd(239901000, 1000000), hdr = true)
         assertIs<SessionState.Switched>(RefreshRateSession.step(switching, switchOk(exactOtherDenominator)).session.state)
 
-        // Within 1e-6 relative but not exactly equal (0.2 ppm off) is accepted.
+        // Within 100 ppm but not exactly equal is accepted (Phase 7 F1: DXGI rounds some rates, e.g. 120 Hz).
         val nearlyExact = DisplayState(qhd(23990105, 100000), hdr = true)
         assertIs<SessionState.Switched>(RefreshRateSession.step(switching, switchOk(nearlyExact)).session.state)
+        val fourPpm = DisplayState(qhd(239902, 1000), hdr = true)
+        assertIs<SessionState.Switched>(RefreshRateSession.step(switching, switchOk(fourPpm)).session.state)
 
         val bad = listOf(
             DisplayState(MODE_280, hdr = true),
-            DisplayState(qhd(239902, 1000), hdr = true),
+            DisplayState(qhd(240, 1), hdr = true), // 412 ppm: a different mode
             DisplayState(MODE_240, hdr = false),
             DisplayState(qhd(239901, 1000, bpc = 8), hdr = true),
         )
@@ -297,5 +299,38 @@ class SessionBehaviourTest {
         assertEquals(emptyList(), step.commands)
         assertEquals(SessionState.Switched(CTX.copy(target = MODE_120, owner = 2)), step.session.state)
         assertTrue("retarget" in step.reasons, "${step.reasons}")
+    }
+
+    // Phase 7 F1: DXGI lists 120 Hz as 12000/100; after the switch Windows runs 119998/1000 (16.7 ppm)
+    @Test
+    fun `a switch observed within 100 ppm of a rounded DXGI rate is accepted with the observed rate`() {
+        val ctx120 = CTX.copy(target = qhd(12000, 100))
+        val step = RefreshRateSession.step(sessionIn(SessionState.Switching(ctx120)), switchOk(DisplayState(MODE_120, hdr = true)))
+        assertIs<SessionState.Switched>(step.session.state)
+        assertEquals(Timing.DisplaySync(MODE_120.refresh), step.timing)
+    }
+
+    @Test
+    fun `a switched display reading the rounded twin of its target is not a lost mode`() {
+        val ctx120 = CTX.copy(target = qhd(12000, 100))
+        val step = RefreshRateSession.step(
+            sessionIn(SessionState.Switched(ctx120)),
+            SessionEvent.DisplayChanged("A", DisplayState(MODE_120, hdr = true)),
+        )
+        assertEquals(emptyList(), step.commands)
+        assertIs<SessionState.Switched>(step.session.state)
+    }
+
+    @Test
+    fun `a next start whose target is the rounded twin keeps the session`() {
+        val ctx120 = CTX.copy(target = MODE_120)
+        val snap60 = FpsResult.Snapped(Rational(60, 1), FpsSource.CONTAINER, 60.0, 0.0)
+        val step = RefreshRateSession.step(
+            sessionIn(SessionState.Switched(ctx120)),
+            start(2, Selection.Switch(qhd(12000, 100), 2, 0.0, snap60, 6), current = DisplayState(MODE_120, hdr = true)),
+        )
+        assertEquals(emptyList(), step.commands)
+        assertTrue("same-target" in step.reasons, "${step.reasons}")
+        assertEquals(Timing.DisplaySync(MODE_120.refresh), step.timing)
     }
 }

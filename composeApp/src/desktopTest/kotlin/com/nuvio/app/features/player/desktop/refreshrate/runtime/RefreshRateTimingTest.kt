@@ -129,10 +129,11 @@ class RefreshRateTimingTest {
     }
 
     @Test
-    fun `screen gone and app exit need no timing call (the player is leaving)`() {
+    fun `screen gone puts the owner back on upstream timing, app exit needs no timing call`() {
+        // Phase 7 review #5: the owner may still be playing (another surface); a gone player just answers false
         switched()
         controller.screenGone()
-        assertEquals(emptyList(), timingCalls())
+        assertEquals(listOf(upstream), timingCalls())
         switched()
         controller.appExit()
         assertEquals(emptyList(), timingCalls())
