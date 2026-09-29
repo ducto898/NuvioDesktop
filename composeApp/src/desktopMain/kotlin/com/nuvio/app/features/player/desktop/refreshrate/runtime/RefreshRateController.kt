@@ -79,13 +79,14 @@ class RefreshRateController(
      */
     fun startTimedOut(playerId: Long) {
         val (id, timing) = lastStart ?: return
-        val watch = health
-        if (id != playerId || timing !is Timing.DisplaySync || watch?.playerId != playerId) {
+        // Not the health watch: a watcher tick queued behind the slow start has already dropped it (review round 2).
+        val ctx = (session.state as? SessionState.Switched)?.context
+        if (id != playerId || timing !is Timing.DisplaySync || ctx?.owner != playerId) {
             log("start p$playerId late: nothing to apply")
             return
         }
         log("start p$playerId late: applying ${timing.text()}")
-        route(playerId, timing, watch.display)
+        route(playerId, timing, ctx.display)
     }
 
     /**

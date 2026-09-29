@@ -179,7 +179,9 @@ object RefreshRateSession {
                 is SwitchOutcome.Ok -> if (verified(ctx, outcome.observed)) {
                     out.reasons += "switched"
                     out.timing = Timing.DisplaySync(outcome.observed.mode.refresh)
-                    Handled.To(SessionState.Switched(ctx))
+                    // Keep the rate Windows really runs (F1: DXGI lists 120 Hz as 12000/100, it runs 119998/1000),
+                    // so a same-target next start gives mpv the exact rate too.
+                    Handled.To(SessionState.Switched(ctx.copy(target = ctx.target.copy(refresh = outcome.observed.mode.refresh))))
                 } else {
                     out.reasons += FailureKind.VERIFY_MISMATCH.code
                     out.restore(ctx.display)
