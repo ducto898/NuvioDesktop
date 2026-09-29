@@ -1,0 +1,15 @@
+### verify.ps1 -Fast
+==> incremental compile
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop
+    OK in 11s
+==> unit tests (com.nuvio.app.features.player.desktop.refreshrate.*)
+    gradlew :composeApp:desktopTest --tests com.nuvio.app.features.player.desktop.refreshrate.*
+    149 tests completed, 4 failed
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.ResampleHealthTest#a rate error that lasts 9 samples is unhealthy, and a good sample restarts the count[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.ResampleHealthTest#a collapsed display rate is unhealthy (Phase 2b, 6_5 Hz under a 200 fps cap)[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.ResampleHealthTest#one stall that bends the rate estimate for 1 to 8 samples is not unhealthy[desktop]
+    NEW FAILURE: com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateTimingTest#a fullscreen toggle that bends the rate estimate for 7 samples keeps display sync (Phase 7)[desktop]
+    FAIL in 14s
+
+VERIFY FAILED in 25s:
+  - unit tests (com.nuvio.app.features.player.desktop.refreshrate.*) (4 new failing test(s))

@@ -1,0 +1,57 @@
+Phase 7 evidence (2026-09-29, desktop default 239.901 / registry 240; measure.ps1 runs via scripts\rr-tools\p7-matrix.ps1)
+Judge: scripts\rr-tools\p7-collect.py judge <folders>  (limits of P5-12 read against the P7 targets; counters,
+speed corrections and underruns counted from 5 s after file-loaded to app-exit). Batch lists: phase7-batch-*.txt.
+Rate-off table + replay: phase7-rate-off.txt. verify: phase7-verify-full.txt (tooling), phase7-red-verify-fast.txt (A),
+phase7-verify-full-2.txt (B).
+
+P7-1/P7-2  verify -Full green twice (1494 / 1495 tests, 8 known upstream failures), upstream 5 files / 10 lines,
+           no official-profile write in any run (every summary: officialProfileWrites = []), nothing pushed.
+P7-3       cap log line in every capped run, e.g. "measure max-hz=144 dropped= 239901/1000 279961/1000"; uncapped
+           23.976 runs = already-at-target (matrix).
+P7-4       measure.ps1: after5s positive increments, fitted PresentMon period, f11 confirmed (every f11 "fs a -> b",
+           tries 2), -MaxHz, alttab; used in p7-actions*, p7-f11-*.
+P7-5/6     summary "health" section; p7-collect.py rateoff; health-replay.py cross-check: app rate lines
+           (fallback at 5 in p7-actions 05:59:52.8 vs replay 5th sample 05:59:52.4; rate-off 7 / 4 after N=9)
+           equal the replay; the 3 bad-frame fallbacks at ~16 s are judged by the app ~0.5 s before the replay's
+           first window (sampling phase), documented, bad-frame rule only.
+
+P7-7  matrix 40/40 PASS: 32 clips windowed + 8 HDR 2160p fullscreen. 23.976/24/29.97/59.94/60/VFR:
+      already-at-target, no switch call, 239.901 throughout, display-resample, est 239.8970-239.8976,
+      0 drops + mistimed after 5 s in every run, 0 underruns, speed corrections within +-0.2 %; VFR: no desync
+      warning. 25/50: no-suitable-mode, audio sync, no override.
+P7-8  off 3/3 PASS: no feature log, audio sync; mpv option lines = Phase 6 off run except volume 56 vs 100 (the
+      upstream volume setting saved in the dev profile).
+P7-9  switch under the cap: 23.976/24 -> 143.973 PASS (switch 224-299 ms, settle ~350 ms, before file-loaded,
+      est 143.9713, 0 d+m, restore -> 239.901); 29.97/59.94 -> 59.951 (x2/x1: 120/119.88 is just outside the
+      1000/1001 tolerance) PASS after correcting the judge's expectation; hdr-2160p-23.976 fs -> 143.973 PASS.
+      FINDING F1: sdr-1080p-60 -> target 12000/100 (DXGI) but Windows runs it as 119998/1000 (QDC, 16.7 ppm);
+      settle/verify tolerance 1e-6 => settle-timeout after 4354 ms => restore, upstream timing, video plays
+      (fail-safe OK). Latent: on this monitor 120 Hz is picked only under the measure-only cap.
+P7-10 (a) close 0/50/150/300 ms after the switch call, 2 each: 8/8 no crash, 239.901 after;
+      (b) kill 05:56:03.383 -> 239.901 at 05:56:03.549 (0.17 s, Windows revert);
+      (c) next episode: owner checklist item 8 (needs the real UI; run-dev -MaxHz 144);
+      (d) drop-mode: 20 s mode-lost re-switch + setTiming display-sync ok; 50 s mode-lost-again + setTiming
+          upstream ok;
+      (e) actions (pause 20 s, seek +-10, mouse, f11 x2, alttab x2): mode kept; every drop/mistime lies within 5 s
+          after the pause resume or an f11 (144: +1 drop +4 mistimed; 240: +2 +2); seeks, mouse, alttab: none.
+          FINDING F2 (fixed by N=9): with N=5 the f11 into fullscreen at 143.973 bent mpv's estimate to 141.148 for
+          5+ samples => resample-unhealthy => upstream timing for the rest of the video (run p7-actions).
+          Measure-only runs without the health watch (p7-f11-144-nohealth, p7-f11-240-nohealth): the estimate
+          recovers by itself after 7 samples at 144 and 3-4 at 240. After N=9: p7-actions-n9 "rate-off 7 samples,
+          recovered", p7-actions240-n9 "rate-off 4 samples, recovered", display sync kept.
+P7-11 faults 10/10: enumerate, display-not-found, switch-api, settle-timeout, slow-settle, verify-mismatch,
+      restore-failed, unexpected, timing-set, enable-upcall: each played 19-20 s, no crash, 239.901 after.
+      (drop-mode under P7-10d.)
+P7-12 soaks (10 min each, 60 min): hdr-2160p-23.976 fs, sdr-1080p-59.94, sdr-1080p-25 (no switch), sdr-1080p-23.976
+      capped, 60 min hdr-2160p-23.976 fs: 0 drops + mistimed after 5 s, 0 underruns, no rate-off, no fallback,
+      239.901 after. GPU median 39.6 / 38.4 / 36.6 / 35.5 / 39.6 W at 2490 MHz (max-performance power).
+      Audio speed correction above 1.002: 240 Hz soaks only ~4 s at each 150 s stream-copy join (AAC seam of the
+      test clip); capped 143.973 soak intermittently 1.0021-1.0023 (video correction there is +0.08 % vs +0.06 %
+      at 240; the cap rate is measure-only).
+P7-13/14 phase7-rate-off.txt: live lines (13) + replay of 225 folders (118 judged): 61 healthy runs, 0 false
+      fallbacks for every N 1..10; longest recovered stretch 7 (f11 at 144), 4 at 240, the one real stall 1.
+      Known-bad: every run falls back by the bad-frame rule at ~16 s (N-independent); Phase 2b collapse
+      stretches 19-106 samples.
+P7-15/16 N = max(3, 7 + 2) = 9 (owner confirms at the end gate). Commits c5ef3e5a (A, red 4/149),
+      120453b9 (B, green, test diff A->B empty). Re-measured: p7-actions-n9, p7-actions240-n9 (display sync kept),
+      p7-badsync-240-n9 (fallback 08:09:21, bad frames).

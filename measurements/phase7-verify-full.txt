@@ -1,0 +1,71 @@
+### verify.ps1 -Full
+==> clean
+    gradlew :composeApp:clean
+    OK in 15s
+==> clean build: native bridge + desktop app
+    gradlew :composeApp:buildWindowsPlayerBridge :composeApp:compileKotlinDesktop :composeApp:desktopJar --no-build-cache --rerun-tasks
+'vswhere.exe' is not recognized as an internal or external command,
+operable program or batch file.
+player_bridge.cpp
+   Creating library C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop\composeApp\build\native\windows\player_bridge.lib and object C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop\composeApp\build\native\windows\player_bridge.exp
+    OK in 129s
+==> all desktop unit tests
+    gradlew :composeApp:desktopTest --no-build-cache
+    1494 tests completed, 8 failed, 1 skipped
+    known upstream failure: com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedImageDoesNotRequireAFileExtension[desktop]
+    known upstream failure: com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedGifStillPlaysOnHover[desktop]
+    known upstream failure: com.nuvio.app.features.home.components.CollectionCardRemoteImageTest#animatedWebpPlaysOnHoverAndRestoresCoverOnExit[desktop]
+    known upstream failure: com.nuvio.app.features.home.components.HomeHeroSectionTest#desktop hero keeps the existing full bleed layout at sixteen by nine[desktop]
+    known upstream failure: com.nuvio.app.features.plugins.PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions[desktop]
+    known upstream failure: com.nuvio.app.features.updater.LinuxUpdateInstallTest#a package install is handed to the desktop package handler[desktop]
+    known upstream failure: com.nuvio.app.features.updater.LinuxUpdateInstallTest#an app image with no known path falls back to the desktop handler[desktop]
+    known upstream failure: com.nuvio.app.features.updater.LinuxUpdateInstallTest#an app image replaces itself once this process is gone[desktop]
+    OK (only known upstream failures) in 86s
+==> Diff vs upstream
+    base: upstream/Dev @ fe92d41402
+    upstream files touched :   5   lines changed: 10
+      M composeApp/src/commonMain/composeResources/values/strings.xml  (+3 -0)
+      M composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/PlaybackSettingsPage.kt  (+1 -0)
+      M composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt  (+1 -0)
+      M composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt  (+1 -0)
+      M composeApp/src/desktopMain/native/windows/player_bridge.cpp  (+4 -0)
+    new product files      :  36   lines: 5334
+      A composeApp/src/androidMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSetting.android.kt  (+11)
+      A composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSetting.kt  (+14)
+      A composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSettingsSection.kt  (+31)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/FailSafePolicy.kt  (+23)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/FpsSnapper.kt  (+77)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/ModeSelector.kt  (+121)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/RefreshRateModels.kt  (+40)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/RefreshRateSession.kt  (+323)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/ResampleHealth.kt  (+93)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/DisplayPort.kt  (+54)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/NativeCodec.kt  (+84)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/NativeDisplayPort.kt  (+64)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateController.kt  (+334)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateDispatcher.kt  (+73)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateEnablement.kt  (+31)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateMatch.kt  (+83)
+      A composeApp/src/desktopMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSetting.desktop.kt  (+40)
+      A composeApp/src/desktopMain/native/windows/display_mode_matcher.cpp  (+1592)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/FailSafePolicyTest.kt  (+64)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/FpsSnapperTest.kt  (+120)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/ModeSelectorTest.kt  (+173)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/RefreshRateFixtures.kt  (+50)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/RefreshRateFuzzTest.kt  (+199)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/ResampleHealthTest.kt  (+137)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/SessionBehaviourTest.kt  (+301)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/SessionTransitionTableTest.kt  (+79)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/FakeDisplayPort.kt  (+101)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/NativeCodecTest.kt  (+74)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateControllerTest.kt  (+308)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateDispatcherTest.kt  (+151)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateEnablementTest.kt  (+72)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateMatchSettingTest.kt  (+77)
+      A composeApp/src/desktopTest/kotlin/com/nuvio/app/features/player/desktop/refreshrate/runtime/RefreshRateTimingTest.kt  (+325)
+      A composeApp/src/iosMain/kotlin/com/nuvio/app/features/settings/RefreshRateMatchSetting.ios.kt  (+11)
+      A measurements/.gitignore  (+2)
+      A testdata/.gitignore  (+2)
+    new infra/doc files    :  31   lines: 5042
+
+VERIFY OK in 234s

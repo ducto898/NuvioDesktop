@@ -1,0 +1,111 @@
+# rate-off / resample-unhealthy lines in measurements (SPEC P7-5/P7-13): 13
+20260928-184059-sdr-1080p-23.976-p5-win                        18:43:31.421 [nuvio-rr] K resample-unhealthy p1 estimated-display-fps=226.357 vs target 239.901 (max 1.0 %)
+20260928-191056-sdr-1080p-23.976-p5-dropmode                   19:11:34.892 [nuvio-rr] K resample-unhealthy p1 estimated-display-fps=220.882 vs target 239.901 (max 1.0 %)
+20260928-191056-sdr-1080p-23.976-p5-dropmode                   19:12:05.475 [nuvio-rr] K resample-unhealthy p1 estimated-display-fps=224.679 vs target 239.901 (max 1.0 %)
+20260928-191345-sdr-1080p-23.976-p5-badsync                    19:14:19.627 [nuvio-rr] K resample-unhealthy p1 drops=0 mistimed=240 in 10 s (max 20)
+20260928-192453-sdr-1080p-23.976-p5-badsync2                   19:25:26.769 [nuvio-rr] K resample-unhealthy p1 drops=0 mistimed=240 in 10 s (max 20)
+20260928-193810-sdr-1080p-23.976-p5-badsync3                   19:38:45.244 [nuvio-rr] K resample-unhealthy p1 drops=0 mistimed=228 in 10 s (max 20)
+20260928-232230-sdr-1080p-23.976-p6-env1-set-off               23:23:12.672 [nuvio-rr] K resample-unhealthy p1 estimated-display-fps=235.649 vs target 239.901 (max 1.0 %)
+20260929-055807-sdr-1080p-23.976-p7-actions                    05:59:52.779 [nuvio-rr] K resample-unhealthy p1 estimated-display-fps=141.148 vs target 143.973 (max 1.0 %)
+20260929-060819-sdr-1080p-23.976-p7-badsync-240                06:08:51.911 [nuvio-rr] K resample-unhealthy p1 drops=0 mistimed=240 in 10 s (max 20)
+20260929-060925-sdr-1080p-23.976-p7-badsync-cap                06:09:57.425 [nuvio-rr] K resample-unhealthy p1 drops=0 mistimed=252 in 10 s (max 20)
+20260929-080359-sdr-1080p-23.976-p7-actions-n9                 08:05:50.164 [nuvio-rr] K rate-off p1 7 samples, worst 141.704 (-1.58 %), recovered
+20260929-080624-sdr-1080p-23.976-p7-actions240-n9              08:08:11.185 [nuvio-rr] K rate-off p1 4 samples, worst 233.818 (-2.54 %), recovered
+20260929-080848-sdr-1080p-23.976-p7-badsync-240-n9             08:09:21.477 [nuvio-rr] K resample-unhealthy p1 drops=0 mistimed=252 in 10 s (max 20)
+
+# health-replay (SPEC P7-6/P7-14): 225 run folders, 118 judged (display-resample), 107 skipped
+
+## Off-rate stretches (> 1 %) seen in any judged run (no limit applied)
+  20260928-085549-hdr-2160p-23.976-power-resample-240          other   81 samples  worst 6.023 vs 239.901 (-97.49 %)  08:56:20.316..08:58:03.816
+  20260928-085816-hdr-2160p-23.976-power-resample-120          other   85 samples  worst 6.223 vs 119.998 (-94.81 %)  08:58:49.799..09:00:29.817
+  20260928-090131-sdr-1080p-23.976-resample-280                other   20 samples  worst 6.429 vs 279.961 (-97.70 %)  09:02:06.485..09:02:30.978
+  20260928-090237-hdr-2160p-23.976-resample-280                other   18 samples  worst 5.985 vs 279.961 (-97.86 %)  09:03:08.470..09:03:36.619
+  20260928-093610-sdr-1080p-23.976-pm-resample                 other   43 samples  worst 188.144 vs 279.961 (-32.80 %)  09:36:42.033..09:37:25.383
+  20260928-093752-sdr-1080p-23.976-resample-nopm               other   27 samples  worst 188.905 vs 279.961 (-32.52 %)  09:38:23.488..09:38:51.071
+  20260928-110052-sdr-1080p-23.976-s1-240-win                  other   104 samples  worst 194.637 vs 239.901 (-18.87 %)  11:01:23.576..11:03:07.006
+  20260928-110400-sdr-1080p-23.976-s1-240-win                  bad     104 samples  worst 196.477 vs 239.901 (-18.10 %)  11:04:31.099..11:06:14.892
+  20260928-110713-sdr-1080p-23.976-s1-240-win                  bad     104 samples  worst 194.722 vs 239.901 (-18.83 %)  11:07:43.358..11:09:27.427
+  20260928-111029-sdr-1080p-23.976-s1-240-fs                   bad     105 samples  worst 195.566 vs 239.901 (-18.48 %)  11:10:59.291..11:12:44.083
+  20260928-111312-sdr-1080p-23.976-s3-depth1-win               bad     105 samples  worst 189.040 vs 239.901 (-21.20 %)  11:13:42.683..11:15:27.647
+  20260928-111615-sdr-1080p-23.976-s3-noflip-win               bad     114 samples  worst 31.074 vs 239.901 (-87.05 %)  11:16:45.542..11:18:29.253
+  20260928-111846-sdr-1080p-23.976-diag-hwdecno-win            bad     82 samples  worst 6.561 vs 239.901 (-97.27 %)  11:19:18.087..11:21:01.216
+  20260928-112117-sdr-1080p-23.976-diag-vogpu-win              bad     72 samples  worst 6.345 vs 239.901 (-97.36 %)  11:21:48.170..11:23:32.077
+  20260928-112425-sdr-1080p-23.976-s1-240-win-pmstalled        bad     78 samples  worst 6.453 vs 239.901 (-97.31 %)  11:24:56.057..11:26:40.475
+  20260928-112739-sdr-1080p-23.976-s4-hideoverlay-win          bad     72 samples  worst 6.369 vs 239.901 (-97.35 %)  11:28:10.224..11:29:54.165
+  20260928-113035-sdr-1080p-23.976-s1-240-fs-pmstalled         bad     75 samples  worst 6.508 vs 239.901 (-97.29 %)  11:31:06.734..11:32:50.084
+  20260928-130906-sdr-1080p-23.976-s3-offset0-win              bad     72 samples  worst 6.344 vs 239.901 (-97.36 %)  13:09:40.236..13:11:20.979
+  20260928-131213-sdr-1080p-23.976-s3-syncint0-win             bad     105 samples  worst 196.088 vs 239.901 (-18.26 %)  13:12:43.926..13:14:28.384
+  20260928-131444-sdr-1080p-23.976-diag-dumpstats-win          bad     19 samples  worst 6.385 vs 239.901 (-97.34 %)  13:15:15.373..13:15:39.166
+  20260928-131646-sdr-1080p-23.976-diag-si0-stats-win          bad     25 samples  worst 194.191 vs 239.901 (-19.05 %)  13:17:16.726..13:17:40.740
+  20260928-131756-sdr-1080p-23.976-diag-si0-hwdecno-win        bad     25 samples  worst 199.631 vs 239.901 (-16.79 %)  13:18:27.698..13:18:51.782
+  20260928-132043-sdr-1080p-23.976-frl-120-win                 bad     88 samples  worst 6.247 vs 119.998 (-94.79 %)  13:21:14.824..13:22:59.262
+  20260928-132315-sdr-1080p-23.976-frl-120-fs                  bad     84 samples  worst 6.375 vs 119.998 (-94.69 %)  13:23:46.998..13:25:30.010
+  20260928-132617-sdr-1080p-23.976-si0-120-win                 bad     105 samples  worst 200.001 vs 119.998 (+66.67 %)  13:26:48.357..13:28:32.588
+  20260928-132848-sdr-1080p-23.976-si0-120-fs                  bad     105 samples  worst 200.000 vs 119.998 (+66.67 %)  13:29:18.416..13:31:03.086
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    1 samples  worst 234.275 vs 239.901 (-2.35 %)  13:54:32.878..13:54:33.878
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    5 samples  worst 236.585 vs 239.901 (-1.38 %)  13:54:50.026..13:54:54.948
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    1 samples  worst 237.288 vs 239.901 (-1.09 %)  13:55:20.515..13:55:21.514
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    2 samples  worst 237.053 vs 239.901 (-1.19 %)  13:55:22.513..13:55:24.516
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    1 samples  worst 237.288 vs 239.901 (-1.09 %)  13:55:29.879..13:55:30.878
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    1 samples  worst 237.053 vs 239.901 (-1.19 %)  13:55:42.406..13:55:43.320
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    1 samples  worst 237.054 vs 239.901 (-1.19 %)  13:55:44.319..13:55:45.318
+  20260928-135402-hdr-2160p-23.976-frloff-240-hdr2160-fs       other    1 samples  worst 237.288 vs 239.901 (-1.09 %)  13:55:50.578..13:55:51.790
+  20260928-232230-sdr-1080p-23.976-p6-env1-set-off             other    1 samples  worst 235.649 vs 239.901 (-1.77 %)  23:23:12.645..23:23:12.645
+  20260929-055807-sdr-1080p-23.976-p7-actions                  other    5 samples  worst 141.148 vs 143.973 (-1.96 %)  05:59:48.399..05:59:52.396
+  20260929-060819-sdr-1080p-23.976-p7-badsync-240              bad      1 samples  worst 479.812 vs 239.901 (+100.00 %)  06:08:51.911..06:08:51.911
+  20260929-075234-sdr-1080p-23.976-p7-f11-144-nohealth         other    7 samples  worst 141.425 vs 143.973 (-1.77 %)  07:53:25.675..07:53:32.677
+  20260929-075508-sdr-1080p-23.976-p7-f11-240-nohealth         other    3 samples  worst 232.009 vs 239.901 (-3.29 %)  07:55:59.908..07:56:03.495
+  20260929-075508-sdr-1080p-23.976-p7-f11-240-nohealth         other    4 samples  worst 237.051 vs 239.901 (-1.19 %)  07:56:59.082..07:57:03.086
+  20260929-080359-sdr-1080p-23.976-p7-actions-n9               other    7 samples  worst 141.704 vs 143.973 (-1.58 %)  08:05:41.887..08:05:49.062
+  20260929-080624-sdr-1080p-23.976-p7-actions240-n9            other    4 samples  worst 233.818 vs 239.901 (-2.54 %)  08:08:06.790..08:08:10.798
+  20260929-080848-sdr-1080p-23.976-p7-badsync-240-n9           bad      1 samples  worst 479.813 vs 239.901 (+100.00 %)  08:09:21.075..08:09:21.075
+  longest stretch: healthy runs 0 samples, other (not known-bad) runs 104 samples
+
+## Bad-frame windows (> 20 drops + mistimed in 10 s; independent of N)
+  20260928-085549-hdr-2160p-23.976-power-resample-240          other   81 window(s), first {'wall': '08:56:20.316', 'drops': 208.0, 'mistimed': 209.0}
+  20260928-085816-hdr-2160p-23.976-power-resample-120          other   85 window(s), first {'wall': '08:58:49.799', 'drops': 221.0, 'mistimed': 225.0}
+  20260928-090131-sdr-1080p-23.976-resample-280                other   20 window(s), first {'wall': '09:02:06.485', 'drops': 197.0, 'mistimed': 198.0}
+  20260928-090237-hdr-2160p-23.976-resample-280                other   18 window(s), first {'wall': '09:03:08.470', 'drops': 210.0, 'mistimed': 211.0}
+  20260928-093610-sdr-1080p-23.976-pm-resample                 other   43 window(s), first {'wall': '09:36:42.033', 'drops': 15.0, 'mistimed': 115.0}
+  20260928-093752-sdr-1080p-23.976-resample-nopm               other   27 window(s), first {'wall': '09:38:23.488', 'drops': 18.0, 'mistimed': 111.0}
+  20260928-110052-sdr-1080p-23.976-s1-240-win                  other   104 window(s), first {'wall': '11:01:23.576', 'drops': 0.0, 'mistimed': 82.0}
+
+## Per N (rate rule only): false fallbacks in healthy runs / known-bad runs caught
+  healthy runs: 61, known-bad runs: 25, other: 32
+  N= 1  false fallbacks 0  bad caught 21/25
+  N= 2  false fallbacks 0  bad caught 19/25
+  N= 3  false fallbacks 0  bad caught 19/25
+  N= 4  false fallbacks 0  bad caught 19/25
+  N= 5  false fallbacks 0  bad caught 19/25
+  N= 6  false fallbacks 0  bad caught 19/25
+  N= 7  false fallbacks 0  bad caught 19/25
+  N= 8  false fallbacks 0  bad caught 19/25
+  N= 9  false fallbacks 0  bad caught 19/25
+  N=10  false fallbacks 0  bad caught 19/25
+
+## Known-bad runs: first bad-frame window and first rate stretch
+  20260928-110400-sdr-1080p-23.976-s1-240-win                  bad-frames at 11:04:31.099; first off-rate stretch 11:04:31.099, 104 samples
+  20260928-110713-sdr-1080p-23.976-s1-240-win                  bad-frames at 11:07:43.358; first off-rate stretch 11:07:43.358, 104 samples
+  20260928-111029-sdr-1080p-23.976-s1-240-fs                   bad-frames at 11:10:59.291; first off-rate stretch 11:10:59.291, 105 samples
+  20260928-111312-sdr-1080p-23.976-s3-depth1-win               bad-frames at 11:13:42.683; first off-rate stretch 11:13:42.683, 105 samples
+  20260928-111615-sdr-1080p-23.976-s3-noflip-win               bad-frames at 11:16:45.542; first off-rate stretch 11:16:45.542, 114 samples
+  20260928-111846-sdr-1080p-23.976-diag-hwdecno-win            bad-frames at 11:19:18.087; first off-rate stretch 11:19:18.087, 82 samples
+  20260928-112117-sdr-1080p-23.976-diag-vogpu-win              bad-frames at 11:21:48.170; first off-rate stretch 11:21:48.170, 72 samples
+  20260928-112425-sdr-1080p-23.976-s1-240-win-pmstalled        bad-frames at 11:24:56.057; first off-rate stretch 11:24:56.057, 78 samples
+  20260928-112739-sdr-1080p-23.976-s4-hideoverlay-win          bad-frames at 11:28:10.224; first off-rate stretch 11:28:10.224, 72 samples
+  20260928-113035-sdr-1080p-23.976-s1-240-fs-pmstalled         bad-frames at 11:31:06.734; first off-rate stretch 11:31:06.734, 75 samples
+  20260928-130906-sdr-1080p-23.976-s3-offset0-win              bad-frames at 13:09:40.236; first off-rate stretch 13:09:40.236, 72 samples
+  20260928-131213-sdr-1080p-23.976-s3-syncint0-win             bad-frames at 13:12:43.926; first off-rate stretch 13:12:43.926, 105 samples
+  20260928-131444-sdr-1080p-23.976-diag-dumpstats-win          bad-frames at 13:15:15.373; first off-rate stretch 13:15:15.373, 19 samples
+  20260928-131646-sdr-1080p-23.976-diag-si0-stats-win          bad-frames at 13:17:16.726; first off-rate stretch 13:17:16.726, 25 samples
+  20260928-131756-sdr-1080p-23.976-diag-si0-hwdecno-win        bad-frames at 13:18:27.698; first off-rate stretch 13:18:27.698, 25 samples
+  20260928-132043-sdr-1080p-23.976-frl-120-win                 bad-frames at 13:21:14.824; first off-rate stretch 13:21:14.824, 88 samples
+  20260928-132315-sdr-1080p-23.976-frl-120-fs                  bad-frames at 13:23:46.998; first off-rate stretch 13:23:46.998, 84 samples
+  20260928-132617-sdr-1080p-23.976-si0-120-win                 bad-frames at 13:26:48.357; first off-rate stretch 13:26:48.357, 105 samples
+  20260928-132848-sdr-1080p-23.976-si0-120-fs                  bad-frames at 13:29:18.416; first off-rate stretch 13:29:18.416, 105 samples
+  20260928-191345-sdr-1080p-23.976-p5-badsync                  bad-frames at none; first off-rate stretch none
+  20260928-192453-sdr-1080p-23.976-p5-badsync2                 bad-frames at none; first off-rate stretch none
+  20260928-193810-sdr-1080p-23.976-p5-badsync3                 bad-frames at none; first off-rate stretch none
+  20260929-060819-sdr-1080p-23.976-p7-badsync-240              bad-frames at 06:08:51.911; first off-rate stretch 06:08:51.911, 1 samples
+  20260929-060925-sdr-1080p-23.976-p7-badsync-cap              bad-frames at none; first off-rate stretch none
+  20260929-080848-sdr-1080p-23.976-p7-badsync-240-n9           bad-frames at 08:09:21.075; first off-rate stretch 08:09:21.075, 1 samples
