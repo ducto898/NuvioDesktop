@@ -86,11 +86,11 @@ pwsh -File scripts/run-dev.ps1        # run the dev build with an ISOLATED profi
 ## 4. Updating to a new upstream release (runbook)
 1. `git fetch upstream` and read what changed in the hook files (§5): `git diff <old base> upstream/Dev -- <file>`.
 2. `git rebase upstream/Dev` on `feature/refresh-rate-matching` (local; never push without the owner's OK). Conflicts
-   only happen at the tagged hook lines: `git grep -n "nuvio-rr fork hook"` lists all 20 (H1–H20, SPEC §2). Keep each
+   only happen at the tagged hook lines: `git grep -n "nuvio-rr fork hook"` lists all 21 (H1–H21, SPEC §2). Keep each
    hook's line at the same place in the new code; the fork's own files never conflict.
 3. `scripts\verify.ps1 -Full` ⇒ green with only the known upstream failures (prune
    `scripts\known-upstream-test-failures.txt` if upstream fixed some) and the hook budget met (every added upstream
-   line tagged; code 11, strings 3, Gradle 6).
+   line tagged; code 12, strings 3, Gradle 6).
 4. Re-verify on the hardware: §6.
 5. `scripts\package-fork.ps1` (new zip) and `scripts\export-patch.ps1` (archive patch in `..\patches`, checked with
    `git apply --check` on the new base).
@@ -108,11 +108,12 @@ Update SPEC's upstream base line and PROGRESS "Repo facts" after a rebase.
   `AppFeaturePolicy.desktop.kt` `inAppUpdaterEnabled` (H13), `player_bridge.cpp` `webViewUserDataDirectory()` (H14),
   `composeApp/build.gradle.kts`: after `windowsMsiUpgradeUuid` (H15), after `runtimeConfigValue` (H16), the
   `application.jvmArgs` list (H17), `nativeDistributions.packageName` (H18), `windows { upgradeUuid, menuGroup }`
-  (H19, H20). If upstream renames folders or moves the updater flag, move the hook with it.
+  (H19, H20), `WindowsAppShortcutIconUpdater.kt` `update()` (H21). If upstream renames folders or moves the updater
+  flag, move the hook with it.
 
 ## 6. Verifying after an update
 After an upstream rebase, an NVIDIA driver update or a Windows feature update (Phase 7 recipe, ~2 h unattended):
-1. `scripts\verify.ps1 -Full` ⇒ green with only the known upstream failures; hook budget met (every added upstream line tagged; code 11, strings 3, Gradle 6; §4).
+1. `scripts\verify.ps1 -Full` ⇒ green with only the known upstream failures; hook budget met (every added upstream line tagged; code 12, strings 3, Gradle 6; §4).
 2. Check the `driver` line of one feature run (§9): `frl=off`, `power=1` (max performance).
 3. `scripts\rr-tools\p7-matrix.ps1 -Set matrix,off,switch,lifecycle,faults,bad` (clips: `scripts\gen-testclips.ps1`;
    the switch/lifecycle/fault sets use the measure-only cap `-MaxHz 144`, because at the 240 Hz desktop default
@@ -189,9 +190,8 @@ playback start logs one line, e.g. `hook p1 driver frl=off(global) power=1(globa
 - **Player shutdown racing the hook:** if the player shuts down in the few microseconds between the hook arriving and
   the worker taking it, the hook is released by `mpv_terminate_destroy` instead of by us (no hang, no crash).
 - **`NewString` out of memory** in one JNI upcall is not checked before the call (the JVM would already be failing).
-- **App icon setting (Phase 8 verifier, open, Q44):** upstream's Settings → App icon writes the chosen icon to
-  `%LOCALAPPDATA%\Nuvio\icons` and repoints the **official** `Nuvio.lnk` shortcuts (desktop, start menu, taskbar)
-  (`WindowsAppShortcutIconUpdater.kt`). In the fork this touches the official app. Until Q44 is decided: don't use
-  that setting in Nuvio RR.
+- **App icon setting (Q44, fixed):** upstream's Settings → App icon would write `%LOCALAPPDATA%\Nuvio\icons` and repoint
+  the **official** `Nuvio.lnk` shortcuts. In the fork it does nothing (hook H21); the portable fork has no shortcuts of
+  its own, so there is nothing to update.
 - Rates are "the same" within 100 ppm (F1): DXGI rounds some modes (this monitor's 120 Hz is listed 12000/100, runs
   119998/1000). Distinct real modes are ≥ 188 ppm apart (143.973 vs 144).

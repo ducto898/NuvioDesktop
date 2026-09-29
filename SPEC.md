@@ -49,9 +49,10 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/core/build/AppFeaturePolicy.desktop.kt` | H13 `inAppUpdaterEnabled = ForkIdentity.updaterEnabled` | 1 |
 | `composeApp/src/desktopMain/native/windows/player_bridge.cpp` | H14 `webViewUserDataDirectory()`: `\<nuvioRrAppDirName()>\WebView2` (block-scope declaration + use on one line) | 1 |
 | `composeApp/build.gradle.kts` | H15 `nuvioForkName` from `fork-identity.properties` (off with `NUVIO_FORK_IDENTITY=off`), H16 Sentry DSN guard, H17 `-Dnuvio.fork.name` in `application.jvmArgs`, H18 `packageName`, H19 Windows `upgradeUuid`, H20 Windows `menuGroup` | 6 |
+| `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/settings/WindowsAppShortcutIconUpdater.kt` | H21 `update()` returns early when `ForkIdentity.shortcutIconsEnabled` is false (fork: never touch the official shortcuts or `%LOCALAPPDATA%\Nuvio\icons`, Q44) | 1 |
 
 H7 (a Kotlin line pushing the setting to native) was planned but is not needed: H2 asks Kotlin itself (Phase 6).
-Budget (owner Q42, enforced by `verify.ps1 -Full`): 11 code lines, 3 string lines, 6 Gradle lines; every added line tagged.
+Budget (owner Q42 + Q44, enforced by `verify.ps1 -Full`): 12 code lines, 3 string lines, 6 Gradle lines; every added line tagged.
 
 ## 3. New files
 | File | Purpose |

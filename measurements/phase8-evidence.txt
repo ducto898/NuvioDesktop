@@ -45,3 +45,7 @@ Verifier round (fresh agent, ~129k): FAIL on 2 confirmed findings, the rest PASS
   New zip: ..\dist\Nuvio-RR-1.1.26-d1fc4173.zip (the a8dc135f zip was removed).
 - Note: the portable app folder has no installer, so no start-menu entry exists; menuGroup/upgradeUuid (H19/H20) only
   matter for an MSI build.
+
+Q44 (owner yes): H21 in WindowsAppShortcutIconUpdater.update() returns when ForkIdentity.shortcutIconsEnabled is false.
+Tests first: db0e38dc (red 1/167) then green; verify -Full (phase8-q44-verify-full.txt): 1513 tests, only known upstream
+failures, hook budget code 12/12, strings 3/3, gradle 6/6. Zip rebuilt (see PROGRESS).

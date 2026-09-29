@@ -19,6 +19,7 @@ internal object WindowsAppShortcutIconUpdater {
 
     private fun update(icon: AppIconOption) {
         if (DesktopHostOs.current != DesktopHostOs.WINDOWS) return
+        if (!com.nuvio.app.fork.ForkIdentity.shortcutIconsEnabled) return // nuvio-rr fork hook H21
         runCatching {
             val resource = "icons/app-icon-${icon.key}-transparent.ico"
             val localAppData = knownFolder("LocalApplicationData") ?: return@runCatching

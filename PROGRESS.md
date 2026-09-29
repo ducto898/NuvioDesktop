@@ -96,8 +96,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   proposal, SPEC §1–3. Deviation: window title stays "Nuvio" (budget). **Verifier round (≈ 129k): FAIL** — the
   native feature log still went to the official `%LOCALAPPDATA%\Nuvio\Cache` (fixed in the fork file, `d1fc4173`,
   proven by a packaged run without the measure redirect: 0 official writes); upstream's App icon setting touches the
-  official shortcuts ⇒ **Q44**; 3 small fixes done. **Status: all automatic P8 work DONE; open = Q44 and the owner
-  checklist `docs/phase8-owner-checklist.md` (incl. the Phase 7 one, Q43).** After both: Phase 8 and the project done.
+  official shortcuts ⇒ **Q44**; 3 small fixes done. **Q44 yes (owner 2026-09-29):** hook H21 makes the icon updater a
+  no-op in the fork (`db0e38dc` red 1/167, then green; verify -Full 1513 tests, budget code 12/12, strings 3/3, Gradle 6/6).
+  **Status: all automatic P8 work DONE; open = the owner checklist `docs/phase8-owner-checklist.md` (incl. the
+  Phase 7 one, Q43).** After it: Phase 8 and the project done.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -291,7 +293,7 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
-- Q44 (Phase 8): upstream's Settings → App icon rewrites the **official** Nuvio shortcuts and writes
+- Q44 (Phase 8, ANSWERED 2026-09-29: yes, the one line): upstream's Settings → App icon rewrites the **official** Nuvio shortcuts and writes
   `%LOCALAPPDATA%\Nuvio\icons` (8 hard-coded names in `WindowsAppShortcutIconUpdater.kt`). Fix with ONE hook line that
   makes that updater do nothing in the fork (the portable fork has no shortcuts of its own), raising the code budget
   11 ⇒ 12? Alternative: leave it and just never use that setting in Nuvio RR (FORK §10). Recommended **the one line**.

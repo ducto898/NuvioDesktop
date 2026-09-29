@@ -34,7 +34,7 @@ object ForkIdentity {
     val shortcutIconsEnabled: Boolean get() = shortcutIconsEnabled(current)
 
     /** Q44: the App icon setting would rewrite the official Nuvio shortcuts; off in the fork (hook H21). */
-    fun shortcutIconsEnabled(property: String?): Boolean = TODO("Q44 commit B")
+    fun shortcutIconsEnabled(property: String?): Boolean = !isFork(property)
 
     /** The in-app updater would install the official build, so it is off in the fork (P8-8). */
     fun updaterEnabled(property: String?): Boolean = !isFork(property)
