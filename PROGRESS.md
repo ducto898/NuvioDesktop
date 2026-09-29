@@ -55,6 +55,17 @@ The only memory between phases. Read it at the start of every phase; update it a
   (no stall since `c1623bc8`) ⇒ P7-6/P7-14 replay the per-second sampler stats of all old runs too. At the 240 default
   nothing switches (24–60 fps already at target, 25/50 no mode) ⇒ Q30 measure-only mode cap. `switcher.exe` holding 280
   is not a valid substitute: the feature's `ChangeDisplaySettingsExW(NULL)` restore goes to the registry mode 240.
+  **Runs + fixes 2026-09-29 04:38–08:09 (`measurements/phase7-evidence.txt`, `phase7-rate-off.txt`):** tooling
+  `4e55ba37` (cap knob, measure.ps1 fixes, replay/judge tools, soak clips). 80 judged runs: matrix 40/40 PASS (every
+  display-synced run 0 drops + mistimed after 5 s), off 3/3, capped switches 143.973/59.951 PASS, close-during-switch
+  8/8, kill revert 0.17 s, drop-mode OK, faults 10/10, soaks 4 × 10 min + 60 min clean (0 d+m, no rate-off; audio
+  correction > 0.2 % only at the test clips' 150 s stream-copy joins, and at the capped 143.973). **F2 (fixed):** f11 at
+  143.973 bent mpv's estimate for 7 samples ⇒ with N = 5 the health check dropped display sync for the rest of the
+  video; at 240 f11 bends it 3–4 samples. Rule Q31 ⇒ **N = 9** (`c5ef3e5a` red 4/149, `120453b9` green, verify -Full
+  green); re-measured: display sync kept, known-bad still falls back (bad frames, ~16 s). **F1 (open, Q36):** DXGI lists
+  120 Hz as 12000/100 but Windows runs 119998/1000 ⇒ settle/verify (1e-6) time out ⇒ fail-safe restore; latent (120
+  is picked only under the cap on this monitor). Independent review (P7-19) started; owner checklist
+  `docs/phase7-owner-checklist.md` (P7-17) still to do.
 - **Phase 6 criteria written 2026-09-28 (SPEC P6-1..P6-13); **approved by the owner 2026-09-28 (Q23–Q26 yes, wording OK)**. Design: per-PC store
   `nuvio_refresh_rate`, `expect object RefreshRateMatchSetting` (3 actuals), new settings composable called by one line
   in `PlaybackSettingsPage.kt` (H9) + 3 strings (H10); native H2 asks Kotlin per player via a JNI upcall, so the planned
@@ -323,7 +334,7 @@ suite, ≈ 15 s with only the patch tests.
 | 4 Native switching | ~500k | ≈ 480k (main ≈ 360k incl. 37 measure runs, the P4-22 change and log reviews; verifier 117k) — within the estimate |
 | 5 mpv timing / OLED | ~400k | ≈ 470k so far (criteria + gate ≈ 140k, code + 22 runs + fixes ≈ 215k, verifier 115k); the owner's PresentMon/checklist session still to come ⇒ ~500k, ~25 % over (verifier again the largest item) |
 | 6 Settings/JNI | ~200k | ≈ 140k so far (criteria + gate, mostly reading PROGRESS/SPEC/plan) |
-| 7 Matrix + review | ~500k; re-estimated at the gate ≈ 550k (criteria ≈ 90k, tooling ≈ 80k, ~90 runs + soaks ≈ 130k, owner batch ≈ 50k, N change ≈ 25k, review ≈ 150k, docs ≈ 25k) | |
+| 7 Matrix + review | ~500k; re-estimated at the gate ≈ 550k (criteria ≈ 90k, tooling ≈ 80k, ~90 runs + soaks ≈ 130k, owner batch ≈ 50k, N change ≈ 25k, review ≈ 150k, docs ≈ 25k) | so far ≈ 330k main (criteria + tooling + 85 runs + F1/F2 analysis + N change) + review (running) |
 | 8 Upkeep | ~250k | |
 
 ## Measurements

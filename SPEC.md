@@ -505,8 +505,9 @@ first change on a player and puts exactly those back on revert.
   a 10 s window with drops + mistimed > 20, or `estimated-display-fps` off the target by > 1 % **in 5 judged samples in a
   row** (amended 2026-09-28 in Phase 6, owner-approved **Q28**: one 1.3 s stall bent the estimate for one sample and
   dropped display sync for the rest of the video, run p6-env1-set-off; `814cef33`/`3b6d8fda` (3), `8ee62087`/`c1623bc8`
-  (5); a stretch that recovers by itself is logged `rate-off pN <n> samples, worst <fps> (<err> %), recovered`, and
-  Phase 7 sets the final count from those lines), ⇒ `setTiming(Upstream)`,
+  (5); a stretch that recovers by itself is logged `rate-off pN <n> samples, worst <fps> (<err> %), recovered`;
+  **Phase 7 set the final count to 9** (P7-15 rule, Q31: a fullscreen toggle bent the estimate for 7 samples at
+  143.973, 3–4 at 239.901; `c5ef3e5a`/`120453b9`)), ⇒ `setTiming(Upstream)`,
   reason `resample-unhealthy`, at most once per playback start; the display stays at the target (no extra switch). Healthy
   runs (P5-12) never trigger it — auto (tests + P5-12 logs + one run with `-Opts` forcing a known-bad setup, e.g. the
   2b `d3d11-sync-interval=0` set, which must trigger it)
@@ -644,7 +645,8 @@ Design notes:
   no fresh evidence. Proposed (**Q30**, recommended option a): a **measure-only mode cap**
   `NUVIO_RR_MEASURE_MAX_HZ=<n>`, honoured only when `NUVIO_RR_MEASURE=1`, that drops listed modes above `<n>` from the
   list handed to `decide()` (the current-state reads are untouched). With `144`: 23.976/24 ⇒ 143.973 (×6),
-  29.97/59.94/60 ⇒ 120.000 (listed as 12000/100) — real switches away from 240 and a real `NULL` restore back to the registry mode
+  29.97/59.94 ⇒ 59.951 (×2/×1; 120/119.88 is just outside the 1000/1001 tolerance, measured), 60 ⇒ 120.000 (listed
+  as 12000/100; see finding F1 in PROGRESS) — real switches away from 240 and a real `NULL` restore back to the registry mode
   240, the same path a 280 desktop takes. Rejected alternative: `switcher.exe` holding 280 around a run — the feature's
   restore (`ChangeDisplaySettingsExW(NULL)`) goes to the **registry** mode 240, not to switcher's 280, so the run would
   test an artificial two-process state.
@@ -695,13 +697,13 @@ Design notes:
 - P7-8 — Feature off (no `-Feature`/`-Setting`, env 0): `sdr-1080p-23.976`, `sdr-1080p-59.94`, `hdr-2160p-23.976` ⇒
   no hook, no `refresh-rate.log`, upstream audio sync at 239.901, mpv option lines equal Phase 6's off runs — auto
 - P7-9 — Switch path (with the Q30 cap `-MaxHz 144`, feature on): `sdr-1080p-23.976` and `sdr-1080p-24` (⇒ 143.973),
-  `sdr-1080p-29.97`, `sdr-1080p-59.94`, `sdr-1080p-60` (⇒ 120.000) windowed; `hdr-2160p-23.976`
+  `sdr-1080p-29.97`, `sdr-1080p-59.94` (⇒ 59.951), `sdr-1080p-60` (⇒ 120.000) windowed; `hdr-2160p-23.976`
   fullscreen ⇒ switch before `file-loaded`, settle ≤ 4 s, verify OK, HDR/bpc unchanged, P5-12 limits at the new rate,
   restore on close ⇒ 239.901 within 1 s, registry 240 in every observer sample — auto
 - P7-10 — Lifecycle at the capped switch: (a) window close during the switch (`-CloseAfterSwitchMs` 0/50/150/300,
   2 runs each) ⇒ no crash, 239.901 after; (b) `-Kill` while switched ⇒ Windows reverts to 239.901 within 1 s (D7);
   (c) next episode with the same target (two consecutive files, as P5-13) ⇒ one switch only, second player gets
-  `DisplaySync`; (d) `drop-mode` fault ⇒ `mode-lost` re-switch + `setTiming display-sync ok`, then `mode-lost-again` +
+  `DisplaySync` (a new native player needs the real UI ⇒ owner item P7-17 (8) with `run-dev.ps1 -MaxHz 144`); (d) `drop-mode` fault ⇒ `mode-lost` re-switch + `setTiming display-sync ok`, then `mode-lost-again` +
   `setTiming upstream ok`, as P5-8; (e) `-Actions` pause 20 s, seek ±10 s, controls, f11 ×2, alttab ×2 ⇒ mode kept,
   limits met outside a 5 s window after each action, every seek/f11/alttab's `rate-off` line (if any) collected — auto
 - P7-11 — Fail-safe regressions (one short run each, feature on): every `NUVIO_RR_FAULT` kind (8 Phase 4 kinds +
