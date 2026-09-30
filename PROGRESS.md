@@ -526,6 +526,17 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Q48 (owner: send the 4 upstream PRs). Upstream rules: bug issue required per PR, issues only via the web
+  form (a daily bot closes unlabeled issues; API-created issues from non-collaborators get no label) => owner submits 4
+  pre-filled form links, then Claude pushes the branches and opens the PRs. Reproductions (temporary tests/scripts, not
+  committed; copies in the session scratchpad): #1 kill harness, 60 random hard kills of a child JVM saving a 2.1 MB
+  store: 60/60 damaged before (58 partial, 2 empty), 60/60 intact with the atomic write. #2 real downloader, local server
+  ~80 Mbit/s, 100 MB: 14 400 progress calls (1 400/s) before, 42 after. #3 dev build, 100 SetWindowPos moves: ~100
+  rewrites of nuvio_window_state.properties before (the audit said 4 per event: wrong, only changed keys persist), 1 after;
+  PR commit comment corrected (upstream-pr/window-geometry-debounce 1cfc3921). #4 mpv IPC + 3 s slow subtitle host:
+  synchronous sub-add returns after 3 012 ms, playback keeps going (UI freeze follows from the EDT + mpvMutex path; not
+  timed through the app menu). All 4 branches on cf185993: full desktopTest, only the 7 known failures. Worktree
+  NuvioRate/wt (detached). No upstream private security channel (no SECURITY.md, private reporting off).
 - 2026-10-01 Rebased onto upstream/Dev `cf185993` (34 new upstream commits, 175 files; overlap only build.gradle.kts,
   strings.xml, PlaybackSettingsPage.kt; 0 conflicts; H9 still right after the RTX section). Backup branch
   `backup/pre-rebase-2026-10-01`; fork patch lines identical before/after. verify -Full green (1556 tests, 7 known
