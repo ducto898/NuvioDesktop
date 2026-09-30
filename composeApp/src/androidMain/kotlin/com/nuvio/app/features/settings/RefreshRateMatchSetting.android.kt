@@ -8,4 +8,7 @@ internal actual object RefreshRateMatchSetting {
     actual val enabled: StateFlow<Boolean> = MutableStateFlow(false)
 
     actual fun setEnabled(value: Boolean) = Unit
+    actual val badgeEnabled: StateFlow<Boolean> = MutableStateFlow(false)
+
+    actual fun setBadgeEnabled(value: Boolean) = Unit
 }

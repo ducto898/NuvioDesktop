@@ -20,8 +20,9 @@ State after Phase 8 (details in §4 per phase):
   restore and put the saved mpv values back (playback continues); display-resample clearly broken (health check) ⇒
   mpv's own timing, the mode stays (rate error: 9 judged samples in a row, P5-11 / P7-15).
 - Restore on player screen gone, window close, JVM exit; Windows reverts on crash/kill (D7).
-- On-screen note (audit E3): mpv `show-text` for 4 s after the hook decision and after a runtime timing change;
-  `NUVIO_RR_OSD` 0/1 (default on, off in measure runs). Driver read (audit #9): started at H2 on a detached thread,
+- On-screen badge (audit E3): mpv `show-text` for 2.5 s top-right after the hook decision and after a runtime timing
+  change; per player at H2 (upcall `nativeBadgeEnabled`): `NUVIO_RR_OSD` 0/1, else the per-PC setting
+  `show_rate_badge` (default on); off in measure runs unless `NUVIO_RR_OSD=1`. Driver read (audit #9): started at H2 on a detached thread,
   collected at the hook; if not ready, the process's last read is used and refreshed.
 - Fork app identity (Phase 8): the packaged fork is "Nuvio RR" (own exe, start-menu group, MSI upgrade UUID) with its
   own `%APPDATA%\Nuvio RR`, `%LOCALAPPDATA%\Nuvio RR\Cache` and `...\WebView2`; in-app updater off; the build refuses a
@@ -46,7 +47,7 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt` | H6 `RefreshRateMatch.onScreenGone()` (fully qualified, no import) first line of `DisposableEffect(host).onDispose` | 1 |
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt` | H8 `RefreshRateMatch.onAppExit()` (fully qualified) first line of `onCloseRequest` | 1 |
 | `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/PlaybackSettingsPage.kt` | H9 `RefreshRateMatchSettingsSection(isTablet = isTablet)` (fully qualified) right after the `if (isWindows)` "NVIDIA RTX Video" section | 1 |
-| `composeApp/src/commonMain/composeResources/values/strings.xml` | H10 3 strings after `settings_playback_nvidia_rtx_super_resolution_desc` (`settings_playback_display_section`, `settings_playback_match_refresh_rate`, `settings_playback_match_refresh_rate_desc`), XML comment on each; other locales fall back to English | 3 |
+| `composeApp/src/commonMain/composeResources/values/strings.xml` | H10 3 strings after `settings_playback_nvidia_rtx_super_resolution_desc` (`settings_playback_display_section`, `settings_playback_match_refresh_rate`, `settings_playback_match_refresh_rate_desc`, `settings_playback_rate_badge`, `settings_playback_rate_badge_desc`), XML comment on each; other locales fall back to English | 5 |
 
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt` | H11 Roaming folder, H12 Local cache folder: `ForkIdentity.appDirName` instead of `"Nuvio"` (Windows branches only) | 2 |
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/core/build/AppFeaturePolicy.desktop.kt` | H13 `inAppUpdaterEnabled = ForkIdentity.updaterEnabled` | 1 |
@@ -55,7 +56,7 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/settings/WindowsAppShortcutIconUpdater.kt` | H21 `update()` returns early when `ForkIdentity.shortcutIconsEnabled` is false (fork: never touch the official shortcuts or `%LOCALAPPDATA%\Nuvio\icons`, Q44) | 1 |
 
 H7 (a Kotlin line pushing the setting to native) was planned but is not needed: H2 asks Kotlin itself (Phase 6).
-Budget (owner Q42 + Q44, enforced by `verify.ps1 -Full`): 12 code lines, 3 string lines, 6 Gradle lines; every added line tagged.
+Budget (owner Q42 + Q44 + badge switch 2026-10-01, enforced by `verify.ps1 -Full`): 12 code lines, 5 string lines, 6 Gradle lines; every added line tagged.
 
 ## 3. New files
 | File | Purpose |

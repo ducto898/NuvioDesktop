@@ -619,6 +619,7 @@ struct PlayerEntry {
     // thread never calls into mpv while holding [mutex] (verifier Phase 5: shutdown() takes it on the UI thread).
     std::atomic<double> cachedStats[5] = {std::nan(""), std::nan(""), std::nan(""), std::nan(""), 0.0};
     std::atomic<bool> statsReady{false};
+    bool badge = false;  // show the rate badge for this player (set once at H2)
 };
 
 struct Registry {
@@ -846,6 +847,7 @@ struct MatchMethods {
     jclass type = nullptr;
     jmethodID start = nullptr;    // nativePlaybackStart
     jmethodID enabled = nullptr;  // nativeFeatureEnabled (Phase 6)
+    jmethodID badge = nullptr;    // nativeBadgeEnabled (owner 2026-09-30)
 };
 
 const MatchMethods &matchMethods(JNIEnv *env) {
@@ -860,9 +862,12 @@ const MatchMethods &matchMethods(JNIEnv *env) {
             if (env->ExceptionCheck()) env->ExceptionClear();
             jmethodID enabled = env->GetStaticMethodID(local, "nativeFeatureEnabled", "()I");
             if (env->ExceptionCheck()) env->ExceptionClear();
-            if (start && enabled) {
+            jmethodID badge = env->GetStaticMethodID(local, "nativeBadgeEnabled", "()I");
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            if (start && enabled && badge) {
                 methods.start = start;
                 methods.enabled = enabled;
+                methods.badge = badge;
                 methods.type = static_cast<jclass>(env->NewGlobalRef(local));
             }
             env->DeleteLocalRef(local);
@@ -874,7 +879,8 @@ const MatchMethods &matchMethods(JNIEnv *env) {
 // Phase 6 (P6-9, P6-10): is the feature on for the player being created? Kotlin's code: 0 = off, 1 = on by
 // NUVIO_RR_ENABLE, 2 = on by the setting, -1 = Kotlin failed. Anything that stops the question being asked is -1 with
 // the reason in [why]; the caller treats every value <= 0 as off.
-int upcallFeatureEnabled(std::string &why) {
+// [badge]: ask nativeBadgeEnabled instead (1 = show the rate badge, 0 = don't; same failure values).
+int upcallFeatureEnabled(std::string &why, bool badge = false) {
     JavaVM *vm = javaVm();
     if (!vm) {
         why = "no-jvm";
@@ -895,8 +901,8 @@ int upcallFeatureEnabled(std::string &why) {
     }
     int code = -1;
     const MatchMethods &match = matchMethods(env);
-    jmethodID method = match.enabled;
-    if (match.type && measureConfig().enabled && fault("enable-upcall")) {  // measure runs only: ask for a method that does not exist
+    jmethodID method = badge ? match.badge : match.enabled;
+    if (!badge && match.type && measureConfig().enabled && fault("enable-upcall")) {  // measure runs only: ask for a method that does not exist
         method = env->GetStaticMethodID(match.type, "nativeFeatureEnabledInjectedFault", "()I");
         if (env->ExceptionCheck()) env->ExceptionClear();
         why = "method-not-found (injected fault enable-upcall)";
@@ -1183,15 +1189,18 @@ bool revertTimingLocked(PlayerEntry &entry, int count = 3) {
     return ok;
 }
 
-// Audit E3 (2026-09-30): a 4 s mpv on-screen note of what the feature did, drawn by mpv itself (no upstream line).
-// NUVIO_RR_OSD=0 turns it off. Measure runs keep it off unless NUVIO_RR_OSD=1, so their frame counters stay comparable.
-bool rateNotesEnabled() {
-    static int enabled = -1;
-    if (enabled < 0) {
-        std::wstring value = envValue(L"NUVIO_RR_OSD");
-        enabled = value == L"0" ? 0 : value == L"1" ? 1 : (measureConfig().enabled ? 0 : 1);
+// Audit E3 (2026-09-30): an mpv on-screen note of what the feature did, drawn by mpv itself (no upstream line).
+// Per player, decided at H2 (owner 2026-09-30): the "Show refresh rate badge" setting, NUVIO_RR_OSD=0/1 overriding it.
+// Measure runs keep it off unless NUVIO_RR_OSD=1, so their frame counters stay comparable.
+bool rateBadgeFor(std::string &why) {
+    if (measureConfig().enabled && envValue(L"NUVIO_RR_OSD") != L"1") return false;
+    int code = -1;
+    try {
+        code = upcallFeatureEnabled(why, true);
+    } catch (...) {
+        why = "native-exception";
     }
-    return enabled == 1;
+    return code == 1;
 }
 
 // Owner 2026-09-30: mpv's default OSD text was "big and ugly". Styled per message with ASS overrides (osd-ass-cc), so
@@ -1204,7 +1213,7 @@ enum class RateNote { Synced, NotMatched, SyncOff };
 // exact rate and the reason. ASS overrides per message (osd-ass-cc), so no global OSD option changes; sizes are in
 // mpv's 720-line OSD space (default OSD font 55). No \\fad: mpv rebuilds OSD messages, so a fade restarts forever.
 void showRateNoteLocked(PlayerEntry &entry, double hz, RateNote kind, const char *why) {
-    if (!entry.mpv || !rateNotesEnabled() || !mpvApi().command) return;
+    if (!entry.mpv || !entry.badge || !mpvApi().command) return;
     std::string rate = strf("%.0f", hz);
     std::string style = "${osd-ass-cc/0}{\\an9\\bord1\\shad0\\3c&H000000&\\3a&HC0&\\1c&HFFFFFF&}";
     std::string text = kind == RateNote::Synced
@@ -1410,7 +1419,9 @@ inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container)
     gFeatureUsed.store(true);
     auto hookAdd = mpvSymbol<mpv_hook_add_fn>("mpv_hook_add");
     int rc = hookAdd ? hookAdd(mpv, 0, "on_preloaded", 0) : -1;
+    std::string badgeWhy;
     auto entry = std::make_shared<PlayerEntry>();
+    entry->badge = rateBadgeFor(badgeWhy);
     entry->owner = owner;
     entry->container = container;
     entry->mpv = mpv;
@@ -1421,8 +1432,9 @@ inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container)
         if (rc >= 0) r.players.push_back(entry);
     }
     std::string faultText = featureConfig().fault.empty() ? std::string() : " fault=" + featureConfig().fault;
-    nlog(strf("player p%lld created, enabled=%s (upcall %.1f ms), mpv_hook_add(on_preloaded) rc=%d%s", (long long)entry->id,
-        code == 1 ? "env" : "setting", upcallMs, rc, faultText.c_str()));
+    std::string badgeText = entry->badge ? " badge=on" : badgeWhy.empty() ? " badge=off" : " badge=off (" + badgeWhy + ")";
+    nlog(strf("player p%lld created, enabled=%s (upcall %.1f ms), mpv_hook_add(on_preloaded) rc=%d%s%s", (long long)entry->id,
+        code == 1 ? "env" : "setting", upcallMs, rc, badgeText.c_str(), faultText.c_str()));
     if (rc >= 0) startDriverRead(entry->id);
 }
 

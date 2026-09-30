@@ -525,6 +525,13 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Badge switch (owner request 2026-09-30, resumed from uncommitted tests): Settings → Playback → Display
+  "Show refresh rate badge" (per-PC key `show_rate_badge`, default on, greyed while the main switch is off); native asks
+  Kotlin once per player at H2 (`nativeBadgeEnabled`), `NUVIO_RR_OSD` 0/1 still overrides, measure runs off unless 1.
+  Owner: string budget 3 ⇒ 5 (2 H10 lines). A `fcd08d8b` (red 8/170), B green (test diff A→B empty); verify -Full
+  1516 tests, 7 known failures, budget code 12/12, strings 5/5, gradle 6/6. Live: `*badge-osd1` ⇒ `badge=on` + note
+  drawn; `*badge-default` ⇒ `badge=off`, no note; 0 problems. Open: owner to try the toggle in the app (setting path
+  is covered by tests only; measure runs bypass it by design).
 - 2026-09-30 Audit (docs/audit-2026-09-30.md, 4 parallel reviews, ~650k): fork items done (cf7c4fbb): driver read
   starts at H2 and later videos reuse the last read (the FIRST video still waits: local files reach the hook 4 ms after
   H2); mpv on-screen rate note (screenshots at 239.90/143.97 Hz). E2 25/50 fps blending trial clean (b99ba6e6, Q47).

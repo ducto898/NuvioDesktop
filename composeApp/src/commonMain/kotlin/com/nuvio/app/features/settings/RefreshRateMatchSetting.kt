@@ -11,4 +11,9 @@ internal expect object RefreshRateMatchSetting {
     val enabled: StateFlow<Boolean>
 
     fun setEnabled(value: Boolean)
+
+    /** The small on-screen rate badge while the feature is on (owner 2026-09-30); default on. */
+    val badgeEnabled: StateFlow<Boolean>
+
+    fun setBadgeEnabled(value: Boolean)
 }

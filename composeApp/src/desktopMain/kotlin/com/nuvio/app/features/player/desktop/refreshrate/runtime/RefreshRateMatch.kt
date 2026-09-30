@@ -31,6 +31,10 @@ object RefreshRateMatch {
     @JvmStatic
     fun nativeFeatureEnabled(): Int = enablementCode(System.getenv("NUVIO_RR_ENABLE")) { RefreshRateMatchSetting.stored() }
 
+    /** Upcall from the native H2 for a player the feature is on for: 1 = show the rate badge, 0 = don't. */
+    @JvmStatic
+    fun nativeBadgeEnabled(): Int = if (resolveBadge(System.getenv("NUVIO_RR_OSD")) { RefreshRateMatchSetting.badgeStored() }) 1 else 0
+
     /** H6: the player screen went away. Returns at once. */
     fun onScreenGone() {
         dispatcher?.screenGone()

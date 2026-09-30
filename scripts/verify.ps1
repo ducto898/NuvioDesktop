@@ -151,8 +151,8 @@ function Write-DiffReport {
     Write-Host ("    new infra/doc files    : {0,3}   lines: {1}" -f @($newInfra).Count, (& $sum $newInfra))
 
     # Phase 8 (SPEC P8-1, owner Q42): every line added to an upstream file carries its hook tag, and the tagged lines
-    # stay within the budget: 12 code lines (Q44: +H21), 3 strings.xml lines, 6 build.gradle.kts lines.
-    $budget = @{ code = 12; strings = 3; gradle = 6 }
+    # stay within the budget: 12 code lines (Q44: +H21), 5 strings.xml lines (badge switch), 6 build.gradle.kts lines.
+    $budget = @{ code = 12; strings = 5; gradle = 6 }
     $count = @{ code = 0; strings = 0; gradle = 0 }
     $untagged = @()
     foreach ($r in $up) {

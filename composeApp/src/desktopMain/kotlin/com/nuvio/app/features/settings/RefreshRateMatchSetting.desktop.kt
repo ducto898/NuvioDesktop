@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** Per-PC store (Q23): its own file, keys not wrapped by ProfileScopedKey, not in any sync payload. */
 internal const val REFRESH_RATE_STORE = "nuvio_refresh_rate"
 internal const val MATCH_DISPLAY_REFRESH_RATE_KEY = "match_display_refresh_rate"
+internal const val SHOW_RATE_BADGE_KEY = "show_rate_badge"
 
 internal actual object RefreshRateMatchSetting {
     private val preference by lazy { RefreshRateMatchPreference(DesktopStorage.store(REFRESH_RATE_STORE)) }
@@ -22,9 +23,17 @@ internal actual object RefreshRateMatchSetting {
 
     /** Read by the native H2 upcall at each playback start (P6-9). */
     fun stored(): Boolean = preference.stored()
+
+    actual val badgeEnabled: StateFlow<Boolean>
+        get() = preference.badgeEnabled
+
+    actual fun setBadgeEnabled(value: Boolean) = preference.setBadgeEnabled(value)
+
+    /** Read by the native H2 upcall for each player the feature is on for. */
+    fun badgeStored(): Boolean = preference.badgeStored()
 }
 
-/** The setting over one store; default OFF when the file or the key is missing. */
+/** The settings over one store; the main switch is OFF and the badge ON when the file or the key is missing. */
 internal class RefreshRateMatchPreference(private val store: DesktopStorage.Store) {
     private val state = MutableStateFlow(stored())
 
@@ -43,7 +52,11 @@ internal class RefreshRateMatchPreference(private val store: DesktopStorage.Stor
     val badgeEnabled: StateFlow<Boolean>
         get() = badgeState
 
-    fun setBadgeEnabled(value: Boolean): Unit = TODO("badge commit B")
+    fun setBadgeEnabled(value: Boolean) {
+        store.putBoolean(SHOW_RATE_BADGE_KEY, value)
+        badgeState.value = value
+    }
 
-    fun badgeStored(): Boolean = TODO("badge commit B")
+    /** Default ON: the badge shows unless it was turned off. */
+    fun badgeStored(): Boolean = store.getBoolean(SHOW_RATE_BADGE_KEY) ?: true
 }

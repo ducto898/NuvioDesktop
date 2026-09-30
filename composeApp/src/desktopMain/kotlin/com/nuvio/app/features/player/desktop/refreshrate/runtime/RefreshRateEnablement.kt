@@ -24,7 +24,15 @@ internal fun resolveEnablement(env: String?, setting: () -> Boolean): Enablement
 }
 
 /** Owner 2026-09-30: the on-screen badge. `NUVIO_RR_OSD` "0"/"1" override; else the setting; an error shows none. */
-internal fun resolveBadge(env: String?, setting: () -> Boolean): Boolean = TODO("badge commit B")
+internal fun resolveBadge(env: String?, setting: () -> Boolean): Boolean = when (env) {
+    "1" -> true
+    "0" -> false
+    else -> try {
+        setting()
+    } catch (t: Throwable) {
+        false
+    }
+}
 
 /** [Enablement.nativeCode] for the native H2 upcall; anything thrown while deciding is -1, which native treats as off (P6-10). */
 internal fun enablementCode(env: String?, setting: () -> Boolean): Int = try {
