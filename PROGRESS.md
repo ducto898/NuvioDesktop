@@ -525,6 +525,13 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Owner checklist Part 2 (Phase 7): B PresentMon `*004708*-p7-pm-cap` PASS: 23.976 capped => 143.973 settled
+  409 ms (before file-loaded), display-resample, vsync-ratio 6.0, after 5 s 0 drops / 1 mistimed (pause resume) / 0
+  underruns; PresentMon 8937 java.exe display changes all 1 refresh apart (6.9458 ms grid, 0 off > 0.5 ms, 0 missed,
+  Independent Flip); 20 s fullscreen pause = 2867.0014 refreshes (0.01 ms off grid) => no VRR at 143.973; restore
+  252 ms => 239.901; 0 problems. A and C: **owner-attested** from earlier use ("it's fine"), not run as written, so no log
+  evidence for HDR toggle under P4-22, sleep/resume, audio device switch, DV/HDR10+, next episode under the cap.
+  Part 1 (packaged app next to the official one): not yet answered.
 - 2026-10-01 Owner set the desktop to 250 Hz (custom mode, still raw-only): run `*at250-check` => Windows current
   2560x1440@250/1, DXGI list unchanged (no 250) => 25 fps `no-suitable-mode`, upstream timing. Proposed: count the
   current mode as a candidate (25/50 => exact 10/5 holds at 250, would replace Q47 blending); owner has not decided.
