@@ -3,6 +3,7 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
 - **Phase:** 2 (Measure only) **DONE 2026-09-28**. Verifier round 3/3: **PASS** on P2-0..P2-19 (P2-7/13/17 human parts
   recorded/accepted/waived by the owner). Upstream diff: 2 lines in `player_bridge.cpp`. Rebased on `fe92d414`, not pushed.
   Open: upstream `PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions` is **flaky under load**
@@ -525,6 +526,9 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Owner checklist Part 1 (packaged Nuvio RR next to the official app, zip c8b68048): "all fine in Nuvio RR"
+  (owner-attested: both apps at once, settings separate, 24 fps smooth, no flicker, badge on/off, no update banner).
+  **Phase 8 DONE 2026-10-01 => project done.** Still open: Q47 (blending), Q48 (upstream PRs), the 250 Hz idea.
 - 2026-10-01 Owner checklist Part 2 (Phase 7): B PresentMon `*004708*-p7-pm-cap` PASS: 23.976 capped => 143.973 settled
   409 ms (before file-loaded), display-resample, vsync-ratio 6.0, after 5 s 0 drops / 1 mistimed (pause resume) / 0
   underruns; PresentMon 8937 java.exe display changes all 1 refresh apart (6.9458 ms grid, 0 off > 0.5 ms, 0 missed,
