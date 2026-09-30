@@ -527,7 +527,7 @@ suite, ≈ 15 s with only the patch tests.
 
 ## Log
 - 2026-10-01 Why the custom 100/250 Hz modes are raw-only (read-only EDID decode, monitor Gigabyte MO27Q28G, registry
-  DISPLAY\GBT273C&360e9452&0&UID4353): 2560x1440 timings listed = 59.951 (base DTD), 119.998 + 143.973 (CTA DTDs),
+  DISPLAY\GBT273C\5&360e9452&0&UID4353): 2560x1440 timings listed = 59.951 (base DTD), 119.998 + 143.973 (CTA DTDs),
   239.901 + 279.961 (DisplayID type I) = exactly the DXGI list. Range limits descriptor: V 80-280 Hz but **H 510-510 kHz**
   (bytes 0e 50 19 ff ff 7e 01, both H offsets set), "range limits only" (no formula). Every listed mode runs at 89-463
   kHz, so the H range is bogus; 250 Hz needs ~371-413 kHz, 100 Hz ~150 kHz => any non-listed mode falls outside the
