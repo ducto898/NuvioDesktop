@@ -2,9 +2,14 @@ package com.nuvio.app.core.storage
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.IOException
+import java.nio.channels.Channels
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 import java.util.Comparator
 import java.util.Locale
 import java.util.Properties
@@ -162,8 +167,26 @@ internal object DesktopStorage {
 
         private fun persist() {
             Files.createDirectories(file.parent)
-            Files.newOutputStream(file).use { output ->
-                properties.store(output, "Nuvio desktop preferences")
+            // Write a sibling temp file, flush it to disk, then swap it in: a crash or power loss mid-write leaves
+            // the previous file intact instead of a truncated one that loads as empty (watch progress, tokens, ...).
+            val temp = file.resolveSibling("${file.fileName}.tmp")
+            FileChannel.open(
+                temp,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+            ).use { channel ->
+                properties.store(Channels.newOutputStream(channel), "Nuvio desktop preferences")
+                channel.force(true)
+            }
+            try {
+                Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (_: IOException) {
+                // e.g. another process holds the file open on Windows: fall back to the previous direct write.
+                Files.deleteIfExists(temp)
+                Files.newOutputStream(file).use { output ->
+                    properties.store(output, "Nuvio desktop preferences")
+                }
             }
         }
     }
