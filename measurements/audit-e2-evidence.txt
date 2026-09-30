@@ -1,0 +1,15 @@
+Audit E2 trial (2026-09-30): 25/50 fps smoothness at the 240 Hz desktop without a 100 Hz mode. Measure-only, feature off
+(env 0), mpv forced by the measure knobs: -Sync display-resample -Opts "interpolation=yes;tscale=oversample;
+display-fps-override=239.901000". 60 s each, counted after 5 s, -Power.
+
+run                       sync               interp  drops+mistimed/min  est display fps  vsync jitter  underruns  GPU W
+sdr-1080p-25   baseline   audio              no      (n/a in audio sync)  -                -             0          37.3
+sdr-1080p-25   blend      display-resample   yes     0                   239.8972         0.00044       0          36.9
+sdr-1080p-50   blend      display-resample   yes     0                   239.8973         0.00044       0          38.5
+hdr-2160p-25   baseline   audio (fullscreen) no      -                   -                -             0          35.3
+hdr-2160p-25   blend      display-resample   yes     0                   239.8972         0.00033       0          39.6
+(GPU at 2490 MHz in all runs: "Prefer maximum performance" is set globally.)
+
+Result: technically clean (no drops/mistimes/underruns, rate estimate exact, +0..4 W). Not judged: the look. Blending
+replaces the uneven 9/10-refresh holds of 25 fps at 240 Hz with one blended refresh at each frame change (tscale=
+oversample, the mildest mpv blend). Owner decision needed (D12 "no lower picture quality") before it goes in: Q47.
