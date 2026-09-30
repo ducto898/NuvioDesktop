@@ -293,6 +293,12 @@ suite, ≈ 15 s with only the patch tests.
   measure.ps1 `-ExpectHz 239.901 -ExpectRegHz 240` are the new defaults. 23.976 ⇒ already at target (no switch).
 
 ## Open questions for owner
+- Q47 (audit E2, 2026-09-30): turn on mpv frame blending (display-resample + interpolation, tscale=oversample) for
+  25/50 fps titles at the 240 Hz desktop? Measured clean (0 drops/mistimed/underruns, +0..4 W;
+  measurements/audit-e2-evidence.txt); the look (one blended refresh at each frame change instead of uneven 9/10-refresh
+  holds) is the owner's call (D12). Recommended: watch one 25 fps title with it first.
+- Q48 (audit Q46 b, 2026-09-30): 4 upstream PRs ready on local branches upstream-pr/* (docs/upstream-prs-2026-09-30.md);
+  sending needs issues opened + a push (Q2/Q3). Send, keep, or also carry #1 (atomic writes) in the fork?
 - Q44 (Phase 8, ANSWERED 2026-09-29: yes, the one line): upstream's Settings → App icon rewrites the **official** Nuvio shortcuts and writes
   `%LOCALAPPDATA%\Nuvio\icons` (8 hard-coded names in `WindowsAppShortcutIconUpdater.kt`). Fix with ONE hook line that
   makes that updater do nothing in the fork (the portable fork has no shortcuts of its own), raising the code budget
@@ -519,6 +525,12 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-09-30 Audit (docs/audit-2026-09-30.md, 4 parallel reviews, ~650k): fork items done (cf7c4fbb): driver read
+  starts at H2 and later videos reuse the last read (the FIRST video still waits: local files reach the hook 4 ms after
+  H2); mpv on-screen rate note (screenshots at 239.90/143.97 Hz). E2 25/50 fps blending trial clean (b99ba6e6, Q47).
+  4 upstream PR branches from upstream/Dev b1e00724 (upstream moved 32 commits), each: full desktopTest, only the 7
+  known failures (Q48). Found: packaged test runs started from the repo loaded the repo's build DLL (dev-path fallback,
+  audit #8), so the unzip-and-run extraction path is still unexercised (owner checklist).
 - 2026-09-27 Phase 0: cloned the fork, added upstream, created the branch. Existing-work search found
   nothing done or planned (docs/research/00-existing-work.md); NuvioTV (Android TV) has AFR by
   tapframe = positive precedent. Drafted docs/feature-request.md (not posted). Toolchain installed.
