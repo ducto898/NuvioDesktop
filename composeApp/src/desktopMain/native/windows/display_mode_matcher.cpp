@@ -1194,11 +1194,26 @@ bool rateNotesEnabled() {
     return enabled == 1;
 }
 
-void showRateNoteLocked(PlayerEntry &entry, const std::string &text) {
+// Owner 2026-09-30: mpv's default OSD text was "big and ugly". Styled per message with ASS overrides (osd-ass-cc), so
+// no global OSD option changes: small Segoe UI, semi-bold value + lighter detail, thin soft outline (no \fad: mpv rebuilds OSD messages, so a fade restarts and never shows).
+// Sizes are in mpv's 720-line OSD space (the default OSD font is 55).
+enum class RateNote { Synced, NotMatched, SyncOff };
+
+// Owner 2026-09-30: a small badge top-right (films show their content rating top-left), not a sentence.
+// Synced: a sync symbol + the rate in whole Hz; not matched / sync off: the rate alone, dimmed. The log keeps the
+// exact rate and the reason. ASS overrides per message (osd-ass-cc), so no global OSD option changes; sizes are in
+// mpv's 720-line OSD space (default OSD font 55). No \\fad: mpv rebuilds OSD messages, so a fade restarts forever.
+void showRateNoteLocked(PlayerEntry &entry, double hz, RateNote kind, const char *why) {
     if (!entry.mpv || !rateNotesEnabled() || !mpvApi().command) return;
-    const char *args[] = {"show-text", text.c_str(), "4000", nullptr};
+    std::string rate = strf("%.0f", hz);
+    std::string style = "${osd-ass-cc/0}{\\an9\\bord1\\shad0\\3c&H000000&\\3a&HC0&\\1c&HFFFFFF&}";
+    std::string text = kind == RateNote::Synced
+        ? style + "{\\1a&H30&\\fnSegoe UI Symbol\\fs15}\xE2\x86\xBB{\\fnSegoe UI Semibold\\fs14} " + rate
+        : style + "{\\1a&H90&\\fnSegoe UI Semibold\\fs14}" + rate;
+    const char *args[] = {"expand-properties", "show-text", text.c_str(), "2500", nullptr};  // expands ${osd-ass-cc/0}
     int rc = mpvApi().command(entry.mpv, args);
-    nlog(strf("note p%lld \"%s\" rc=%d", (long long)entry.id, text.c_str(), rc));
+    nlog(strf("note p%lld %s %.3f Hz (%s) rc=%d", (long long)entry.id,
+        kind == RateNote::Synced ? "synced" : kind == RateNote::NotMatched ? "not-matched" : "sync-off", hz, why, rc));
 }
 
 std::string hzText(double hz) { return strf("%.2f Hz", hz); }
@@ -1281,12 +1296,10 @@ void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
         if (entry->hookPending && !entry->stopping.load()) {
             try {
                 if (request.kind == 2 && synced) {
-                    showRateNoteLocked(*entry, "Display " + hzText((double)request.num / (double)request.den) +
-                        " \xC2\xB7 synced to the video");
+                    showRateNoteLocked(*entry, (double)request.num / (double)request.den, RateNote::Synced, "hook");
                 } else if (request.kind == 1 && !display.empty()) {
                     DisplayState now = queryDisplayByName(display);
-                    if (complete(now)) showRateNoteLocked(*entry, "Display " + hzText((double)now.num / (double)now.den) +
-                        " \xC2\xB7 not matched");
+                    if (complete(now)) showRateNoteLocked(*entry, (double)now.num / (double)now.den, RateNote::NotMatched, "hook");
                 }
             } catch (...) {
             }
@@ -1542,7 +1555,7 @@ bool setTiming(int64_t playerId, int64_t kind, int64_t num, int64_t den) {
     if (!entry->mpv) return false;
     if (kind == 2) {
         bool ok = applyDisplaySyncLocked(*entry, num, den);
-        if (ok) showRateNoteLocked(*entry, "Display " + hzText((double)num / (double)den) + " \xC2\xB7 synced again");
+        if (ok) showRateNoteLocked(*entry, (double)num / (double)den, RateNote::Synced, "re-switch");
         return ok;
     }
     if (kind != 1) return false;
@@ -1551,7 +1564,10 @@ bool setTiming(int64_t playerId, int64_t kind, int64_t num, int64_t den) {
         return true;
     }
     bool ok = revertTimingLocked(*entry);
-    if (ok) showRateNoteLocked(*entry, "Display sync off \xC2\xB7 video timing");
+    if (ok) {
+        DisplayState now = IsWindow(entry->container) ? queryDisplayByName(monitorName(GetAncestor(entry->container, GA_ROOT))) : DisplayState();
+        if (complete(now)) showRateNoteLocked(*entry, (double)now.num / (double)now.den, RateNote::SyncOff, "fallback");
+    }
     nlog(strf("timing p%lld upstream: saved values back (video-sync=%s) ok=%d", (long long)playerId,
         entry->savedTiming[0].c_str(), ok ? 1 : 0));
     return ok;
