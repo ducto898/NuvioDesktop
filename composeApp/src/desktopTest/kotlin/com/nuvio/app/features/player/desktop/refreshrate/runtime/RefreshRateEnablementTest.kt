@@ -69,4 +69,15 @@ class RefreshRateEnablementTest {
         // verify.ps1 runs tests with neither NUVIO_RR_ENABLE nor a stored setting in its test profile.
         if (System.getenv("NUVIO_RR_ENABLE") == null) assertEquals(0, RefreshRateMatch.nativeFeatureEnabled())
     }
+
+    // NUVIO_RR_OSD: "0" forces the badge off, "1" forces it on (measure runs), otherwise the setting decides
+    @Test
+    fun `badge rule - env override first, then the setting`() {
+        assertEquals(false, resolveBadge("0") { true })
+        assertEquals(true, resolveBadge("1") { false })
+        assertEquals(true, resolveBadge(null) { true })
+        assertEquals(false, resolveBadge(null) { false })
+        assertEquals(false, resolveBadge("x") { false })
+        assertEquals(false, resolveBadge(null) { error("store") }, "a failing read shows no badge")
+    }
 }

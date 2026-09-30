@@ -74,4 +74,23 @@ class RefreshRateMatchSettingTest {
         assertEquals("nuvio_refresh_rate", REFRESH_RATE_STORE)
         assertEquals("match_display_refresh_rate", MATCH_DISPLAY_REFRESH_RATE_KEY)
     }
+
+    // Owner 2026-09-30: the on-screen badge can be switched off; it is ON unless the owner turned it off
+    @Test
+    fun `badge is ON when no file or key exists`() {
+        val preference = preference()
+        assertTrue(preference.badgeStored())
+        assertTrue(preference.badgeEnabled.value)
+        assertFalse(Files.exists(file), "reading must not create the file")
+    }
+
+    @Test
+    fun `badge off survives a reload and does not touch the main switch`() {
+        val preference = preference()
+        preference.setBadgeEnabled(false)
+        assertFalse(preference.badgeEnabled.value)
+        val reloaded = preference()
+        assertFalse(reloaded.badgeStored())
+        assertFalse(reloaded.stored(), "the main switch stays at its default")
+    }
 }

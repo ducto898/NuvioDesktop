@@ -37,4 +37,13 @@ internal class RefreshRateMatchPreference(private val store: DesktopStorage.Stor
     }
 
     fun stored(): Boolean = store.getBoolean(MATCH_DISPLAY_REFRESH_RATE_KEY) ?: false
+
+    private val badgeState = MutableStateFlow(badgeStored())
+
+    val badgeEnabled: StateFlow<Boolean>
+        get() = badgeState
+
+    fun setBadgeEnabled(value: Boolean): Unit = TODO("badge commit B")
+
+    fun badgeStored(): Boolean = TODO("badge commit B")
 }
