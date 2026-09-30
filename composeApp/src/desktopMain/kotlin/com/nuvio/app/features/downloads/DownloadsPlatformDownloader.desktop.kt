@@ -23,6 +23,22 @@ private val desktopDownloadHttpClient: HttpClient = HttpClient.newBuilder()
     .followRedirects(HttpClient.Redirect.NORMAL)
     .build()
 
+/**
+ * Each progress report publishes the downloads state and rewrites the downloads store, so reporting every 8 KB read
+ * meant thousands of state updates and file rewrites per second on a fast connection. Report at most every
+ * [intervalNanos]; the caller still reports once more after the last read.
+ */
+internal class DownloadProgressThrottle(private val intervalNanos: Long = 250_000_000L) {
+    private var lastReportNanos: Long? = null
+
+    fun shouldReport(nowNanos: Long): Boolean {
+        val last = lastReportNanos
+        if (last != null && nowNanos - last < intervalNanos) return false
+        lastReportNanos = nowNanos
+        return true
+    }
+}
+
 internal actual object DownloadsPlatformDownloader {
     private val downloadsDir: File
         get() = File(DesktopStorage.rootDir.resolve("downloads").also { it.createDirectories() }.toUri())
@@ -79,6 +95,7 @@ internal actual object DownloadsPlatformDownloader {
                 )
                 var downloadedBytes = startingBytes
                 onProgress(downloadedBytes, totalBytes)
+                val progressThrottle = DownloadProgressThrottle()
 
                 response.body().use { input ->
                     FileOutputStream(tempFile, appendToTemp).use { output ->
@@ -89,9 +106,12 @@ internal actual object DownloadsPlatformDownloader {
                             if (read <= 0) break
                             output.write(buffer, 0, read)
                             downloadedBytes += read.toLong()
-                            onProgress(downloadedBytes, totalBytes)
+                            if (progressThrottle.shouldReport(System.nanoTime())) {
+                                onProgress(downloadedBytes, totalBytes)
+                            }
                         }
                         output.flush()
+                        onProgress(downloadedBytes, totalBytes)
                     }
                 }
 
