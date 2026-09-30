@@ -6,6 +6,8 @@ import androidx.compose.ui.awt.SwingWindow
 import androidx.compose.ui.configureSwingGlobalsForCompose
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -171,7 +173,10 @@ fun main(args: Array<String>) {
                 // Only persist geometry while windowed: fullscreen/native-Windows-fullscreen
                 // coordinates aren't a meaningful "windowed position" to restore later.
                 snapshotFlow { Triple(windowState.placement, windowState.position, windowState.size) }
-                    .collect { (placement, position, size) ->
+                    .collectLatest { (placement, position, size) ->
+                        // Save once the window stops moving: every drag/resize event used to rewrite the
+                        // whole window-state store file on the UI thread.
+                        delay(WINDOW_GEOMETRY_SAVE_DELAY_MS)
                         val isFullscreen = fullscreenController.isFullscreen(window, windowState)
                         if (!isFullscreen && restoresMaximizedWindowPlacement) {
                             DesktopWindowModeStorage.saveWasMaximized(placement == WindowPlacement.Maximized)
@@ -284,3 +289,5 @@ private fun handleDesktopLaunchArgs(args: Array<String>) {
 private fun isDesktopAppUrl(value: String): Boolean =
     value.startsWith("nuvio://", ignoreCase = true) ||
         value.startsWith("stremio://", ignoreCase = true)
+
+private const val WINDOW_GEOMETRY_SAVE_DELAY_MS = 500L
