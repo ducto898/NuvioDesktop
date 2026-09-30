@@ -21,6 +21,10 @@ video starts. If the session ends mid-playback (the monitor lost the mode twice,
 clearly broken (health check), mpv goes back to its own timing while it keeps playing. Log:
 `%LOCALAPPDATA%\Nuvio RR\Cache\refresh-rate.log` in the packaged fork (`devprofile\Local\Nuvio\Cache\` in dev runs).
 Driver requirements: §9. Known limits: §10. The fork also has its own app identity (§7).
+At each start mpv shows a 4 s note top-left, e.g. "Display 239.90 Hz · synced to the video" or "Display 240.00 Hz ·
+not matched", and "Display sync off · video timing" if it falls back during playback (`NUVIO_RR_OSD=0` turns the
+notes off; measure runs have them off unless `NUVIO_RR_OSD=1`). The NVIDIA driver read starts when the player is
+created, and later videos of a session reuse the last read (audit 2026-09-30, #9/E3).
 
 ## 2. Files and hooks touched
 SPEC.md §2 (hook lines, each tagged `nuvio-rr fork hook Hn`) and §3 (new files). `scripts/verify.ps1 -Full` prints

@@ -20,6 +20,9 @@ State after Phase 8 (details in §4 per phase):
   restore and put the saved mpv values back (playback continues); display-resample clearly broken (health check) ⇒
   mpv's own timing, the mode stays (rate error: 9 judged samples in a row, P5-11 / P7-15).
 - Restore on player screen gone, window close, JVM exit; Windows reverts on crash/kill (D7).
+- On-screen note (audit E3): mpv `show-text` for 4 s after the hook decision and after a runtime timing change;
+  `NUVIO_RR_OSD` 0/1 (default on, off in measure runs). Driver read (audit #9): started at H2 on a detached thread,
+  collected at the hook; if not ready, the process's last read is used and refreshed.
 - Fork app identity (Phase 8): the packaged fork is "Nuvio RR" (own exe, start-menu group, MSI upgrade UUID) with its
   own `%APPDATA%\Nuvio RR`, `%LOCALAPPDATA%\Nuvio RR\Cache` and `...\WebView2`; in-app updater off; the build refuses a
   crash-upload DSN. Without `fork-identity.properties` (or with `NUVIO_FORK_IDENTITY=off`) every name is upstream's.

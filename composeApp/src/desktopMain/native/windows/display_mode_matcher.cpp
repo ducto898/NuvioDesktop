@@ -20,6 +20,7 @@
 #include <cstdarg>
 #include <cstring>
 #include <map>
+#include <future>
 #pragma comment(lib, "dxgi.lib")
 // Phase 8: the fork's folder name (ForkIdentity via JNI); defined at file scope near the end of this file.
 std::wstring nuvioRrAppDirName();
@@ -1033,6 +1034,7 @@ struct DriverSettings {
     double frameCap = std::nan("");  // fps; 0 = off; NaN = unknown (NativeCodec.frameCap)
     std::string text;
 };
+DriverSettings takeDriverRead(int64_t playerId, double &waitedMs);  // audit #9, defined before H2
 
 struct NvApi {
     using QueryInterface = void *(__cdecl *)(unsigned int);
@@ -1181,6 +1183,26 @@ bool revertTimingLocked(PlayerEntry &entry, int count = 3) {
     return ok;
 }
 
+// Audit E3 (2026-09-30): a 4 s mpv on-screen note of what the feature did, drawn by mpv itself (no upstream line).
+// NUVIO_RR_OSD=0 turns it off. Measure runs keep it off unless NUVIO_RR_OSD=1, so their frame counters stay comparable.
+bool rateNotesEnabled() {
+    static int enabled = -1;
+    if (enabled < 0) {
+        std::wstring value = envValue(L"NUVIO_RR_OSD");
+        enabled = value == L"0" ? 0 : value == L"1" ? 1 : (measureConfig().enabled ? 0 : 1);
+    }
+    return enabled == 1;
+}
+
+void showRateNoteLocked(PlayerEntry &entry, const std::string &text) {
+    if (!entry.mpv || !rateNotesEnabled() || !mpvApi().command) return;
+    const char *args[] = {"show-text", text.c_str(), "4000", nullptr};
+    int rc = mpvApi().command(entry.mpv, args);
+    nlog(strf("note p%lld \"%s\" rc=%d", (long long)entry.id, text.c_str(), rc));
+}
+
+std::string hzText(double hz) { return strf("%.2f Hz", hz); }
+
 bool applyDisplaySyncLocked(PlayerEntry &entry, int64_t num, int64_t den) {
     if (!entry.mpv || num <= 0 || den <= 0) return false;
     std::string rate = strf("%.6f", (double)num / (double)den);
@@ -1237,8 +1259,9 @@ void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
             display = monitorName(GetAncestor(entry->container, GA_ROOT));
             nlog(strf("hook p%lld on_preloaded %s display=%ls (read in %.0f ms)", (long long)entry->id, props.text.c_str(),
                 display.c_str(), (nowSeconds() - start) * 1000.0));
-            DriverSettings driver = readDriverSettings();
-            nlog(strf("hook p%lld ", (long long)entry->id) + driver.text);
+            double driverWaitMs = 0.0;
+            DriverSettings driver = takeDriverRead(entry->id, driverWaitMs);
+            nlog(strf("hook p%lld ", (long long)entry->id) + driver.text + strf(" (hook waited %.0f ms)", driverWaitMs));
             timing = upcallStart(entry->id, display, props, driver.frameCap, request);
         }
     } catch (...) {
@@ -1255,6 +1278,19 @@ void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
         } catch (...) {
             nlog(strf("timing p%lld timing-failed: unexpected error", (long long)entry->id));
         }
+        if (entry->hookPending && !entry->stopping.load()) {
+            try {
+                if (request.kind == 2 && synced) {
+                    showRateNoteLocked(*entry, "Display " + hzText((double)request.num / (double)request.den) +
+                        " \xC2\xB7 synced to the video");
+                } else if (request.kind == 1 && !display.empty()) {
+                    DisplayState now = queryDisplayByName(display);
+                    if (complete(now)) showRateNoteLocked(*entry, "Display " + hzText((double)now.num / (double)now.den) +
+                        " \xC2\xB7 not matched");
+                }
+            } catch (...) {
+            }
+        }
         nlog(strf("hook p%lld done after %.0f ms timing=%s applied=%s", (long long)entry->id,
             (nowSeconds() - start) * 1000.0, timing.c_str(),
             request.kind == 2 ? (synced ? "display-sync" : "none (failed)") : "none (upstream)"));
@@ -1269,6 +1305,81 @@ void runHook(std::shared_ptr<PlayerEntry> entry, uint64_t hookId) {
 }
 
 // Hook H2: after mpv_initialize, before loadfile, so the first file's hook cannot be missed (P4-9).
+// Audit #9 (2026-09-30): the NVAPI driver read takes 150-170 ms. It used to run inside on_preloaded while mpv waited;
+// now H2 starts it on its own thread (mpv is still opening the stream then) and the hook collects the result.
+// A promise, not std::async: nothing ever waits for a read that nobody collects (player closed before the hook).
+// For a local file mpv reaches the hook ~4 ms after H2 (measured), so the early read can't finish in time; then the
+// last finished read of this process is used at once (driver settings rarely change between two videos) and the
+// running read refreshes it for the next video. Only the first video of a session waits for a read.
+std::mutex gDriverReadsMutex;
+std::map<int64_t, std::shared_future<DriverSettings>> gDriverReads;
+bool gDriverCached = false;
+DriverSettings gDriverCache;
+
+void startDriverRead(int64_t playerId) {
+    auto promise = std::make_shared<std::promise<DriverSettings>>();
+    {
+        std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+        gDriverReads[playerId] = promise->get_future().share();
+    }
+    try {
+        std::thread([promise]() {
+            try {
+                DriverSettings fresh = readDriverSettings();
+                {
+                    std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+                    gDriverCache = fresh;
+                    gDriverCached = true;
+                }
+                promise->set_value(fresh);
+            } catch (...) {
+                DriverSettings unknown;
+                unknown.text = "driver frl=unknown power=unknown (read failed)";
+                promise->set_value(unknown);
+            }
+        }).detach();
+    } catch (...) {  // no thread: the hook reads it itself
+        std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+        gDriverReads.erase(playerId);
+    }
+}
+
+// The early read if there is one (waits for it to finish), else a read now. [waitedMs]: time spent here.
+DriverSettings takeDriverRead(int64_t playerId, double &waitedMs) {
+    double start = nowSeconds();
+    std::shared_future<DriverSettings> pending;
+    {
+        std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+        auto it = gDriverReads.find(playerId);
+        if (it != gDriverReads.end()) {
+            pending = it->second;
+            gDriverReads.erase(it);
+        }
+    }
+    if (pending.valid() && pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+        if (gDriverCached) {
+            DriverSettings cached = gDriverCache;
+            cached.text += " (cached)";
+            waitedMs = (nowSeconds() - start) * 1000.0;
+            return cached;  // the pending read finishes on its own thread and refreshes the cache
+        }
+    }
+    DriverSettings result = pending.valid() ? pending.get() : readDriverSettings();
+    if (!pending.valid()) {
+        std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+        gDriverCache = result;
+        gDriverCached = true;
+    }
+    waitedMs = (nowSeconds() - start) * 1000.0;
+    return result;
+}
+
+void dropDriverRead(int64_t playerId) {
+    std::lock_guard<std::mutex> lock(gDriverReadsMutex);
+    gDriverReads.erase(playerId);
+}
+
 inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container) {
     if (!mpv) return;
     std::string why;
@@ -1299,6 +1410,7 @@ inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container)
     std::string faultText = featureConfig().fault.empty() ? std::string() : " fault=" + featureConfig().fault;
     nlog(strf("player p%lld created, enabled=%s (upcall %.1f ms), mpv_hook_add(on_preloaded) rc=%d%s", (long long)entry->id,
         code == 1 ? "env" : "setting", upcallMs, rc, faultText.c_str()));
+    if (rc >= 0) startDriverRead(entry->id);
 }
 
 // From onMpvEvent (the mpv event thread): hand the hook to a worker and return at once.
@@ -1333,6 +1445,7 @@ inline void onPlayerShutdown(const void *owner) {
     std::lock_guard<std::mutex> lock(entry->mutex);
     continueHookLocked(*entry, entry->hookId, "shutdown");
     entry->mpv = nullptr;
+    dropDriverRead(entry->id);
     nlog(strf("player p%lld shutdown", (long long)entry->id));
 }
 
@@ -1427,13 +1540,18 @@ bool setTiming(int64_t playerId, int64_t kind, int64_t num, int64_t den) {
     }
     std::lock_guard<std::mutex> lock(entry->mutex);
     if (!entry->mpv) return false;
-    if (kind == 2) return applyDisplaySyncLocked(*entry, num, den);
+    if (kind == 2) {
+        bool ok = applyDisplaySyncLocked(*entry, num, den);
+        if (ok) showRateNoteLocked(*entry, "Display " + hzText((double)num / (double)den) + " \xC2\xB7 synced again");
+        return ok;
+    }
     if (kind != 1) return false;
     if (!entry->timingApplied) {
         nlog(strf("timing p%lld upstream: nothing of ours applied", (long long)playerId));
         return true;
     }
     bool ok = revertTimingLocked(*entry);
+    if (ok) showRateNoteLocked(*entry, "Display sync off \xC2\xB7 video timing");
     nlog(strf("timing p%lld upstream: saved values back (video-sync=%s) ok=%d", (long long)playerId,
         entry->savedTiming[0].c_str(), ok ? 1 : 0));
     return ok;
