@@ -526,6 +526,15 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Why the custom 100/250 Hz modes are raw-only (read-only EDID decode, monitor Gigabyte MO27Q28G, registry
+  DISPLAY\GBT273C&360e9452&0&UID4353): 2560x1440 timings listed = 59.951 (base DTD), 119.998 + 143.973 (CTA DTDs),
+  239.901 + 279.961 (DisplayID type I) = exactly the DXGI list. Range limits descriptor: V 80-280 Hz but **H 510-510 kHz**
+  (bytes 0e 50 19 ff ff 7e 01, both H offsets set), "range limits only" (no formula). Every listed mode runs at 89-463
+  kHz, so the H range is bogus; 250 Hz needs ~371-413 kHz, 100 Hz ~150 kHz => any non-listed mode falls outside the
+  range => Windows prunes it (EDS_RAWMODE only, not in DXGI) [inferred from the EDID + EnumDisplaySettings docs]. Fix
+  options for the owner: EDID override (CRU) adding 250/100 as detailed timings or a sane H range; then the feature
+  picks them unchanged. 24 fps at 240: already reads the display rate (already-at-target, override = current exact
+  239.901) and display-resample speed-matches (1.000587); no change needed.
 - 2026-10-01 Owner checklist Part 1 (packaged Nuvio RR next to the official app, zip c8b68048): "all fine in Nuvio RR"
   (owner-attested: both apps at once, settings separate, 24 fps smooth, no flicker, badge on/off, no update banner).
   **Phase 8 DONE 2026-10-01 => project done.** Still open: Q47 (blending), Q48 (upstream PRs), the 250 Hz idea.
