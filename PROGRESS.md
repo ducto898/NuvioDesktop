@@ -525,6 +525,10 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Owner set the desktop to 250 Hz (custom mode, still raw-only): run `*at250-check` => Windows current
+  2560x1440@250/1, DXGI list unchanged (no 250) => 25 fps `no-suitable-mode`, upstream timing. Proposed: count the
+  current mode as a candidate (25/50 => exact 10/5 holds at 250, would replace Q47 blending); owner has not decided.
+  Owner checklist session to run at 240 (owner). Zip rebuilt: `../dist/Nuvio-RR-1.1.26-c8b68048.zip`.
 - 2026-10-01 Badge switch (owner request 2026-09-30, resumed from uncommitted tests): Settings → Playback → Display
   "Show refresh rate badge" (per-PC key `show_rate_badge`, default on, greyed while the main switch is off); native asks
   Kotlin once per player at H2 (`nativeBadgeEnabled`), `NUVIO_RR_OSD` 0/1 still overrides, measure runs off unless 1.
