@@ -526,6 +526,14 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Rebased onto upstream/Dev `cf185993` (34 new upstream commits, 175 files; overlap only build.gradle.kts,
+  strings.xml, PlaybackSettingsPage.kt; 0 conflicts; H9 still right after the RTX section). Backup branch
+  `backup/pre-rebase-2026-10-01`; fork patch lines identical before/after. verify -Full green (1556 tests, 7 known
+  failures, budget 12/5/6). Live: `*rebase-240` already-at-target and `*rebase-cap144` switch 143.973 + restore 239.901,
+  both 0 drops/mistimed/underruns after 5 s, 0 problems. Zip rebuilt from the rebased tip. The 4 upstream-pr/* branches
+  rebased too (patches identical; backups `backup/upstream-pr-*`). Incident: a failed worktree (path too long) made the
+  PR-branch rebase run in the main checkout during a verify run; verify failed, checkout restored, nothing lost, verify
+  re-run green. Use short paths for worktrees (e.g. C:\wt).
 - 2026-10-01 Why the custom 100/250 Hz modes are raw-only (read-only EDID decode, monitor Gigabyte MO27Q28G, registry
   DISPLAY\GBT273C\5&360e9452&0&UID4353): 2560x1440 timings listed = 59.951 (base DTD), 119.998 + 143.973 (CTA DTDs),
   239.901 + 279.961 (DisplayID type I) = exactly the DXGI list. Range limits descriptor: V 80-280 Hz but **H 510-510 kHz**
