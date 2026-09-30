@@ -501,6 +501,7 @@ struct MpvApi {
     using mpv_set_property_string_fn = int (*)(mpv_handle *, const char *, const char *);
     using mpv_get_property_fn = int (*)(mpv_handle *, const char *, mpv_format, void *);
     using mpv_command_fn = int (*)(mpv_handle *, const char **);
+    using mpv_command_async_fn = int (*)(mpv_handle *, uint64_t, const char **);
     using mpv_error_string_fn = const char *(*)(int);
     using mpv_free_fn = void (*)(void *);
     using mpv_wait_event_fn = mpv_event *(*)(mpv_handle *, double);
@@ -519,6 +520,7 @@ struct MpvApi {
     mpv_set_property_string_fn setPropertyString = nullptr;
     mpv_get_property_fn getProperty = nullptr;
     mpv_command_fn command = nullptr;
+    mpv_command_async_fn commandAsync = nullptr;
     mpv_error_string_fn errorString = nullptr;
     mpv_free_fn freeValue = nullptr;
     mpv_wait_event_fn waitEvent = nullptr;
@@ -578,6 +580,7 @@ struct MpvApi {
         setPropertyString = loadSymbol<mpv_set_property_string_fn>("mpv_set_property_string");
         getProperty = loadSymbol<mpv_get_property_fn>("mpv_get_property");
         command = loadSymbol<mpv_command_fn>("mpv_command");
+        commandAsync = loadSymbol<mpv_command_async_fn>("mpv_command_async");
         errorString = loadSymbol<mpv_error_string_fn>("mpv_error_string");
         freeValue = loadSymbol<mpv_free_fn>("mpv_free");
         waitEvent = loadSymbol<mpv_wait_event_fn>("mpv_wait_event");
@@ -1168,7 +1171,13 @@ public:
 
     void addSubtitleUrl(const std::string &url) {
         if (url.empty()) return;
-        command({"sub-add", url, "select"});
+        // sub-add downloads a remote subtitle before it returns. Run it asynchronously: the synchronous command held
+        // mpvMutex (and the calling UI thread) for the whole download, which also blocked the 2 Hz state snapshot and
+        // the controls sync. The async reply event is ignored by drainMpvEvents like every other event.
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        const char *args[] = {"sub-add", url.c_str(), "select", nullptr};
+        mpvApi().commandAsync(mpv, 0, args);
     }
 
     void removeExternalSubtitles() {
