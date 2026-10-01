@@ -77,6 +77,13 @@ fun subtitleFontChoices(installed: List<String>, current: String): List<String> 
     return if (keepCurrent) offered + chosen else offered
 }
 
+/** The font for [choice] ("" = automatic: the best installed); null = none fits, the player's default (Arial). */
+fun resolveSubtitleFont(choice: String, installed: List<String>): String? = TODO("nuvio-rr fork: subtitle look")
+
+/** The fork's subtitle look for plain-text subtitles: the resolved font, outline, shadow and edge blur. */
+fun subtitleMpvOptions(choice: String, installed: List<String>): List<Pair<String, String>> =
+    TODO("nuvio-rr fork: subtitle look")
+
 /** mpv's sub-font for [font]; none for the default or a name that can't be passed as one option line. */
 fun subtitleFontMpvOptions(font: String): List<Pair<String, String>> {
     val name = font.trim()

@@ -1,9 +1,12 @@
 package com.nuvio.app.features.player.desktop.video
 
 import com.nuvio.app.core.storage.DesktopStorage
+import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.settings.DEFAULT_SUBTITLE_FONT
+import com.nuvio.app.features.settings.resolveSubtitleFont
 import com.nuvio.app.features.settings.subtitleFontChoices
 import com.nuvio.app.features.settings.subtitleFontMpvOptions
+import com.nuvio.app.features.settings.subtitleMpvOptions
 import java.nio.file.Files
 import kotlin.io.path.deleteIfExists
 import kotlin.test.AfterTest
@@ -26,6 +29,36 @@ class SubtitleFontTest {
         assertEquals(emptyList(), subtitleFontMpvOptions(DEFAULT_SUBTITLE_FONT))
         assertEquals(listOf("sub-font" to "Netflix Sans"), subtitleFontMpvOptions("Netflix Sans"))
         assertEquals(listOf("sub-font" to "Segoe UI"), subtitleFontMpvOptions("  Segoe UI "), "trimmed")
+    }
+
+    @Test
+    fun `automatic picks the best installed font, in the enthusiasts' order`() {
+        val all = listOf("Arial", "Gandhi Sans", "Netflix Sans ", "Netflix Sans Med", "Segoe UI Semibold")
+        assertEquals("NetflixSans-Medium", resolveSubtitleFont(DEFAULT_SUBTITLE_FONT, all))
+        assertEquals("Gandhi Sans", resolveSubtitleFont(DEFAULT_SUBTITLE_FONT, listOf("Arial", "Gandhi Sans", "Segoe UI Semibold")))
+        assertEquals("Segoe UI Semibold", resolveSubtitleFont(DEFAULT_SUBTITLE_FONT, listOf("Arial", "segoe ui semibold")))
+        assertEquals(null, resolveSubtitleFont(DEFAULT_SUBTITLE_FONT, listOf("Arial")), "none: the player's Arial")
+        assertEquals("Verdana", resolveSubtitleFont("Verdana", all), "a chosen font wins")
+    }
+
+    @Test
+    fun `the subtitle look is the font, then outline 2, a soft half-black shadow and a slight edge blur`() {
+        assertEquals(
+            listOf(
+                "sub-font" to "NetflixSans-Medium",
+                "sub-border-size" to "2.0",
+                "sub-shadow-offset" to "1.0",
+                "sub-shadow-color" to "#80000000",
+                "sub-blur" to "0.3",
+            ),
+            subtitleMpvOptions(DEFAULT_SUBTITLE_FONT, listOf("Netflix Sans Med")),
+        )
+        assertEquals("sub-border-size", subtitleMpvOptions(DEFAULT_SUBTITLE_FONT, emptyList()).first().first, "no font line without one")
+    }
+
+    @Test
+    fun `the desktop subtitle size default is 15 (45 at mpv's 720p scale)`() {
+        assertEquals(15, SubtitleStyleState.DEFAULT.fontSizeSp)
     }
 
     @Test
