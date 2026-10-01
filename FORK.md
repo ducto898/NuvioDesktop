@@ -159,6 +159,8 @@ Evidence of the Phase 7 baseline: `measurements\phase7-evidence.txt`.
 ## 8. Licence
 GPL-3.0 (inherited). A private fork is fine. If binaries are ever shared, the corresponding
 source must be available.
+Bundled third-party: `SSimDownscaler.glsl` by igv, LGPL-3.0-or-later, unmodified (source and revision in
+`composeApp/src/desktopMain/resources/licenses/SSimDownscaler.txt`).
 
 ## 9. NVIDIA driver settings (Phase 2b/5)
 Display-synced timing depends on two NVIDIA settings. Nuvio only **reads** them (it never writes driver profiles); each
@@ -240,3 +242,22 @@ Phase 9 limits (in addition to §10):
   (`composeApp/src/desktopMain/resources/torrserver/windows-amd64/`, SHA-256 equal to upstream's release check) and
   sits inside the app jar of the zip. Only the unmapped `vendor/TorrServer` source submodule is missing, and the build
   does not need it. (An earlier note here said P2P could not work; that was wrong.) A torrent stream was not played live.
+
+## 12. Video quality (2026-10-01)
+Settings → Playback → VIDEO QUALITY (Windows, per PC, from the next video). Defaults send no options, so the player
+keeps its own scalers (spline36 up, mpv's default dscale).
+
+| Setting | Choice | mpv options set at hook H2 (after the bridge's own) |
+|---|---|---|
+| Scaling quality | Standard | none |
+| | High | `scale`/`cscale=ewa_lanczossharp`, `hdr-peak-percentile=99.995`, `hdr-contrast-recovery=0.30`, `allow-delayed-peak-detect=no` |
+| Downscaler | Player default | none |
+| | Catmull-Rom | `dscale=catmull_rom` |
+| | SSimDownscaler | `glsl-shaders=<cache>\shaders\<version>\SSimDownscaler.glsl`, `dscale=mitchell`, `linear-downscaling=no` |
+
+- The shader ships as a resource and is copied into the app cache (DesktopCache); no usable file = player default.
+  It only runs when the video is larger than the screen (its passes are conditional), e.g. 4K on the 1440p monitor.
+- With Windows HDR on, HDR video is passed through, so the HDR peak options do nothing; only the scalers matter.
+- Cost measured on this PC (4K HDR, fullscreen, 240 Hz, display-resample, 60 s): Standard 46.1 W / 14 % GPU,
+  High + SSimDownscaler 51.2 W / 19 %, both 0 drops / 0 mistimed. The look was not judged by the owner yet.
+- Log: `video option <name>=<value> rc=<n>` lines in refresh-rate.log, next to the audio options.

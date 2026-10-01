@@ -8,7 +8,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   Open for the owner: try one torrent (P2P) stream in Nuvio RR (TorrServer IS bundled; the "missing" note was wrong, see Log).
   The OpenGL white window had cleared by 17:08 without a reboot (see Log).
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
-- **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
+- **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, 250 Hz current-mode idea (Q48 closed: no upstream contributions).
 - **Phase:** 2 (Measure only) **DONE 2026-09-28**. Verifier round 3/3: **PASS** on P2-0..P2-19 (P2-7/13/17 human parts
   recorded/accepted/waived by the owner). Upstream diff: 2 lines in `player_bridge.cpp`. Rebased on `fe92d414`, not pushed.
   Open: upstream `PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions` is **flaky under load**
@@ -303,7 +303,9 @@ suite, ≈ 15 s with only the patch tests.
   25/50 fps titles at the 240 Hz desktop? Measured clean (0 drops/mistimed/underruns, +0..4 W;
   measurements/audit-e2-evidence.txt); the look (one blended refresh at each frame change instead of uneven 9/10-refresh
   holds) is the owner's call (D12). Recommended: watch one 25 fps title with it first.
-- Q48 (audit Q46 b, 2026-09-30): 4 upstream PRs ready on local branches upstream-pr/* (docs/upstream-prs-2026-09-30.md);
+- Q48 CLOSED 2026-10-01 (owner: upstream CONTRIBUTING.md rejects feature/behavior changes without an approved feature
+  request, so don't bother; nothing goes upstream, docs/feature-request.md stays unposted; branches kept locally).
+  Was: 4 upstream PRs ready on local branches upstream-pr/* (docs/upstream-prs-2026-09-30.md);
   sending needs issues opened + a push (Q2/Q3). Send, keep, or also carry #1 (atomic writes) in the fork?
 - Q44 (Phase 8, ANSWERED 2026-09-29: yes, the one line): upstream's Settings → App icon rewrites the **official** Nuvio shortcuts and writes
   `%LOCALAPPDATA%\Nuvio\icons` (8 hard-coded names in `WindowsAppShortcutIconUpdater.kt`). Fix with ONE hook line that
@@ -531,6 +533,17 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Video quality (owner: "build it with SSimDownscaler as an option"): 5b517aac red 9/9, e644dfc8 green
+  (test diff A->B empty), 878832b6 shader kept LF. Settings > Playback > VIDEO QUALITY: Scaling quality Standard/High,
+  Downscaler default/Catmull-Rom/SSimDownscaler (igv, LGPL-3.0, gist rev 38992bce, sha256 f46f4710...). FORK.md section 12.
+  Live: High+SSim 4K HDR fs 240 Hz: 8 options rc=0, 4 shader passes registered, 0/0, 51.2 W 19 %; default: no options.
+  Open: owner to judge the look on real films (Standard vs High, default vs Catmull-Rom vs SSim).
+- 2026-10-01 18:03-18:20 Quality headroom (owner asked "is it the best quality?"): measure -Fullscreen -Feature -Power
+  60 s, 240 Hz desktop, Windows HDR on (hdr=1, so HDR is passed through and tone-mapping options do nothing), VSR off.
+  HQ = scale+cscale=ewa_lanczossharp, hdr-peak-percentile=99.995, hdr-contrast-recovery=0.30, allow-delayed-peak-detect=no
+  (all rc=0). after5s drops/mistimed, GPU W median: 4K HDR base 0/0 46.1, HQ 0/0 48.2, HQ+dscale=mitchell 0/0 47.5,
+  HQ+dscale=ewa_lanczossharp 0/0 49.4; 1080 SDR base 0/0 44.7, HQ 0/0 46.2; 1080 HDR base 0/0 45.0, HQ 3/4 then 0/0
+  and 0/0 on 2 repeats (one-off). GPU util 14-18 %: HQ fits easily. Clips are synthetic, so the look is not judged yet.
 - 2026-10-01 Correction: fork builds DO contain TorrServer. The batch 4 note looked only at the unmapped
   vendor/TorrServer source submodule; the prebuilt binary is a Git LFS file (resources/torrserver/windows-amd64/
   TorrServer.exe, 58 MB, SHA-256 13031185... = upstream release check) and is in the zip's composeApp-desktop jar

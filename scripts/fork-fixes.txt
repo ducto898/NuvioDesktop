@@ -39,3 +39,4 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerEngine.kt |
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeState.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeUi.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/MainAppContent.kt | E9
+.gitattributes | VQ
