@@ -19,6 +19,7 @@
 #include <cwctype>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -48,6 +49,7 @@ typedef enum mpv_event_id {
     MPV_EVENT_SHUTDOWN = 1,
     MPV_EVENT_START_FILE = 6,  // nuvio-rr fork, Phase 9 #4
     MPV_EVENT_END_FILE = 7,
+    MPV_EVENT_PROPERTY_CHANGE = 22,  // nuvio-rr fork, Phase 9 #15
 } mpv_event_id;
 
 // nuvio-rr fork, Phase 9 #4: mpv client.h mpv_event_end_file / mpv_end_file_reason (only the fields read here).
@@ -503,6 +505,7 @@ struct MpvApi {
     using mpv_command_fn = int (*)(mpv_handle *, const char **);
     using mpv_command_async_fn = int (*)(mpv_handle *, uint64_t, const char **);
     using mpv_abort_async_command_fn = void (*)(mpv_handle *, uint64_t);  // nuvio-rr fork, Phase 9 #5
+    using mpv_observe_property_fn = int (*)(mpv_handle *, uint64_t, const char *, int);  // Phase 9 #15
     using mpv_error_string_fn = const char *(*)(int);
     using mpv_free_fn = void (*)(void *);
     using mpv_wait_event_fn = mpv_event *(*)(mpv_handle *, double);
@@ -523,6 +526,7 @@ struct MpvApi {
     mpv_command_fn command = nullptr;
     mpv_command_async_fn commandAsync = nullptr;
     mpv_abort_async_command_fn abortAsyncCommand = nullptr;
+    mpv_observe_property_fn observeProperty = nullptr;
     mpv_error_string_fn errorString = nullptr;
     mpv_free_fn freeValue = nullptr;
     mpv_wait_event_fn waitEvent = nullptr;
@@ -584,6 +588,7 @@ struct MpvApi {
         command = loadSymbol<mpv_command_fn>("mpv_command");
         commandAsync = loadSymbol<mpv_command_async_fn>("mpv_command_async");
         abortAsyncCommand = loadSymbol<mpv_abort_async_command_fn>("mpv_abort_async_command");
+        observeProperty = loadSymbol<mpv_observe_property_fn>("mpv_observe_property");
         errorString = loadSymbol<mpv_error_string_fn>("mpv_error_string");
         freeValue = loadSymbol<mpv_free_fn>("mpv_free");
         waitEvent = loadSymbol<mpv_wait_event_fn>("mpv_wait_event");
@@ -1351,6 +1356,13 @@ private:
     mpv_handle *mpv = nullptr;
     // nuvio-rr fork, Phase 9 #4: a load/playback failure after loadfile (END_FILE with reason error), handed to
     // Kotlin once by takePlaybackError(); cleared when mpv starts the next file.
+    // Phase 9 #15: track-list JSON cache. tracksGeneration grows on every track-list/aid/sid change notice; a cache
+    // entry is valid while it was built at the current generation (and only if the observers were registered).
+    static constexpr uint64_t kTrackListObserveId = 0x54524b0000000001ull;  // "TRK"
+    std::atomic_bool tracksObserved = false;
+    std::atomic<uint64_t> tracksGeneration = 1;
+    std::mutex tracksCacheMutex;
+    std::map<std::string, std::pair<uint64_t, std::string>> tracksCache;
     uint64_t subtitleAddCounter = 0x5355420000000000ull;  // "SUB": reply ids of async sub-add requests (Phase 9 #5)
     uint64_t pendingSubtitleAdd = 0;                       // guarded by mpvMutex
     std::mutex playbackErrorMutex;
@@ -1749,6 +1761,15 @@ private:
                 throw std::runtime_error(std::string("mpv_initialize failed: ") + api.errorText(initResult));
             }
             nuvio_rr::onMpvInitialized(this, mpv, containerHwnd);  // nuvio-rr fork hook H2
+            // nuvio-rr fork, Phase 9 #15: rebuild the track lists only when mpv says they changed (they were rebuilt
+            // from ~20 property reads per track every 500 ms). Format 0 = MPV_FORMAT_NONE: change notices only.
+            if (api.observeProperty) {
+                bool observing = true;
+                for (const char *name : {"track-list", "aid", "sid"}) {
+                    if (api.observeProperty(mpv, kTrackListObserveId, name, 0) < 0) observing = false;
+                }
+                tracksObserved.store(observing);
+            }
 
             std::vector<const char *> loadCommand = {"loadfile", sourceUrl.c_str()};
             std::string loadOptions;
@@ -1961,7 +1982,9 @@ private:
             mpv_event *event = mpvApi().waitEvent(current, 0.5);
             nuvio_rr::onMpvEvent(current, event, containerHwnd, stopping.load());  // nuvio-rr fork hook H4
             if (!event) continue;
-            if (event->event_id == MPV_EVENT_START_FILE) {
+            if (event->event_id == MPV_EVENT_PROPERTY_CHANGE && event->reply_userdata == kTrackListObserveId) {
+                tracksGeneration.fetch_add(1);
+            } else if (event->event_id == MPV_EVENT_START_FILE) {
                 std::lock_guard<std::mutex> lock(playbackErrorMutex);
                 playbackError.clear();
             } else if (event->event_id == MPV_EVENT_END_FILE && event->data) {
@@ -2131,6 +2154,22 @@ private:
     }
 
     std::string tracksJsonForType(const std::string &wantedType) {
+        // Phase 9 #15: serve the cached list while no change notice arrived since it was built.
+        const uint64_t generation = tracksGeneration.load();
+        if (tracksObserved.load()) {
+            std::lock_guard<std::mutex> lock(tracksCacheMutex);
+            auto cached = tracksCache.find(wantedType);
+            if (cached != tracksCache.end() && cached->second.first == generation) return cached->second.second;
+        }
+        std::string built = buildTracksJsonForType(wantedType);
+        if (tracksObserved.load()) {
+            std::lock_guard<std::mutex> lock(tracksCacheMutex);
+            tracksCache[wantedType] = {generation, built};  // a change during the build bumps the generation: rebuilt next time
+        }
+        return built;
+    }
+
+    std::string buildTracksJsonForType(const std::string &wantedType) {
         long long count = int64Property("track-list/count", 0);
         std::ostringstream json;
         json << "[";
