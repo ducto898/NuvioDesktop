@@ -29,7 +29,9 @@ created, and later videos of a session reuse the last read (audit 2026-09-30, #9
 
 ## 2. Files and hooks touched
 SPEC.md §2 (hook lines, each tagged `nuvio-rr fork hook Hn`) and §3 (new files). `scripts/verify.ps1 -Full` prints
-the current list and line counts against upstream.
+the current list and line counts against upstream. Phase 9 audit fixes (§11) also change upstream files without hook
+tags; each such file is listed with its audit ids in `scripts/fork-fixes.txt` (verify allows untagged lines only there),
+and each fix line carries a `nuvio-rr fork, Phase 9 <id>` comment.
 
 ## 3. Toolchain (Windows 11, verified 2026-09-27)
 Nothing below needs admin rights except Visual Studio, which was already installed.
@@ -200,3 +202,35 @@ playback start logs one line, e.g. `hook p1 driver frl=off(global) power=1(globa
   its own, so there is nothing to update.
 - Rates are "the same" within 100 ppm (F1): DXGI rounds some modes (this monitor's 120 Hz is listed 12000/100, runs
   119998/1000). Distinct real modes are ≥ 188 ppm apart (143.973 vs 144).
+
+## 11. Phase 9: audit fixes and desktop enhancements (2026-10-01)
+Every bug, robustness, security and performance item of `docs/audit-2026-09-30.md` plus enhancements E1, E4-E9, fixed
+in the fork only (no upstream PRs). Per-item status and commits: `docs/phase9-plan.md`. What a user notices:
+
+| Area | What changed | Where / how |
+|---|---|---|
+| Back navigation (E4) | Esc and Alt+Left go back (dialogs and panels first, then the screen); the mouse Back button as before. Esc on the home tabs does nothing (no "Exit app?") | always on |
+| Keyboard (E9) | Arrow keys move focus (cards, rows, buttons, sidebar) with a white focus ring; Enter opens; Ctrl+F opens Search with the field focused | always on |
+| Shelves (E6) | Hovering a horizontal shelf shows left/right arrows; a click scrolls most of a screen width | home and catalog shelves |
+| Reduce motion (E5) | No hero auto-advance, no animated GIF cards, no image fade-in | Settings → General → MOTION → Reduce motion (per PC, default off) |
+| Scrub preview (E7) | Dragging the seek bar shows the frame under it (keyframe seeks, ~7 per second); release seeks exactly | Windows player |
+| Audio (E1) | Channels (automatic / stereo / 5.1 / 7.1), passthrough of AC3, E-AC3, DTS, DTS-HD, TrueHD to a receiver (WASAPI exclusive), output device | Settings → Playback → AUDIO OUTPUT (Windows, per PC, from the next video) |
+| Window (E9) | A saved window position on a monitor that is gone (or above the screen top) opens centred on the main screen | always on |
+| Data safety, playback, security, performance | atomic preference writes, playback errors shown, async subtitles, exact seeks, encrypted tokens (DPAPI), plugin network sandbox, bounded image caches, faster startup, ... | see the plan |
+
+Phase 9 limits (in addition to §10):
+- **White window in the dev build (2026-10-01):** since about 11:40 that day the dev profile's renderer setting
+  (`open_gl_enabled=true`, Settings → Advanced) gives an all-white window on this PC; Direct3D and the software
+  renderer draw normally, logs and app state are fine. Not caused by a fork change (it stays with the suspect
+  change reverted); likely a driver/GPU state. Check after a reboot; dev runs use `SKIKO_RENDER_API=DIRECT3D` until then.
+- **Passthrough** needs a device that accepts the bitstream in exclusive mode (HDMI to an AV receiver or TV, S/PDIF):
+  on a device that refuses it, mpv decodes as before (logged as `unsupported`). Exclusive mode mutes other apps'
+  sound on that device while a video plays. In shared mode Windows keeps the device's own mix format (here 7.1,
+  96 kHz); the channel setting then sets mpv's downmix.
+- **Scrub preview** lands on keyframes (a 10 s keyframe interval shows frames up to 10 s early while dragging); the
+  release is exact. Checked live on the native path; the drag in the player UI was not live-tested (no local stream).
+- **Keyboard:** Backspace does not go back (it would from an empty text field). Inside the player the native
+  window keeps its own keys.
+- **Reduce motion:** GIF cards and the crossfade were not checked live (no GIF collection in the dev profile).
+- **P2P/torrent streams do not work in fork builds:** `vendor/TorrServer` is an unmapped submodule, so no TorrServer
+  binary is bundled.

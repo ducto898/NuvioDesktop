@@ -3,7 +3,7 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
-- **2026-10-01: Phase 9 batches 1-5 done; batch 6: E4 done. Next: E1, E5, E6, E7, E9, then FORK.md docs, verify -Full, zip.**
+- **2026-10-01: Phase 9 batches 1-6 done (E1, E4-E7, E9); FORK.md §11 written. Next: verify -Full, package zip.**
   **Owner: dev app GPU (DirectX) rendering gives a white window since ~11:40 today (see Log); software renderer fine.**
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
 - **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
@@ -529,6 +529,13 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 batch 6 DONE: E6 shelf arrows, E5 Reduce motion, E9 window restore, E7 scrub preview, E1 audio
+  options, E9 keyboard navigation (commits in docs/phase9-plan.md). White window narrowed: the dev profile uses the
+  OpenGL renderer; Direct3D and software are fine, so live checks run with SKIKO_RENDER_API=DIRECT3D. Lessons: live
+  scripts must click the title bar (SetForegroundWindow alone failed once, so no key reached the app); arrow keys need
+  KEYEVENTF_EXTENDEDKEY; scroll containers take focus without bounds, so focus moves step into children
+  (FocusDirection.Enter); verify -Fast already rebuilds the bridge when any native/windows/*.cpp is newer (Gradle's
+  onlyIf only builds a missing DLL). Next: verify -Full, package-fork zip.
 - 2026-10-01 E4 DONE (4247f329 red, 2d6f716c green). White window was NOT E4: it started between the 11:38 and 11:46
   runs, stays with #20 reverted, EDT idle, logs identical to a good run; SKIKO_RENDER_API=SOFTWARE renders fine, so the
   DirectX path on this machine broke (driver/GPU state?); owner to check (reboot, packaged app). Live checks now run with

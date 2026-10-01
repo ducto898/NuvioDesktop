@@ -67,9 +67,9 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 ## Batch 6 — enhancements
 | # | Item | Status |
 |---|---|---|
-| E1 | Audio options: channel layout, passthrough (WASAPI exclusive), device | todo |
+| E1 | Audio options: channel layout, passthrough (WASAPI exclusive), device | done 49c79c6f, 19e11dec (AC3 bitstream to S/PDIF verified; the default DAC refuses it and mpv decodes) |
 | E4 | Esc / Alt+Left / Backspace go back | done 4247f329, 2d6f716c (Esc + Alt+Left via the window back dispatcher; mouse Back was already upstream; no Backspace: empty text fields) |
-| E5 | Reduce motion setting | todo |
-| E6 | Shelf arrows for mouse users | todo |
-| E7 | Live scrub preview | todo |
-| E9 | Window restore after a monitor change; keyboard navigation | todo |
+| E5 | Reduce motion setting | done cafd6117, c22abf52 (hero still verified; GIF and crossfade not checked live) |
+| E6 | Shelf arrows for mouse users | done e7327193, 8d9664ea |
+| E7 | Live scrub preview | done 7f0cc4da, 37870b0c, 0cdfad64 (native path verified; UI drag not live-tested) |
+| E9 | Window restore after a monitor change; keyboard navigation | done 07003511 (restore), bd7c00d4, 8573de32 (arrows, focus ring, Ctrl+F) |
