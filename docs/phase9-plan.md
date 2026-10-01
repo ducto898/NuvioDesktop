@@ -22,13 +22,13 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 ## Batch 2 — playback
 | # | Item | Status |
 |---|---|---|
-| 4 | Playback errors after loadfile (END_FILE error) reach Kotlin | todo |
-| 5 | Async `sub-add` (no UI freeze) | todo |
-| R1 | Player shutdown timeout path: no std::terminate / use-after-destroy | todo |
-| 15 | mpv property observation instead of 2 Hz polling | todo |
-| 16 | Video/overlay follow a resize at once | todo |
-| 17 | Exact seeks for scrub release and skip-intro | todo |
-| E8 | Video settings by content (decoder threads, VSR scale, no deband for 10-bit/HDR) | todo |
+| 4 | Playback errors after loadfile (END_FILE error) reach Kotlin | done 18b03d62 (404 → error in 16 s) |
+| 5 | Async `sub-add` (no UI freeze) | done 5ecd577e (+ newest pick wins) |
+| R1 | Player shutdown timeout path: no std::terminate / use-after-destroy | done f6d07969 |
+| 15 | mpv property observation instead of 2 Hz polling | done 2e9907ea (track lists: 3 rebuilds/30 s) |
+| 16 | Video/overlay follow a resize at once | done 0d3a4f66 (resize catch-up 297 → 31 ms) |
+| 17 | Exact seeks for scrub release and skip-intro | done 9c9d1631 (exact absolute seeks) |
+| E8 | Video settings by content (decoder threads, VSR scale, no deband for 10-bit/HDR) | partial b2a5211d (VSR fit + threads done; trigger needs owner check with RTX on; deband kept per D12) |
 
 ## Batch 3 — security
 | # | Item | Status |

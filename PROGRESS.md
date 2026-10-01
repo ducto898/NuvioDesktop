@@ -527,6 +527,15 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 batches 1-2 DONE (docs/phase9-plan.md has per-item commits + numbers). Batch 1: atomic writes
+  (60/60 kills intact), downloads (2 real races reproduced red, fixed; writes <=1/10 s), geometry (1 write/drag, IO
+  thread), background store writer (save 2.7 -> 0.25 ms on caller; exit flush, wipe discards), runtime pruning.
+  Batch 2: dead links reach onError (404 -> "Playback failed" in 16 s), async sub-add + newest pick wins, shutdown
+  without std::terminate, track lists cached (3 rebuilds/30 s), resize catch-up 297 -> 31 ms, exact absolute seeks
+  (were up to 7 s early on a 10 s GOP), VSR scale fitted (4K 45.5 -> 39.6 W; trigger needs the owner with RTX on;
+  deband kept per D12). verify -Full green (1574, known failures only); upstream fix lines 362 in 11 listed files.
+  Lesson: run-dev scripts must close the app via the process MainWindowHandle (one run left a dev app open, which
+  locked the bridge DLL).
 - 2026-10-01 Q48 (owner: send the 4 upstream PRs). Upstream rules: bug issue required per PR, issues only via the web
   form (a daily bot closes unlabeled issues; API-created issues from non-collaborators get no label) => owner submits 4
   pre-filled form links, then Claude pushes the branches and opens the PRs. Reproductions (temporary tests/scripts, not
