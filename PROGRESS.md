@@ -3,7 +3,9 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
-- **2026-10-01: Phase 9 batches 1-6 done (E1, E4-E7, E9); FORK.md §11 written. Next: verify -Full, package zip.**
+- **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
+  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-fd9c57ad.zip (packaged smoke run OK).
+  Open for the owner: OpenGL white window (reboot check), Backspace-back wanted?, TorrServer missing in fork builds.
   **Owner: dev app GPU (DirectX) rendering gives a white window since ~11:40 today (see Log); software renderer fine.**
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
 - **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
@@ -529,6 +531,8 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 DONE: verify -Full OK (1612 tests, only PluginRuntimeDesktopTest flaky); package-fork zip
+  Nuvio-RR-1.1.26-fd9c57ad.zip (198 MB); measure -Packaged smoke: file-loaded, audio options applied at H2, MEASURE OK.
 - 2026-10-01 Phase 9 batch 6 DONE: E6 shelf arrows, E5 Reduce motion, E9 window restore, E7 scrub preview, E1 audio
   options, E9 keyboard navigation (commits in docs/phase9-plan.md). White window narrowed: the dev profile uses the
   OpenGL renderer; Direct3D and software are fine, so live checks run with SKIKO_RENDER_API=DIRECT3D. Lessons: live
