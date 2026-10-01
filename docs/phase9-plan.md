@@ -33,13 +33,13 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 ## Batch 3 — security
 | # | Item | Status |
 |---|---|---|
-| 8 | Native DLL/exe only from the bundle (dev paths behind a dev property) | todo |
-| S1 | Tokens and API keys encrypted (DPAPI on Windows) | todo |
-| S2 | Plugin fetch: block loopback/link-local/private ranges after DNS | todo |
-| S3 | Addon URLs redacted in logs | todo |
-| S4 | TorrServer "is running" check verifies it is ours | todo |
-| S5 | Updater: hash/signature check (the fork has the updater off) | todo |
-| S6 | desktopTest never writes the real profile (env in the Gradle test task) | todo |
+| 8 | Native DLL/exe only from the bundle (dev paths behind a dev property) | done 26142fc1 (packaged app loads its own bridge) |
+| S1 | Tokens and API keys encrypted (DPAPI on Windows) | done d2b0d360 (DPAPI; packaged decrypt path not reached live) |
+| S2 | Plugin fetch: block loopback/link-local/private ranges after DNS | done 4fdb9bf0 (plugin → 127.0.0.1 refused) |
+| S3 | Addon URLs redacted in logs | done b009aed0 (7 log lines) |
+| S4 | TorrServer "is running" check verifies it is ours | done 9b4421c4 (impostor gets no torrent) |
+| S5 | Updater: hash/signature check (the fork has the updater off) | n/a (updater is off in the fork since Phase 8; upstream releases publish no hashes to check against) |
+| S6 | desktopTest never writes the real profile (env in the Gradle test task) | done 512540b2 (test profile under build/) |
 
 ## Batch 4 — performance
 | # | Item | Status |
