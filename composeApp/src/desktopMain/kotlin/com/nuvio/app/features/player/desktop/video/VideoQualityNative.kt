@@ -28,7 +28,7 @@ internal class VideoQualityPreference(private val store: DesktopStorage.Store) {
             ?: VideoDownscaler.DEFAULT,
         hdr = store.getString(HDR_KEY)
             ?.let { name -> HdrOutput.entries.firstOrNull { it.name == name } }
-            ?: HdrOutput.MONITOR_PEAK,
+            ?: VideoQualitySettings().hdr,
     )
 
     fun save(settings: VideoQualitySettings) {

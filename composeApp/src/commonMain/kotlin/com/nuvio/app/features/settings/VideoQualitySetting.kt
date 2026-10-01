@@ -26,11 +26,11 @@ enum class VideoDownscaler {
 
 /** Where mpv takes the display's HDR peak from (Windows HDR on). */
 enum class HdrOutput {
-    /** The monitor's EDID (desired max luminance): mpv tone-maps only what is brighter than that. */
-    MONITOR_PEAK,
-
     /** The video's own metadata goes to the monitor, which tone-maps (target-colorspace-hint-mode=source). */
     PASSTHROUGH,
+
+    /** The monitor's EDID (desired max luminance): mpv tone-maps only what is brighter than that. */
+    MONITOR_PEAK,
 
     /** mpv's default: the Windows HDR calibration profile's peak and primaries. */
     WINDOWS_CALIBRATION,
@@ -39,7 +39,8 @@ enum class HdrOutput {
 data class VideoQualitySettings(
     val quality: VideoQuality = VideoQuality.STANDARD,
     val downscaler: VideoDownscaler = VideoDownscaler.DEFAULT,
-    val hdr: HdrOutput = HdrOutput.MONITOR_PEAK,
+    /** Owner, 2026-10-01: the monitor uses HDR10 metadata (test clips), so each video's own metadata is sent. */
+    val hdr: HdrOutput = HdrOutput.PASSTHROUGH,
 )
 
 object VideoQualitySetting {
