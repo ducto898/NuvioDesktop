@@ -2080,6 +2080,14 @@
     <string name="settings_playback_audio_device_default">Windows default</string>
     <string name="settings_playback_audio_device_loading">Looking for devices…</string>
     <string name="settings_playback_audio_next_playback">applies from the next video</string>
+    <string name="settings_playback_video_section">VIDEO QUALITY</string>
+    <string name="settings_playback_video_quality">Scaling quality</string>
+    <string name="settings_playback_video_quality_standard">Standard</string>
+    <string name="settings_playback_video_quality_high">High (sharper upscaling, uses a little more GPU)</string>
+    <string name="settings_playback_video_downscaler">Downscaler (videos larger than the screen, e.g. 4K)</string>
+    <string name="settings_playback_video_downscaler_default">Player default</string>
+    <string name="settings_playback_video_downscaler_catmull_rom">Catmull-Rom (sharp)</string>
+    <string name="settings_playback_video_downscaler_ssim">SSimDownscaler (sharp, keeps fine detail)</string>
     <string name="settings_appearance_motion_section">MOTION</string>
     <string name="settings_appearance_reduce_motion">Reduce motion</string>
     <string name="settings_appearance_reduce_motion_desc">Keep the home banner still, don't play animated card images, and show images without fading in.</string>

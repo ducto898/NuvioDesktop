@@ -1407,9 +1407,11 @@ void dropDriverRead(int64_t playerId) {
 }
 
 void applyAudioOptions(mpv_handle *mpv);  // Phase 9 E1, defined near the end of nuvio_rr
+void applyVideoOptions(mpv_handle *mpv);  // video quality, defined near the end of nuvio_rr
 inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container) {
     if (!mpv) return;
     applyAudioOptions(mpv);  // Phase 9 E1: for every player, whether refresh-rate matching is on or not
+    applyVideoOptions(mpv);  // video quality: scalers over the bridge's own (same rule)
     std::string why;
     double asked = nowSeconds();
     int code = -1;
@@ -1616,8 +1618,8 @@ void throwJava(JNIEnv *env, const char *what) {
 // ---------------------------------------------------------------- Phase 9 E1: audio output options
 // At H2 (after mpv_initialize, before loadfile) Kotlin's AudioOutputNative.nativeMpvOptions() gives "name=value" lines
 // (audio-channels, audio-spdif, audio-exclusive, audio-device); each is set as a property. Any failure leaves mpv's
-// defaults, so playback never depends on it.
-std::string upcallAudioOptions() {
+// defaults, so playback never depends on it. The video quality options (VideoQualityNative) use the same path.
+std::string upcallOptionLines(const char *className) {
     JavaVM *vm = javaVm();
     if (!vm) return {};
     JNIEnv *env = nullptr;
@@ -1628,7 +1630,7 @@ std::string upcallAudioOptions() {
     }
     std::string result;
     if (env) {
-        jclass type = env->FindClass("com/nuvio/app/features/player/desktop/audio/AudioOutputNative");
+        jclass type = env->FindClass(className);
         if (env->ExceptionCheck()) { env->ExceptionClear(); type = nullptr; }
         jmethodID method = type ? env->GetStaticMethodID(type, "nativeMpvOptions", "()Ljava/lang/String;") : nullptr;
         if (env->ExceptionCheck()) { env->ExceptionClear(); method = nullptr; }
@@ -1648,8 +1650,8 @@ std::string upcallAudioOptions() {
     return result;
 }
 
-void applyAudioOptions(mpv_handle *mpv) {
-    std::string lines = upcallAudioOptions();
+void applyOptionLines(mpv_handle *mpv, const char *className, const char *what) {
+    std::string lines = upcallOptionLines(className);
     size_t start = 0;
     while (start < lines.size()) {
         size_t end = lines.find('\n', start);
@@ -1660,8 +1662,17 @@ void applyAudioOptions(mpv_handle *mpv) {
         if (eq == std::string::npos || eq == 0) continue;
         std::string name = line.substr(0, eq), value = line.substr(eq + 1);
         int rc = mpvApi().setPropertyString(mpv, name.c_str(), value.c_str());
-        nlog(strf("audio option %s=%s rc=%d", name.c_str(), value.c_str(), rc));
+        nlog(strf("%s option %s=%s rc=%d", what, name.c_str(), value.c_str(), rc));
     }
+}
+
+void applyAudioOptions(mpv_handle *mpv) {
+    applyOptionLines(mpv, "com/nuvio/app/features/player/desktop/audio/AudioOutputNative", "audio");
+}
+
+// Video quality (scale / cscale / dscale, SSimDownscaler shader): set after the bridge's own scalers, so they win.
+void applyVideoOptions(mpv_handle *mpv) {
+    applyOptionLines(mpv, "com/nuvio/app/features/player/desktop/video/VideoQualityNative", "video");
 }
 
 // Phase 9 E1 fix: which IEC 61937 bitstreams the output device takes in exclusive mode, as mpv would open them

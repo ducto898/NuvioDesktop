@@ -15,6 +15,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun RefreshRateMatchSettingsSection(isTablet: Boolean) {
     AudioOutputSettingsSection(isTablet = isTablet) // Phase 9 E1: audio options, above Display
+    VideoQualitySettingsSection(isTablet = isTablet) // video quality (scalers), above Display
     if (!RefreshRateMatchSetting.available) return
     val enabled by RefreshRateMatchSetting.enabled.collectAsStateWithLifecycle()
     val badge by RefreshRateMatchSetting.badgeEnabled.collectAsStateWithLifecycle()

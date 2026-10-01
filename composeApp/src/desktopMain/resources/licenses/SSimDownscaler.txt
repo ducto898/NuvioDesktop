@@ -1,0 +1,4 @@
+SSimDownscaler.glsl - by igv, licensed under the GNU Lesser General Public License v3.0 or later (header in the file).
+Source: https://gist.github.com/igv/36508af3ffc84410fe39761d6969be10 (revision 38992bce7f9ff844f800820df0908692b65bb74a,
+2024-09-05), unmodified. Gist note: "Tuned for linear-downscaling=no."
+Used by the nuvio-rr fork for Settings > Playback > Video quality > Downscaler > SSimDownscaler.

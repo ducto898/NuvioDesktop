@@ -59,5 +59,28 @@ object VideoQualitySetting {
  * settings change nothing. [ssimShaderPath] is the installed shader file; without a usable one SSIM falls back to
  * the default downscaler.
  */
-fun videoMpvOptions(settings: VideoQualitySettings, ssimShaderPath: String?): List<Pair<String, String>> =
-    TODO("nuvio-rr fork: video quality options")
+fun videoMpvOptions(settings: VideoQualitySettings, ssimShaderPath: String?): List<Pair<String, String>> {
+    val quality = when (settings.quality) {
+        VideoQuality.STANDARD -> emptyList()
+        VideoQuality.HIGH -> listOf(
+            "scale" to "ewa_lanczossharp",
+            "cscale" to "ewa_lanczossharp",
+            "hdr-peak-percentile" to "99.995",
+            "hdr-contrast-recovery" to "0.30",
+            "allow-delayed-peak-detect" to "no",
+        )
+    }
+    // ';' separates the entries of mpv's path list on Windows, so a path containing one can't be passed as one file.
+    val usableShader = ssimShaderPath?.takeIf { it.isNotBlank() && ';' !in it }
+    val downscaler = when (settings.downscaler) {
+        VideoDownscaler.DEFAULT -> emptyList()
+        VideoDownscaler.CATMULL_ROM -> listOf("dscale" to "catmull_rom")
+        // The shader refines mpv's own downscale (it hooks POSTKERNEL); its author tunes it for linear-downscaling=no.
+        VideoDownscaler.SSIM -> if (usableShader == null) emptyList() else listOf(
+            "glsl-shaders" to usableShader,
+            "dscale" to "mitchell",
+            "linear-downscaling" to "no",
+        )
+    }
+    return quality + downscaler
+}
