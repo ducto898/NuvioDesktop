@@ -936,7 +936,9 @@ internal class NativePlayerController(
     }
 
     // nuvio-rr fork, Phase 9 E7: keyframe seek while the seek bar is dragged (no per-call log: up to ~7 per second).
+    // Windows only: only the Windows bridge has seekPreview (the macOS bridge would throw UnsatisfiedLinkError).
     override fun previewSeekTo(positionMs: Long) {
+        if (!com.nuvio.app.isWindows) return
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekPreview(it, positionMs) }
     }
 
