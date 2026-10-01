@@ -533,6 +533,12 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Subtitle font (owner asked about the best subtitle font, supplied a Netflix Sans zip: 4 genuine OTFs,
+  installed per-user only, never bundled/committed). Default was mpv's sans-serif -> Arial. Setting built
+  tests-first: 3f643bca red 5/5 -> 4ca80d59 green; a22d31d2/88af7fad trim fix (Java lists "Netflix Sans "); 40433d0d/
+  aaab3cab Netflix Sans Medium/Bold by PostScript name (live screenshots: Regular, Medium, Bold faces all render;
+  family+bold request did not find Bold). Lesson: Start-Process -ArgumentList with an array splits values with
+  spaces (sub-font=Netflix Sans became "Netflix"); quote one argument string.
 - 2026-10-01 HDR metadata test: scripts/gen-metadata-clips.py (030c2d1f) made 2 clips, identical decoded frames,
   HDR10 metadata 10000/10000/400 vs 400/400/100 (C:\TestAPP\hdr-meta + launchers). Pass through hands each clip's
   own metadata to Windows (read live). Owner: the clips look DIFFERENT in Nuvio RR => metadata reaches the monitor

@@ -279,3 +279,14 @@ default passes each video's own HDR10 metadata to the monitor (below).
 - Cost measured on this PC (4K HDR, fullscreen, 240 Hz, display-resample, 60 s): Standard 46.1 W / 14 % GPU,
   High + SSimDownscaler 51.2 W / 19 %, both 0 drops / 0 mistimed. The look was not judged by the owner yet.
 - Log: `video option <name>=<value> rc=<n>` lines in refresh-rate.log, next to the audio options.
+
+### Subtitle font (2026-10-01)
+Settings → Playback → VIDEO QUALITY → Subtitle font (Windows, per PC, store `nuvio_subtitle_font`, from the next video).
+Plain-text subtitles only (SRT, WebVTT); styled ASS/SSA keep their own fonts. Default = the player's (mpv's
+`sans-serif`, which libass's DirectWrite provider maps to Arial) and sends no option; a choice sends `sub-font=<name>`
+with the video options at H2. The dialog offers the installed fonts subtitle enthusiasts recommend: Netflix Sans
+(Regular, plus `NetflixSans-Medium` / `NetflixSans-Bold` by PostScript name, because its Bold file's family is
+"Netflix Sans " with a stray space and Medium is its own family), Gandhi Sans, Segoe UI, Trebuchet MS, Verdana,
+Tahoma, Calibri, Arial, plus the current choice. Fonts are never bundled: Netflix Sans is proprietary and was
+installed by the owner for their own Windows account only (`%LOCALAPPDATA%\Microsoft\Windows\Fonts`), which libass
+and Java both see. With a Medium/Bold face chosen, keep the app's subtitle Bold switch off (it would embolden again).
