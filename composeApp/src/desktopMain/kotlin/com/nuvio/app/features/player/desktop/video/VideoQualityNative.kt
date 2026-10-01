@@ -32,6 +32,15 @@ internal class VideoQualityPreference(private val store: DesktopStorage.Store) {
     }
 }
 
+/**
+ * The HDR peak the monitor asks for, from its EDID's CTA-861 HDR static metadata block (desired max luminance,
+ * 50 * 2^(CV/32) nits, rounded); null when there is no such block, the value is 0 (not given) or the EDID is bad.
+ */
+internal fun edidHdrPeakNits(edid: ByteArray): Int? = TODO("nuvio-rr fork: EDID HDR peak")
+
+/** "00ff..." hex as bytes; empty for odd length or non-hex. */
+internal fun hexBytes(hex: String): ByteArray = TODO("nuvio-rr fork: EDID HDR peak")
+
 /** The bundled shader's bytes; null when the resource is missing. */
 internal fun ssimShaderBytes(): ByteArray? =
     VideoQualityPreference::class.java.getResourceAsStream(SSIM_SHADER_RESOURCE)?.use { it.readBytes() }

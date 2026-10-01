@@ -24,9 +24,22 @@ enum class VideoDownscaler {
     SSIM,
 }
 
+/** Where mpv takes the display's HDR peak from (Windows HDR on). */
+enum class HdrOutput {
+    /** The monitor's EDID (desired max luminance): mpv tone-maps only what is brighter than that. */
+    MONITOR_PEAK,
+
+    /** The video's own metadata goes to the monitor, which tone-maps (target-colorspace-hint-mode=source). */
+    PASSTHROUGH,
+
+    /** mpv's default: the Windows HDR calibration profile's peak and primaries. */
+    WINDOWS_CALIBRATION,
+}
+
 data class VideoQualitySettings(
     val quality: VideoQuality = VideoQuality.STANDARD,
     val downscaler: VideoDownscaler = VideoDownscaler.DEFAULT,
+    val hdr: HdrOutput = HdrOutput.MONITOR_PEAK,
 )
 
 object VideoQualitySetting {
@@ -55,11 +68,15 @@ object VideoQualitySetting {
 }
 
 /**
- * The mpv properties for [settings], set over the player's own defaults; the defaults give no options, so untouched
- * settings change nothing. [ssimShaderPath] is the installed shader file; without a usable one SSIM falls back to
- * the default downscaler.
+ * The mpv properties for [settings], set over the player's own defaults. [ssimShaderPath] is the installed shader
+ * file; without a usable one SSIM falls back to the default downscaler. [monitorPeakNits] is the EDID's HDR peak of
+ * the player's monitor; without a plausible one MONITOR_PEAK falls back to mpv's default (Windows calibration).
  */
-fun videoMpvOptions(settings: VideoQualitySettings, ssimShaderPath: String?): List<Pair<String, String>> {
+fun videoMpvOptions(
+    settings: VideoQualitySettings,
+    ssimShaderPath: String?,
+    monitorPeakNits: Int? = null,
+): List<Pair<String, String>> {
     val quality = when (settings.quality) {
         VideoQuality.STANDARD -> emptyList()
         VideoQuality.HIGH -> listOf(
@@ -82,5 +99,8 @@ fun videoMpvOptions(settings: VideoQualitySettings, ssimShaderPath: String?): Li
             "linear-downscaling" to "no",
         )
     }
-    return quality + downscaler
+    return quality + downscaler + hdrOptions(settings.hdr, monitorPeakNits)
 }
+
+@Suppress("UNUSED_PARAMETER")
+private fun hdrOptions(hdr: HdrOutput, monitorPeakNits: Int?): List<Pair<String, String>> = emptyList() // TODO
