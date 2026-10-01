@@ -527,6 +527,9 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 batch 4 DONE (#10-#14, #18, #20-#22; partials listed in the plan). Found: Nuvio RR builds
+  contain no TorrServer binary (vendor/TorrServer unmapped gitlink), so P2P streaming cannot work in the fork; tell
+  the owner. Next: batch 5 (#7 QuickJS, R2-R6), then batch 6 (E1, E4-E7, E9), then docs + verify -Full + zip.
 - 2026-10-01 Phase 9 batch 4: #13 done, #14 and #18 partial (plan has what is left). Mistake found: piping a
   measurement script into Select-Object -First 1 stops it after its first line, so the screenshot + app-close steps
   never ran and 4 dev apps stayed open; later runs then measured an old idle instance (the "CPU 0.0 s" runs for #14

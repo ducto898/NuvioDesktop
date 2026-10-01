@@ -50,9 +50,9 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 | 13 | Coil memory/disk cache bounds and location | done 045d2d13 (256 MB / 512 MB, disk cache out of %TEMP%) |
 | 14 | GIF cards: pause when hidden, decode off the main thread, safe LRU | partial 94056e20 (off-UI decode + safe LRU; pause-when-hidden not done, GIF-only cards still animate: upstream design, see E5) |
 | 18 | Addon/TMDB networking: cancellable calls, timeouts, response cap, thread-safe caches, de-dup | partial af0bb1de (cancellable calls, 16 MB cap, concurrent TMDB caches; no HTTP cache / de-dup) |
-| 20 | `runBlocking { getString }` removed from composition paths | todo |
-| 21 | Packaged app JVM options (heap cap, AppCDS) | todo |
-| 22 | Package size (icons, TorrServer copy into Roaming) | todo |
+| 20 | `runBlocking { getString }` removed from composition paths | done 7b03a241 (first getString 175 ms moved off the UI thread; warm calls 0.04 ms) |
+| 21 | Packaged app JVM options (heap cap, AppCDS) | partial f20ec311 (-Xmx2g; AppCDS not possible on JDK 17 without a training run; heap is only ~30 MB) |
+| 22 | Package size (icons, TorrServer copy into Roaming) | partial 5b380731 (TorrServer copy fixed but not live-testable: fork builds have no TorrServer; icons/ProGuard not done) |
 
 ## Batch 5 — build and robustness
 | # | Item | Status |
