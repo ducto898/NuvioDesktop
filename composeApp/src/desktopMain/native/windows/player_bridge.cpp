@@ -898,22 +898,34 @@ public:
 
     // Waits a bounded time for a thread to finish, then gives up and detaches it. Shutdown must
     // always complete: a thread that never returns must not strand the player's windows alive.
-    static void joinOrDetach(std::thread &thread) {
-        if (!thread.joinable()) return;
-        auto finished = std::make_shared<std::atomic_bool>(false);
-        std::thread waiter([&thread, finished]() {
-            thread.join();
-            finished->store(true);
+    // nuvio-rr fork, Phase 9 R1: the thread object moves into the waiter at once, so [thread] is empty afterwards:
+    // destroying this player can no longer meet a joinable std::thread (std::terminate), and a detached waiter never
+    // refers to a destroyed member. [afterJoin] runs once the thread has really ended: here if it ended in time
+    // (returns true), else later on the detached waiter.
+    static bool joinOrDetach(std::thread &thread, std::function<void()> afterJoin = {}) {
+        if (!thread.joinable()) {
+            if (afterJoin) afterJoin();
+            return true;
+        }
+        auto owned = std::make_shared<std::thread>(std::move(thread));
+        auto state = std::make_shared<std::atomic_int>(0);  // 0 running, 1 ended in time, 2 given up
+        std::thread waiter([owned, state, afterJoin]() {
+            owned->join();
+            int expected = 0;
+            if (!state->compare_exchange_strong(expected, 1) && afterJoin) afterJoin();  // given up: clean up here
         });
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kShutdownJoinTimeoutMs);
-        while (!finished->load() && std::chrono::steady_clock::now() < deadline) {
+        while (state->load() == 0 && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        if (finished->load()) {
-            waiter.join();
-        } else {
+        int expected = 0;
+        if (state->compare_exchange_strong(expected, 2)) {
             waiter.detach();
+            return false;
         }
+        waiter.join();
+        if (afterJoin) afterJoin();
+        return true;
     }
 
     void shutdown() {
@@ -947,14 +959,17 @@ public:
             }
         }
         // Bounded: if a thread will not finish we detach rather than block dispose forever.
-        joinOrDetach(eventThread);
+        // nuvio-rr fork, Phase 9 R1: take the handle out first (every other caller sees null and skips), and destroy
+        // it only after the event thread has ended: it may still be inside mpv_wait_event on this handle.
+        mpv_handle *handleToDestroy = nullptr;
         {
             std::lock_guard<std::mutex> lock(mpvMutex);
-            if (mpv) {
-                mpvApi().terminateDestroy(mpv);
-                mpv = nullptr;
-            }
+            handleToDestroy = mpv;
+            mpv = nullptr;
         }
+        joinOrDetach(eventThread, [handleToDestroy]() {
+            if (handleToDestroy) mpvApi().terminateDestroy(handleToDestroy);
+        });
         if (GetCurrentThreadId() != uiThreadId) {
             joinOrDetach(uiThread);
         }
