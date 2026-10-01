@@ -150,7 +150,9 @@ The only memory between phases. Read it at the start of every phase; update it a
 - Upstream default branch is **`Dev`** (not `main`). Upstream HEAD at fork time: `083921cf`.
 - Clone: `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`
   - `origin` = ducto898/NuvioDesktop (**public** fork); `upstream` = NuvioMedia/NuvioDesktop
-- Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`. **Not pushed.**
+- Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`. **Pushed to origin (public fork)**:
+  `origin/feature/refresh-rate-matching` = `6a9ae226` (2026-10-01 17:13), local is ahead (24 commits on 2026-10-02).
+  Checked 2026-10-02: no secrets in any git object (Real-Debrid key scan, all refs + unreachable: 0 hits).
 - Submodules: only `MPVKit` is mapped. `libass-android`, `vendor/TorrServer` and `vendor/quickjs-kt`
   are unmapped gitlinks (upstream quirk); the Windows build doesn't need them (build is green).
 - libmpv: Git LFS, `composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll` (115 MB): mpv v0.40.0-465-gf6c116491,
@@ -231,7 +233,8 @@ suite, ≈ 15 s with only the patch tests.
 
 ## Owner answers (2026-09-28)
 - Q1 known-upstream-failure baseline (D3): **approved**.
-- Q2 push: **keep local**. Do not push to origin until the owner says so.
+- Q2 push: **keep local**. Do not push to origin until the owner says so. (Superseded: the branch was pushed to
+  origin by 2026-10-01 17:13, see Repo facts; still ask before any further push.)
 - Q3 feature request: **hold** until Phase 2 measurements exist; re-ask then.
 - Q4 git identity: repo-local `ducto898 <24544110+ducto898@users.noreply.github.com>` (GitHub no-reply).
 
@@ -533,6 +536,32 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 23:13-23:45 Seek timing (owner: "faster seeking time?", measure first). Dev build, feature off, mpv IPC;
+  time = seek command to mpv playback-restart. Realistic clips made with NVENC (scratchpad seek\: 4K HEVC 10-bit
+  41 Mbit/s keyframes every 10 s and 2 s, 1080p H.264 10 Mbit/s every 10 s); streams through a local Range server
+  (fast: 80 ms first byte, 300 Mbit/s; slow: 250 ms, 80 Mbit/s). Medians: local / buffered exact seek 0.14-0.33 s
+  (max 0.48, decode from the keyframe; d3d11va); keyframe seek 0.02-0.04 s but lands up to 9.7 s early. NOT buffered
+  exact: fast 1.1-1.2 s, slow 3.5 s (max 5.2) with 10 s keyframes and 1.0 s (max 1.6) with 2 s; keyframe seek 0.16 /
+  0.52 s. Cause: an exact seek downloads keyframe->target first (9.5 s x 41 Mbit/s = 47 MB). Ruled out:
+  cache-pause-wait 0.3 vs 1.0 (same), sync seek command blocking the UI (reply 0.1 ms), keyframe-then-exact (picture
+  at 0.5 s but the exact spot later, 5.3 vs 3.9 s). Found: +-10 s buttons (relative+keyframes) land up to 6 s off
+  with 10 s keyframes (-10 can go -20). Not tested: real debrid/TorrServer, the UI drag path.
+  Owner's real film (Blade Runner 2049 HDR-X DoVi, 4K HEVC, 61 Mbit/s, keyframes every 0.5 s): local exact seek
+  25 ms (max 30), +-10 s lands within 0.5 s; stream at 150 Mbit/s + 250 ms first byte: buffered 23-44 ms, not
+  buffered exact 0.63-0.75 s vs keyframe 0.43 s (the 250 ms first byte + 1-2 requests is most of it).
+  => with normal short keyframe intervals exact seeks cost ~0.2 s extra at most; the slow case is 10 s-keyframe encodes.
+- 2026-10-01 23:56 Stream download rate (owner: "full debrid bandwidth?"). Debrid links go to mpv as plain HTTPS URLs
+  (one connection, FFmpeg http, OpenSSL in libmpv; no proxy). Same film from an uncapped local server: mpv read at
+  >= 1 Gbit/s (raw-input-rate) until the 512 MiB forward buffer was full (1.5 s, ~120 s of video), then only at the
+  playback rate (9-83 Mbit/s). => the app is not the limit; only a debrid per-connection cap below the film's bitrate
+  would show (mpv cannot open parallel connections). Real debrid link not tested.
+- 2026-10-02 00:02 Real-Debrid test (owner's Comet link, Blade Runner 2049 BDRemux 63 GB ~52 Mbit/s; link not stored:
+  it embeds the RD API key). Comet resolve 3.6 s (302 to *.download.real-debrid.cloud, Cloudflare); RD first byte
+  1.3 s per request. curl: 1 connection 311-328 Mbit/s, 4 parallel 447, 8 parallel 427 (line limit). App (mpv):
+  ramp 96 -> 350-510 Mbit/s over ~8 s, 512 MiB buffer (~130 s of film) full 14.5 s after start (avg ~300 Mbit/s), then
+  playback rate. App start -> file-loaded 8.9 s. => the app uses the full single-connection speed; parallel
+  connections would add ~35 % on this line and are not needed (6x the film's bitrate). Found: measure-mode sampler
+  logs (Cache\nuvio-rr\*.log) copy mpv's "Opening done: <url>" line unredacted (old devprofile logs hold the key).
 - 2026-10-01 Subtitle look ("optimise every aspect"): 1394a71c red 3/27 -> green (automatic font, outline 2,
   shadow 1 @50 %, blur 0.3, libass-mode size made linear, desktop size default 15). Live: NetflixSans-Medium + look
   applied with no setting touched. Open: owner to check the size on a real film (the smoke launcher doesn't apply
