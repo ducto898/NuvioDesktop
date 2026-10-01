@@ -95,7 +95,7 @@ fun main(args: Array<String>) {
             ?.takeIf { it.isNotBlank() }
         val wasFullscreenOnLastExit = remember { DesktopWindowModeStorage.loadWasFullscreen() }
         val wasMaximizedOnLastExit = remember { DesktopWindowModeStorage.loadWasMaximized() }
-        val savedGeometry = remember { DesktopWindowModeStorage.loadWindowedGeometry() }
+        val savedGeometry = remember { DesktopWindowModeStorage.loadWindowedGeometry()?.let { com.nuvio.app.features.player.desktop.fitWindowGeometry(it, com.nuvio.app.features.player.desktop.currentScreenAreas()) } } // nuvio-rr fork, Phase 9 E9
         val restoresMaximizedWindowPlacement = DesktopHostOs.current != DesktopHostOs.MACOS
         val initialPlacement = when {
             wasFullscreenOnLastExit && DesktopHostOs.current != DesktopHostOs.WINDOWS -> {
