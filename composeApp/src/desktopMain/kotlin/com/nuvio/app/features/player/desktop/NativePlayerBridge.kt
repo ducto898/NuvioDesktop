@@ -177,14 +177,16 @@ internal object NativePlayerBridge {
             return
         }
 
+        // nuvio-rr fork, Phase 9 #10: decided from the jar's CRC + size per file; an installed runtime (~115 MB) is not
+        // read, hashed and compared again on every launch.
         val resource = "/native/$platformDir/$libraryName"
-        val files = buildMap {
-            put(libraryName, readResourceBytes(resource))
-            bundledRuntimeResourceNames(platformDir).forEach { name ->
-                resourceBytesOrNull("/native/$platformDir/$name")?.let { bytes -> put(name, bytes) }
-            }
-        }
-        val directory = DesktopCache.installVersionedFiles("native-player-bridge/$platformDir", files).toFile()
+        if (resourceStamp(resource) == null) error("Missing native player resource: $resource")
+        val directory = DesktopCache.installVersionedResources(
+            namespace = "native-player-bridge/$platformDir",
+            names = listOf(libraryName) + bundledRuntimeResourceNames(platformDir).filter { it != libraryName },
+            stampOf = { name -> resourceStamp("/native/$platformDir/$name") },
+            read = { name -> resourceBytesOrNull("/native/$platformDir/$name") },
+        ).toFile()
         loadNativeRuntimeDependencies(platform, directory)
         System.load(directory.resolve(libraryName).absolutePath)
     }
@@ -335,6 +337,15 @@ internal object NativePlayerBridge {
 
     private fun readResourceBytes(resource: String): ByteArray =
         resourceBytesOrNull(resource) ?: error("Missing native player resource: $resource")
+
+    /** Phase 9 #10: a cheap identity for a bundled resource (jar entry CRC-32 + size; dev classes dir: size + time). */
+    private fun resourceStamp(resource: String): String? {
+        val url = NativePlayerBridge::class.java.getResource(resource) ?: return null
+        return when (val connection = url.openConnection()) {
+            is java.net.JarURLConnection -> connection.jarEntry.let { entry -> "crc=${entry.crc} size=${entry.size}" }
+            else -> runCatching { File(url.toURI()) }.getOrNull()?.let { file -> "size=${file.length()} time=${file.lastModified()}" }
+        }
+    }
 
     private fun resourceBytesOrNull(resource: String): ByteArray? =
         NativePlayerBridge::class.java.getResourceAsStream(resource)?.use { it.readBytes() }

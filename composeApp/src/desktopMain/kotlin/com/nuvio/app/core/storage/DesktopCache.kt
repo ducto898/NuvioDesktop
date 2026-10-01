@@ -35,7 +35,35 @@ internal object DesktopCache {
         names: List<String>,
         stampOf: (String) -> String?,
         read: (String) -> ByteArray?,
-    ): Path = TODO("Phase 9 #10 commit B")
+    ): Path {
+        require(namespace.isNotBlank())
+        val present = names.mapNotNull { name -> stampOf(name)?.let { stamp -> name to stamp } }
+        require(present.isNotEmpty())
+        val digest = MessageDigest.getInstance("SHA-256")
+        present.sortedBy { it.first }.forEach { (name, stamp) ->
+            digest.update(name.toByteArray(Charsets.UTF_8))
+            digest.update(0)
+            digest.update(stamp.toByteArray(Charsets.UTF_8))
+            digest.update(0)
+        }
+        val version = "s" + digest.digest().joinToString("") { byte -> "%02x".format(byte) }.take(23)
+        val directory = DesktopStorage.cacheDir.resolve(namespace).resolve(version).normalize()
+        require(directory.startsWith(DesktopStorage.cacheDir))
+        val marker = directory.resolve(".complete")
+        val complete = Files.isRegularFile(marker) && present.all { (name, _) -> Files.isRegularFile(directory.resolve(name)) }
+        if (!complete) {
+            Files.deleteIfExists(marker)
+            present.forEach { (name, _) ->
+                val target = directory.resolve(name).normalize()
+                require(target.startsWith(directory))
+                writeIfChanged(target, read(name) ?: error("resource $name is gone"))
+            }
+            Files.write(marker, version.toByteArray(Charsets.UTF_8))
+        }
+        runCatching { Files.setLastModifiedTime(directory, FileTime.fromMillis(System.currentTimeMillis())) }
+        runCatching { pruneOldVersions(directory.parent, keep = directory, olderThanMs = UNUSED_VERSION_AGE_MS) }
+        return directory
+    }
 
     /**
      * nuvio-rr fork, Phase 9 #6: delete the other version folders of a namespace that were not used for
