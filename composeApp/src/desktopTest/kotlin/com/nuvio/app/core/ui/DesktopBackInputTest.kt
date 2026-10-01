@@ -10,7 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-// nuvio-rr fork, Phase 9 E4: Alt+Left / mouse Back go back on desktop, through the same dispatcher as Esc.
+// nuvio-rr fork, Phase 9 E4: Alt+Left goes back on desktop, through the same dispatcher as Esc.
 class DesktopBackInputTest {
     private class Recorder(private val name: String, private val calls: MutableList<String>) :
         NavigationEventHandler<NavigationEventInfo>(NavigationEventInfo.None, true) {

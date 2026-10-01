@@ -24,6 +24,11 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
+import com.nuvio.app.core.ui.DesktopBackInput
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.ProvideDesktopWindowInsets
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
@@ -143,7 +148,16 @@ fun main(args: Array<String>) {
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
             init = ::configureMacosWindowBeforePeer,
+            // nuvio-rr fork, Phase 9 E4: Alt+Left goes back like Esc (same dispatcher, newest enabled handler wins).
+            onPreviewKeyEvent = { event ->
+                DesktopBackInput.isBackShortcut(event.type, event.key, event.isAltPressed).also { if (it) DesktopBackInput.main.back() }
+            },
         ) {
+            val backDispatcher = LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher
+            DisposableEffect(backDispatcher) {
+                backDispatcher?.let(DesktopBackInput.main::attach)
+                onDispose { DesktopBackInput.main.detach() }
+            }
             SideEffect {
                 window.background = NuvioDesktopNativeBackground
                 window.rootPane.background = NuvioDesktopNativeBackground
