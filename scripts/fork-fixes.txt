@@ -31,3 +31,4 @@ composeApp/src/desktopTest/kotlin/com/nuvio/app/features/updater/LinuxUpdateInst
 composeApp/src/desktopTest/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImageTest.kt | R4
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/PlatformBackHandler.desktop.kt | E4
 composeApp/src/commonMain/kotlin/com/nuvio/app/MainTabsDestination.kt | E4
+composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt | E6

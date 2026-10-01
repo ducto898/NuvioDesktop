@@ -109,6 +109,10 @@ fun <T> NuvioShelfSection(
                 viewAllPillSize = viewAllPillSize,
             )
         }
+        // nuvio-rr fork, Phase 9 E6: hover arrows for mouse users (desktop only).
+        val rowHover = remember { MutableInteractionSource() }
+        val rowHovered by rowHover.collectIsHoveredAsState()
+        Box(modifier = if (isDesktop) Modifier.hoverable(rowHover) else Modifier) {
         LazyRow(
             state = state,
             modifier = rowModifier.nuvioDesktopDragScroll(state),
@@ -139,6 +143,8 @@ fun <T> NuvioShelfSection(
                     }
                 }
             }
+        }
+        if (isDesktop) NuvioShelfScrollArrows(state, rowHovered)
         }
     }
 }
