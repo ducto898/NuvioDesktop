@@ -640,6 +640,18 @@ internal class NativePlayerController(
         NativePlayerBridge.setSpeed(current, next)
     }
 
+    /**
+     * nuvio-rr fork, Phase 9 #4: a load failure mpv reported after loadfile (dead link, 403/404, expired debrid
+     * URL), once. Without it the player kept showing the loading spinner forever.
+     */
+    fun takePlaybackError(): String? {
+        val current = handle
+        if (current == 0L) return null
+        val error = runCatching { NativePlayerBridge.takePlaybackError(current) }.getOrNull() ?: return null
+        log.w { "playback failed after load: $error handle=$current" }
+        return "Playback failed: $error"
+    }
+
     fun snapshot(): PlayerPlaybackSnapshot {
         val current = handle
         if (current == 0L) return PlayerPlaybackSnapshot(isLoading = true)

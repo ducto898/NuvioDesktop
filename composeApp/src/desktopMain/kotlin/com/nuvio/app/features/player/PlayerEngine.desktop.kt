@@ -252,6 +252,7 @@ private fun NativePlayerSurface(
     LaunchedEffect(controller) {
         while (true) {
             onSnapshot(controller.snapshot())
+            controller.takePlaybackError()?.let { message -> latestOnError.value(message) }  // Phase 9 #4
             delay(500L)
         }
     }

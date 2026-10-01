@@ -46,7 +46,15 @@ typedef enum mpv_format {
 typedef enum mpv_event_id {
     MPV_EVENT_NONE = 0,
     MPV_EVENT_SHUTDOWN = 1,
+    MPV_EVENT_START_FILE = 6,  // nuvio-rr fork, Phase 9 #4
+    MPV_EVENT_END_FILE = 7,
 } mpv_event_id;
+
+// nuvio-rr fork, Phase 9 #4: mpv client.h mpv_event_end_file / mpv_end_file_reason (only the fields read here).
+typedef struct mpv_event_end_file {
+    int reason;  // MPV_END_FILE_REASON_ERROR = 4
+    int error;
+} mpv_event_end_file;
 
 typedef struct mpv_event {
     mpv_event_id event_id;
@@ -1125,6 +1133,13 @@ public:
         return flagProperty("eof-reached", false);
     }
 
+    std::string takePlaybackError() {
+        std::lock_guard<std::mutex> lock(playbackErrorMutex);
+        std::string taken;
+        taken.swap(playbackError);
+        return taken;
+    }
+
     std::string audioTracksJson() {
         return tracksJsonForType("audio");
     }
@@ -1295,6 +1310,10 @@ private:
 
     std::mutex mpvMutex;
     mpv_handle *mpv = nullptr;
+    // nuvio-rr fork, Phase 9 #4: a load/playback failure after loadfile (END_FILE with reason error), handed to
+    // Kotlin once by takePlaybackError(); cleared when mpv starts the next file.
+    std::mutex playbackErrorMutex;
+    std::string playbackError;
     std::thread eventThread;
     std::atomic_bool stopping = false;
     std::atomic_bool shuttingDown = false;
@@ -1901,6 +1920,16 @@ private:
             mpv_event *event = mpvApi().waitEvent(current, 0.5);
             nuvio_rr::onMpvEvent(current, event, containerHwnd, stopping.load());  // nuvio-rr fork hook H4
             if (!event) continue;
+            if (event->event_id == MPV_EVENT_START_FILE) {
+                std::lock_guard<std::mutex> lock(playbackErrorMutex);
+                playbackError.clear();
+            } else if (event->event_id == MPV_EVENT_END_FILE && event->data) {
+                const auto *endFile = static_cast<const mpv_event_end_file *>(event->data);
+                if (endFile->reason == 4) {
+                    std::lock_guard<std::mutex> lock(playbackErrorMutex);
+                    playbackError = mpvApi().errorText(endFile->error);
+                }
+            }
             if (event->event_id == MPV_EVENT_SHUTDOWN) {
                 return;
             }
@@ -2446,6 +2475,14 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_isEnded(JNIEnv *, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
     return player && player->isEnded() ? JNI_TRUE : JNI_FALSE;
+}
+
+// nuvio-rr fork, Phase 9 #4: mpv's error text for a failed load since the last call, or null.
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_takePlaybackError(JNIEnv *env, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    std::string error = player ? player->takePlaybackError() : std::string();
+    return error.empty() ? nullptr : newJavaStringUtf8(env, error);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
