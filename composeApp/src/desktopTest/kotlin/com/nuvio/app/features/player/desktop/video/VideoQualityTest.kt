@@ -21,6 +21,9 @@ class VideoQualityTest {
     private val file = dir.resolve("$VIDEO_QUALITY_STORE.properties")
     private val shader = """C:\Users\x\AppData\Local\Nuvio RR\Cache\shaders\v1\SSimDownscaler.glsl"""
 
+    /** The scaler tests: HDR on mpv's default, which sends no option, so only the scaler options remain. */
+    private val scalersOnly = VideoQualitySettings(hdr = HdrOutput.WINDOWS_CALIBRATION)
+
     @AfterTest
     fun tearDown() {
         file.deleteIfExists()
@@ -28,8 +31,13 @@ class VideoQualityTest {
     }
 
     @Test
-    fun `defaults give no options, so the player keeps its own scalers`() {
-        assertEquals(emptyList(), videoMpvOptions(VideoQualitySettings(), shader))
+    fun `defaults keep the player's own scalers and pass HDR metadata through (owner, 2026-10-01)`() {
+        assertEquals(HdrOutput.PASSTHROUGH, VideoQualitySettings().hdr)
+        assertEquals(
+            listOf("target-colorspace-hint-mode" to "source"),
+            videoMpvOptions(VideoQualitySettings(), shader, monitorPeakNits = 1532),
+        )
+        assertEquals(emptyList(), videoMpvOptions(scalersOnly, shader))
     }
 
     @Test
@@ -42,7 +50,7 @@ class VideoQualityTest {
                 "hdr-contrast-recovery" to "0.30",
                 "allow-delayed-peak-detect" to "no",
             ),
-            videoMpvOptions(VideoQualitySettings(quality = VideoQuality.HIGH), shader),
+            videoMpvOptions(scalersOnly.copy(quality = VideoQuality.HIGH), shader),
         )
     }
 
@@ -50,7 +58,7 @@ class VideoQualityTest {
     fun `catmull-rom downscaler`() {
         assertEquals(
             listOf("dscale" to "catmull_rom"),
-            videoMpvOptions(VideoQualitySettings(downscaler = VideoDownscaler.CATMULL_ROM), shader),
+            videoMpvOptions(scalersOnly.copy(downscaler = VideoDownscaler.CATMULL_ROM), shader),
         )
     }
 
@@ -58,13 +66,13 @@ class VideoQualityTest {
     fun `SSimDownscaler loads the shader with the settings it is tuned for`() {
         assertEquals(
             listOf("glsl-shaders" to shader, "dscale" to "mitchell", "linear-downscaling" to "no"),
-            videoMpvOptions(VideoQualitySettings(downscaler = VideoDownscaler.SSIM), shader),
+            videoMpvOptions(scalersOnly.copy(downscaler = VideoDownscaler.SSIM), shader),
         )
     }
 
     @Test
     fun `SSimDownscaler without a usable shader file falls back to the default downscaler`() {
-        val ssim = VideoQualitySettings(downscaler = VideoDownscaler.SSIM)
+        val ssim = scalersOnly.copy(downscaler = VideoDownscaler.SSIM)
         assertEquals(emptyList(), videoMpvOptions(ssim, null))
         assertEquals(emptyList(), videoMpvOptions(ssim, ""))
         // ';' separates paths in mpv's list on Windows: such a path would load the wrong files.
@@ -73,7 +81,7 @@ class VideoQualityTest {
 
     @Test
     fun `high quality and a downscaler combine, quality options first`() {
-        val options = videoMpvOptions(VideoQualitySettings(VideoQuality.HIGH, VideoDownscaler.SSIM), shader)
+        val options = videoMpvOptions(scalersOnly.copy(quality = VideoQuality.HIGH, downscaler = VideoDownscaler.SSIM), shader)
         assertEquals(
             listOf(
                 "scale", "cscale", "hdr-peak-percentile", "hdr-contrast-recovery", "allow-delayed-peak-detect",
@@ -94,18 +102,19 @@ class VideoQualityTest {
 
     @Test
     fun `unknown stored values give defaults`() {
-        file.writeText("quality=ULTRA\ndownscaler=BICUBIC\n")
+        file.writeText("quality=ULTRA\ndownscaler=BICUBIC\nhdr=DOLBY\n")
         assertEquals(VideoQualitySettings(), VideoQualityPreference(DesktopStorage.Store(file)).load())
     }
 
     @Test
-    fun `HDR monitor peak (the default) caps mpv at the EDID peak`() {
-        assertEquals(listOf("target-peak" to "1532"), videoMpvOptions(VideoQualitySettings(), shader, monitorPeakNits = 1532))
+    fun `HDR monitor peak caps mpv at the EDID peak`() {
+        val monitorPeak = VideoQualitySettings(hdr = HdrOutput.MONITOR_PEAK)
+        assertEquals(listOf("target-peak" to "1532"), videoMpvOptions(monitorPeak, shader, monitorPeakNits = 1532))
     }
 
     @Test
     fun `HDR monitor peak without a plausible EDID value leaves mpv's default`() {
-        val defaults = VideoQualitySettings()
+        val defaults = VideoQualitySettings(hdr = HdrOutput.MONITOR_PEAK)
         assertEquals(emptyList(), videoMpvOptions(defaults, shader, monitorPeakNits = null))
         assertEquals(emptyList(), videoMpvOptions(defaults, shader, monitorPeakNits = 50), "below SDR white: not a real HDR peak")
         assertEquals(emptyList(), videoMpvOptions(defaults, shader, monitorPeakNits = 20000), "beyond PQ's 10 000 nits")
