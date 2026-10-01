@@ -31,6 +31,15 @@ Remove-Item Env:NUVIO_FORK_IDENTITY -ErrorAction SilentlyContinue   # identity O
 
 Push-Location $repo
 try {
+    # Phase 9 R2: upstream's buildWindowsPlayerBridge only runs when the DLL is missing, so a native edit would ship a
+    # stale bridge. Delete the DLL when any native source is newer, so the package build compiles it again.
+    $dll = Join-Path $repo 'composeApp/build/native/windows/player_bridge.dll'
+    if (Test-Path $dll) {
+        $dllTime = (Get-Item $dll).LastWriteTime
+        $newer = Get-ChildItem (Join-Path $repo 'composeApp/src/desktopMain/native/windows') -File |
+            Where-Object { $_.Extension -in '.cpp', '.h', '.hpp' -and $_.LastWriteTime -gt $dllTime }
+        if ($newer) { Write-Host "native sources changed ($($newer.Name -join ', ')); rebuilding the bridge"; Remove-Item $dll -Force }
+    }
     & .\gradlew.bat :composeApp:createDistributable --no-configuration-cache --console=plain
     if ($LASTEXITCODE) { throw "createDistributable failed (exit $LASTEXITCODE)" }
 } finally { Pop-Location }
