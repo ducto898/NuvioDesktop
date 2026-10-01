@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * nuvio-rr fork: the font of plain-text subtitles (SRT, WebVTT; ASS/SSA keep their own fonts). Stored per PC by the
- * Windows app (bound at startup); unbound elsewhere, where the row is hidden. "" = the player's default (mpv's
- * sans-serif, which libass maps to Arial on Windows). Applies from the next video.
+ * Windows app (bound at startup); unbound elsewhere, where the row is hidden. "" = automatic: the best installed of
+ * [AUTOMATIC_SUBTITLE_FONTS], else the player's default (mpv's sans-serif = Arial). Applies from the next video.
  */
 const val DEFAULT_SUBTITLE_FONT = ""
 
@@ -78,11 +78,31 @@ fun subtitleFontChoices(installed: List<String>, current: String): List<String> 
 }
 
 /** The font for [choice] ("" = automatic: the best installed); null = none fits, the player's default (Arial). */
-fun resolveSubtitleFont(choice: String, installed: List<String>): String? = TODO("nuvio-rr fork: subtitle look")
+fun resolveSubtitleFont(choice: String, installed: List<String>): String? {
+    if (choice.isNotBlank()) return choice.trim()
+    val names = installed.map { it.trim() }
+    return AUTOMATIC_SUBTITLE_FONTS.firstOrNull { (_, family) -> names.any { it.equals(family, ignoreCase = true) } }?.first
+}
 
-/** The fork's subtitle look for plain-text subtitles: the resolved font, outline, shadow and edge blur. */
+/** Automatic's order (name given to mpv, installed family that must exist): medium weights read best on video. */
+private val AUTOMATIC_SUBTITLE_FONTS = listOf(
+    "NetflixSans-Medium" to "Netflix Sans Med",
+    "Gandhi Sans" to "Gandhi Sans",
+    "Segoe UI Semibold" to "Segoe UI Semibold",
+)
+
+/**
+ * The fork's look for plain-text subtitles (owner: "optimise every aspect", 2026-10-01), at mpv's 720p scale: a 2.0
+ * outline (mpv's 1.65 thins out on bright scenes), a soft half-black shadow 1.0 below-right and a 0.3 edge blur, the
+ * streaming-service look. Colours, size and position stay with the app's subtitle style; ASS/SSA keep their own.
+ */
 fun subtitleMpvOptions(choice: String, installed: List<String>): List<Pair<String, String>> =
-    TODO("nuvio-rr fork: subtitle look")
+    subtitleFontMpvOptions(resolveSubtitleFont(choice, installed) ?: DEFAULT_SUBTITLE_FONT) + listOf(
+        "sub-border-size" to "2.0",
+        "sub-shadow-offset" to "1.0",
+        "sub-shadow-color" to "#80000000",
+        "sub-blur" to "0.3",
+    )
 
 /** mpv's sub-font for [font]; none for the default or a name that can't be passed as one option line. */
 fun subtitleFontMpvOptions(font: String): List<Pair<String, String>> {

@@ -7,7 +7,7 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/features/downloads/DownloadsPlat
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/downloads/DownloadsRepository.kt | 2
 composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt | 3, 20, E4, E5, E9, E1, VQ
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopCache.kt | 6
-composeApp/src/desktopMain/native/windows/player_bridge.cpp | 4, E7
+composeApp/src/desktopMain/native/windows/player_bridge.cpp | 4, E7, SUB
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerBridge.kt | 4, E7
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerController.kt | 4, E7
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt | 4
@@ -40,3 +40,4 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRunti
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeUi.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/MainAppContent.kt | E9
 .gitattributes | VQ
+composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/SubtitleAudioModels.kt | SUB

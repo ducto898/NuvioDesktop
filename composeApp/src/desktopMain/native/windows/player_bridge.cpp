@@ -1328,7 +1328,9 @@ public:
             if (!mpv) return;
             if (modeChanged || sizeChanged) {
                 mpvApi().setProperty(mpv, "sub-scale", MPV_FORMAT_DOUBLE, &scale);
-                mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &size);
+                // nuvio-rr fork: in libass mode sub-scale already carries the size; a fixed base keeps the slider linear.
+                double fontSizeForMode = useLibass ? 54.0 : size;
+                mpvApi().setProperty(mpv, "sub-font-size", MPV_FORMAT_DOUBLE, &fontSizeForMode);
             }
             if (modeChanged || positionChanged) {
                 mpvApi().setProperty(mpv, "sub-pos", MPV_FORMAT_INT64, &position);

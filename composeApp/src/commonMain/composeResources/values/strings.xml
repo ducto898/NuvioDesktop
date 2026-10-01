@@ -2093,7 +2093,7 @@
     <string name="settings_playback_video_hdr_passthrough">Pass through to the monitor (monitor tone-maps; SDR follows the Windows SDR brightness)</string>
     <string name="settings_playback_video_hdr_windows">Windows HDR calibration profile</string>
     <string name="settings_playback_subtitle_font">Subtitle font (plain-text subtitles; styled ASS keep theirs)</string>
-    <string name="settings_playback_subtitle_font_default">Player default (Arial)</string>
+    <string name="settings_playback_subtitle_font_default">Automatic (best installed: Netflix Sans Medium, Gandhi Sans, Segoe UI Semibold, else Arial)</string>
     <string name="settings_appearance_motion_section">MOTION</string>
     <string name="settings_appearance_reduce_motion">Reduce motion</string>
     <string name="settings_appearance_reduce_motion_desc">Keep the home banner still, don't play animated card images, and show images without fading in.</string>

@@ -5,7 +5,7 @@ import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.features.settings.DEFAULT_SUBTITLE_FONT
 import com.nuvio.app.features.settings.HdrOutput
 import com.nuvio.app.features.settings.SubtitleFontSetting
-import com.nuvio.app.features.settings.subtitleFontMpvOptions
+import com.nuvio.app.features.settings.subtitleMpvOptions
 import com.nuvio.app.features.settings.VideoDownscaler
 import com.nuvio.app.features.settings.VideoQuality
 import com.nuvio.app.features.settings.VideoQualitySetting
@@ -124,6 +124,12 @@ internal object VideoQualityNative {
         }.getOrNull()
     }
 
+    /** The font families on this PC, for the automatic subtitle font (read once; a font installed later needs a restart). */
+    private val installedFonts: List<String> by lazy {
+        runCatching { java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toList() }
+            .getOrDefault(emptyList())
+    }
+
     /**
      * Called by the native bridge at hook H2 for each new player with the EDID (hex, "" if unknown) of the monitor
      * the player opens on: "name=value" lines.
@@ -133,7 +139,7 @@ internal object VideoQualityNative {
         val settings = VideoQualitySetting.settings.value
         val shader = if (settings.downscaler == VideoDownscaler.SSIM) ssimShaderPath else null
         val peak = if (settings.hdr == HdrOutput.MONITOR_PEAK) runCatching { edidHdrPeakNits(hexBytes(edidHex)) }.getOrNull() else null
-        val options = videoMpvOptions(settings, shader, peak) + subtitleFontMpvOptions(SubtitleFontSetting.font.value)
+        val options = videoMpvOptions(settings, shader, peak) + subtitleMpvOptions(SubtitleFontSetting.font.value, installedFonts)
         return options.joinToString("\n") { (name, value) -> "$name=$value" }
     }
 }

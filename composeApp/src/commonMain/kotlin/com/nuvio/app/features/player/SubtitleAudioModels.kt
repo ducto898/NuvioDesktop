@@ -56,7 +56,7 @@ data class SubtitleStyleState(
     val outlineEnabled: Boolean = true,
     val outlineWidth: Int = 2,
     val bold: Boolean = false,
-    val fontSizeSp: Int = 18,
+    val fontSizeSp: Int = if (isDesktop) 15 else 18, // nuvio-rr fork: desktop 15 = mpv 45 (~6 % of the height)
     val bottomOffset: Int = 20,
     val stripSdh: Boolean = false,
     val useForcedSubtitles: Boolean = false,
