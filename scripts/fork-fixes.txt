@@ -20,3 +20,4 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/features/addons/AddonRepository.k
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/details/MetaDetailsRepository.kt | S3
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/streams/StreamsRepository.kt | S3
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/AsyncImage.desktop.kt | 11
+composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/Theme.kt | 12

@@ -210,8 +210,14 @@ internal fun desktopUiScaleForWindow(widthDp: Float, heightDp: Float): Float {
         widthDp / NuvioDesktopBaseWidthDp,
         heightDp / NuvioDesktopBaseHeightDp,
     )
-    return rawScale.coerceIn(NuvioDesktopMinUiScale, NuvioDesktopMaxUiScale)
+    // nuvio-rr fork, Phase 9 #12: in 0.05 steps (rounded down), so a window drag changes the density a few times
+    // instead of on every frame (each change re-measured all text and re-requested every image size).
+    if (rawScale >= NuvioDesktopMaxUiScale) return NuvioDesktopMaxUiScale
+    val stepped = kotlin.math.floor(rawScale / NuvioDesktopUiScaleStep) * NuvioDesktopUiScaleStep
+    return stepped.coerceIn(NuvioDesktopMinUiScale, NuvioDesktopMaxUiScale)
 }
+
+private const val NuvioDesktopUiScaleStep = 0.05f
 
 @Composable
 fun NuvioTheme(
