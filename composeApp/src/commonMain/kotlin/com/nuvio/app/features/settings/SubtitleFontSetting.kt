@@ -49,7 +49,16 @@ object SubtitleFontSetting {
  * The dialog's fonts: the default (""), then the [RECOMMENDED_SUBTITLE_FONTS] that are [installed] (matched
  * ignoring case, shown with the installed spelling), then the [current] choice if it is neither (e.g. uninstalled).
  */
-fun subtitleFontChoices(installed: List<String>, current: String): List<String> = TODO("nuvio-rr fork: subtitle font")
+fun subtitleFontChoices(installed: List<String>, current: String): List<String> {
+    val recommended = RECOMMENDED_SUBTITLE_FONTS.mapNotNull { wanted -> installed.firstOrNull { it.equals(wanted, ignoreCase = true) } }
+    val offered = listOf(DEFAULT_SUBTITLE_FONT) + recommended
+    val keepCurrent = current.isNotBlank() && offered.none { it.equals(current, ignoreCase = true) }
+    return if (keepCurrent) offered + current else offered
+}
 
 /** mpv's sub-font for [font]; none for the default or a name that can't be passed as one option line. */
-fun subtitleFontMpvOptions(font: String): List<Pair<String, String>> = TODO("nuvio-rr fork: subtitle font")
+fun subtitleFontMpvOptions(font: String): List<Pair<String, String>> {
+    val name = font.trim()
+    if (name.isEmpty() || '\n' in name || '\r' in name) return emptyList()
+    return listOf("sub-font" to name)
+}

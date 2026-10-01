@@ -90,6 +90,7 @@ fun main(args: Array<String>) {
     com.nuvio.app.core.ui.bindReduceMotion() // nuvio-rr fork, Phase 9 E5
     com.nuvio.app.features.player.desktop.audio.bindAudioOutputSetting() // nuvio-rr fork, Phase 9 E1
     com.nuvio.app.features.player.desktop.video.bindVideoQualitySetting() // nuvio-rr fork, video quality
+    com.nuvio.app.features.player.desktop.video.bindSubtitleFontSetting() // nuvio-rr fork, subtitle font
     AppIconRepository.ensureLoaded()
     DiscordPresenceManager.start()
 

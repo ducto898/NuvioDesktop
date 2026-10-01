@@ -2,7 +2,10 @@ package com.nuvio.app.features.player.desktop.video
 
 import com.nuvio.app.core.storage.DesktopCache
 import com.nuvio.app.core.storage.DesktopStorage
+import com.nuvio.app.features.settings.DEFAULT_SUBTITLE_FONT
 import com.nuvio.app.features.settings.HdrOutput
+import com.nuvio.app.features.settings.SubtitleFontSetting
+import com.nuvio.app.features.settings.subtitleFontMpvOptions
 import com.nuvio.app.features.settings.VideoDownscaler
 import com.nuvio.app.features.settings.VideoQuality
 import com.nuvio.app.features.settings.VideoQualitySetting
@@ -80,9 +83,24 @@ internal const val SUBTITLE_FONT_STORE = "nuvio_subtitle_font"
 
 /** The subtitle font in its per-PC store ("" / missing = the player's default). */
 internal class SubtitleFontPreference(private val store: DesktopStorage.Store) {
-    fun load(): String = TODO("nuvio-rr fork: subtitle font")
+    fun load(): String = store.getString(FONT_KEY)?.trim() ?: DEFAULT_SUBTITLE_FONT
 
-    fun save(font: String): Unit = TODO("nuvio-rr fork: subtitle font")
+    fun save(font: String) {
+        store.putString(FONT_KEY, font.trim())
+    }
+
+    private companion object {
+        const val FONT_KEY = "font"
+    }
+}
+
+/** Binds [SubtitleFontSetting] on Windows; the dialog lists the font families Java sees (the system's and the user's). */
+internal fun bindSubtitleFontSetting() {
+    if (!com.nuvio.app.isWindows) return
+    val preference = SubtitleFontPreference(DesktopStorage.store(SUBTITLE_FONT_STORE))
+    SubtitleFontSetting.bind(preference.load(), preference::save) {
+        java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toList()
+    }
 }
 
 /** The bundled shader's bytes; null when the resource is missing. */
@@ -115,6 +133,7 @@ internal object VideoQualityNative {
         val settings = VideoQualitySetting.settings.value
         val shader = if (settings.downscaler == VideoDownscaler.SSIM) ssimShaderPath else null
         val peak = if (settings.hdr == HdrOutput.MONITOR_PEAK) runCatching { edidHdrPeakNits(hexBytes(edidHex)) }.getOrNull() else null
-        return videoMpvOptions(settings, shader, peak).joinToString("\n") { (name, value) -> "$name=$value" }
+        val options = videoMpvOptions(settings, shader, peak) + subtitleFontMpvOptions(SubtitleFontSetting.font.value)
+        return options.joinToString("\n") { (name, value) -> "$name=$value" }
     }
 }

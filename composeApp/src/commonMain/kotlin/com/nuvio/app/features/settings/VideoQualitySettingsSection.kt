@@ -26,6 +26,11 @@ import nuvio.composeapp.generated.resources.settings_playback_video_hdr
 import nuvio.composeapp.generated.resources.settings_playback_video_hdr_monitor_peak
 import nuvio.composeapp.generated.resources.settings_playback_video_hdr_passthrough
 import nuvio.composeapp.generated.resources.settings_playback_video_hdr_windows
+import nuvio.composeapp.generated.resources.settings_playback_subtitle_font
+import nuvio.composeapp.generated.resources.settings_playback_subtitle_font_default
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.settings_playback_video_quality
 import nuvio.composeapp.generated.resources.settings_playback_video_quality_high
 import nuvio.composeapp.generated.resources.settings_playback_video_quality_standard
@@ -40,6 +45,9 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
     var showQuality by remember { mutableStateOf(false) }
     var showDownscaler by remember { mutableStateOf(false) }
     var showHdr by remember { mutableStateOf(false) }
+    var showFont by remember { mutableStateOf(false) }
+    val subtitleFont by SubtitleFontSetting.font.collectAsState()
+    val defaultFontLabel = stringResource(Res.string.settings_playback_subtitle_font_default)
     val nextPlayback = stringResource(Res.string.settings_playback_audio_next_playback)
 
     SettingsSection(title = stringResource(Res.string.settings_playback_video_section), isTablet = isTablet) {
@@ -64,6 +72,15 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
                 isTablet = isTablet,
                 onClick = { showHdr = true },
             )
+            if (SubtitleFontSetting.available) {
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsNavigationRow(
+                    title = stringResource(Res.string.settings_playback_subtitle_font),
+                    description = subtitleFont.ifBlank { defaultFontLabel } + " · " + nextPlayback,
+                    isTablet = isTablet,
+                    onClick = { showFont = true },
+                )
+            }
         }
     }
 
@@ -101,6 +118,22 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
                 showHdr = false
             },
             onDismiss = { showHdr = false },
+        )
+    }
+    if (showFont) {
+        var fonts by remember { mutableStateOf<List<String>?>(null) }
+        LaunchedEffect(Unit) {
+            fonts = withContext(Dispatchers.IO) { SubtitleFontSetting.choices() }
+        }
+        VideoChoiceDialog(
+            title = stringResource(Res.string.settings_playback_subtitle_font),
+            options = (fonts ?: listOf(subtitleFont)).map { it to it.ifBlank { defaultFontLabel } },
+            selected = subtitleFont,
+            onSelect = { font ->
+                SubtitleFontSetting.set(font)
+                showFont = false
+            },
+            onDismiss = { showFont = false },
         )
     }
 }
