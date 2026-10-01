@@ -223,8 +223,11 @@ Phase 9 limits (in addition to §10):
   (`open_gl_enabled=true`, Settings → Advanced) gives an all-white window on this PC; Direct3D and the software
   renderer draw normally, logs and app state are fine. Not caused by a fork change (it stays with the suspect
   change reverted); likely a driver/GPU state. Check after a reboot; dev runs use `SKIKO_RENDER_API=DIRECT3D` until then.
-- **Passthrough** needs a device that accepts the bitstream in exclusive mode (HDMI to an AV receiver or TV, S/PDIF):
-  on a device that refuses it, mpv decodes as before (logged as `unsupported`). Exclusive mode mutes other apps'
+- **Passthrough** needs a device that accepts the bitstream in exclusive mode (HDMI to an AV receiver or TV, S/PDIF).
+  Before each video the bridge asks Windows which formats the chosen device takes and sends only those (log line
+  `audio passthrough probe mask=<n>`: 1 AC3, 2 E-AC3, 4 DTS, 8 DTS-HD, 16 TrueHD); other tracks are decoded, and a
+  device that takes none plays exactly as with the switch off. (Without this check mpv's fallback for a refused
+  bitstream left streamed movies stuck on the first frame: owner report, fixed 2026-10-01.) Exclusive mode mutes other apps'
   sound on that device while a video plays. In shared mode Windows keeps the device's own mix format (here 7.1,
   96 kHz); the channel setting then sets mpv's downmix.
 - **Scrub preview** lands on keyframes (a 10 s keyframe interval shows frames up to 10 s early while dragging); the

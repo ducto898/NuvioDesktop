@@ -531,6 +531,11 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Owner: movies did not play with Passthrough on. Reproduced on a real stream (dev profile, 4K E-AC3,
+  default device SteelSeries Sonar virtual): bitstream refused, mpv "Falling back to PCM output" but never reopened
+  the AO, time-pos stuck at the resume point (local files recover from the same fallback, so they missed it).
+  Fix f74c8fe2/eec4ba22: WASAPI probe of the device per video, audio-spdif only for accepted codecs (Sonar: none ->
+  plays; Realtek S/PDIF: ac3,dts). Lesson: test audio paths on a real stream through the UI, not only local files.
 - 2026-10-01 Owner: focus ring stayed on while mouse-scrolling. Fixed (2f07bed2 red, 6312a44a green): ring only after
   arrows/Tab, hidden by a mouse press or wheel. New zip Nuvio-RR-1.1.26-6312a44a.zip.
 - 2026-10-01 Owner: no Backspace-back (E4 stays Esc + Alt+Left + mouse Back).
