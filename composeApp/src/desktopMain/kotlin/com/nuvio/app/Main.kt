@@ -49,6 +49,7 @@ import java.awt.Desktop
 import javax.imageio.ImageIO
 import java.awt.Color as AwtColor
 import javax.swing.JComponent
+import nuvio.composeapp.generated.resources.settings_playback_display_section
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
@@ -68,6 +69,11 @@ fun main(args: Array<String>) {
     installDesktopOpenUriHandler()
     handleDesktopLaunchArgs(args)
     preloadNativePlayerBridgeAsync()
+    // nuvio-rr fork, Phase 9 #20: the first runBlocking { getString(...) } loads the string resources (measured 175 ms;
+    // later calls 0.04 ms). Do that load here on a background thread, not inside the first composition.
+    Thread({ runCatching { kotlinx.coroutines.runBlocking { org.jetbrains.compose.resources.getString(nuvio.composeapp.generated.resources.Res.string.settings_playback_display_section) } } }, "nuvio-strings-warmup")
+        .apply { isDaemon = true }
+        .start()
     // Load cached profile data synchronously so the profile color is available
     // on the very first Compose frame (matching Android's SharedPreferences behavior).
     ProfileRepository.loadCachedProfiles()
