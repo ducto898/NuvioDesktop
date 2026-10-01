@@ -50,10 +50,13 @@ object SubtitleFontSetting {
  * ignoring case, shown with the installed spelling), then the [current] choice if it is neither (e.g. uninstalled).
  */
 fun subtitleFontChoices(installed: List<String>, current: String): List<String> {
-    val recommended = RECOMMENDED_SUBTITLE_FONTS.mapNotNull { wanted -> installed.firstOrNull { it.equals(wanted, ignoreCase = true) } }
+    // Trimmed: some fonts name their family with a stray space (Netflix Sans Bold: "Netflix Sans "), which Java keeps.
+    val names = installed.map { it.trim() }
+    val recommended = RECOMMENDED_SUBTITLE_FONTS.mapNotNull { wanted -> names.firstOrNull { it.equals(wanted, ignoreCase = true) } }
     val offered = listOf(DEFAULT_SUBTITLE_FONT) + recommended
-    val keepCurrent = current.isNotBlank() && offered.none { it.equals(current, ignoreCase = true) }
-    return if (keepCurrent) offered + current else offered
+    val chosen = current.trim()
+    val keepCurrent = chosen.isNotEmpty() && offered.none { it.equals(chosen, ignoreCase = true) }
+    return if (keepCurrent) offered + chosen else offered
 }
 
 /** mpv's sub-font for [font]; none for the default or a name that can't be passed as one option line. */
