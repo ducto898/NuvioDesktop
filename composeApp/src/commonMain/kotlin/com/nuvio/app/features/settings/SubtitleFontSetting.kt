@@ -10,9 +10,23 @@ import kotlinx.coroutines.flow.StateFlow
  */
 const val DEFAULT_SUBTITLE_FONT = ""
 
-/** Fonts subtitle enthusiasts recommend, offered when installed (Netflix Sans and Gandhi Sans need installing). */
+/**
+ * Fonts subtitle enthusiasts recommend, offered when installed (Netflix Sans and Gandhi Sans need installing), as
+ * (name given to mpv, installed family that must exist). Netflix Sans's heavier weights go by PostScript name, which
+ * libass matches: its Bold file names its family "Netflix Sans " (stray space), so a bold request on "Netflix Sans"
+ * doesn't find it, and Medium is a family of its own ("Netflix Sans Med"). Measured live 2026-10-01.
+ */
 val RECOMMENDED_SUBTITLE_FONTS = listOf(
-    "Netflix Sans", "Gandhi Sans", "Segoe UI", "Trebuchet MS", "Verdana", "Tahoma", "Calibri", "Arial",
+    "Netflix Sans" to "Netflix Sans",
+    "NetflixSans-Medium" to "Netflix Sans Med",
+    "NetflixSans-Bold" to "Netflix Sans",
+    "Gandhi Sans" to "Gandhi Sans",
+    "Segoe UI" to "Segoe UI",
+    "Trebuchet MS" to "Trebuchet MS",
+    "Verdana" to "Verdana",
+    "Tahoma" to "Tahoma",
+    "Calibri" to "Calibri",
+    "Arial" to "Arial",
 )
 
 object SubtitleFontSetting {
@@ -52,7 +66,11 @@ object SubtitleFontSetting {
 fun subtitleFontChoices(installed: List<String>, current: String): List<String> {
     // Trimmed: some fonts name their family with a stray space (Netflix Sans Bold: "Netflix Sans "), which Java keeps.
     val names = installed.map { it.trim() }
-    val recommended = RECOMMENDED_SUBTITLE_FONTS.mapNotNull { wanted -> names.firstOrNull { it.equals(wanted, ignoreCase = true) } }
+    val recommended = RECOMMENDED_SUBTITLE_FONTS.mapNotNull { (mpvName, family) ->
+        val installedFamily = names.firstOrNull { it.equals(family, ignoreCase = true) } ?: return@mapNotNull null
+        // A plain family keeps the installed spelling; a PostScript name is given as is.
+        if (mpvName.equals(family, ignoreCase = true)) installedFamily else mpvName
+    }
     val offered = listOf(DEFAULT_SUBTITLE_FONT) + recommended
     val chosen = current.trim()
     val keepCurrent = chosen.isNotEmpty() && offered.none { it.equals(chosen, ignoreCase = true) }
