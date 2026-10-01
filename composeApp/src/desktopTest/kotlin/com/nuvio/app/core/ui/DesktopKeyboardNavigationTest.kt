@@ -34,4 +34,20 @@ class DesktopKeyboardNavigationTest {
         assertNull(action(Key.DirectionDown, type = KeyEventType.KeyUp))
         assertNull(action(Key.Enter))
     }
+
+    @Test
+    fun `the ring shows after arrow keys or Tab and hides on a mouse click or wheel`() {
+        FocusRingVisibility.reset()
+        assertEquals(false, FocusRingVisibility.visible)
+        FocusRingVisibility.onKey(KeyEventType.KeyDown, Key.DirectionDown)
+        assertEquals(true, FocusRingVisibility.visible)
+        FocusRingVisibility.onPointer()
+        assertEquals(false, FocusRingVisibility.visible)
+        FocusRingVisibility.onKey(KeyEventType.KeyDown, Key.Tab)
+        assertEquals(true, FocusRingVisibility.visible)
+        FocusRingVisibility.onPointer()
+        FocusRingVisibility.onKey(KeyEventType.KeyDown, Key.A)
+        FocusRingVisibility.onKey(KeyEventType.KeyUp, Key.DirectionDown)
+        assertEquals(false, FocusRingVisibility.visible, "typing and key-up do not show it")
+    }
 }

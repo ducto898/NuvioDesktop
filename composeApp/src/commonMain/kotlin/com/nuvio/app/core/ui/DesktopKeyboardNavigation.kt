@@ -59,6 +59,23 @@ fun FocusManager.moveDesktopFocus(direction: FocusDirection): Boolean {
     return moved
 }
 
+/**
+ * The focus ring shows only while the keyboard is used: an arrow key or Tab turns it on, a mouse click or wheel turns
+ * it off (like a browser's :focus-visible), so it never lingers on a card while scrolling with the mouse.
+ */
+object FocusRingVisibility {
+    var visible by mutableStateOf(false)
+        private set
+
+    fun onKey(type: KeyEventType, key: Key): Unit = TODO("focus ring visibility, commit B")
+
+    fun onPointer(): Unit = TODO("focus ring visibility, commit B")
+
+    internal fun reset() {
+        visible = false
+    }
+}
+
 object DesktopShortcuts {
     private val search = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
