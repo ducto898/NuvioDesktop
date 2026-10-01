@@ -1248,6 +1248,7 @@ kotlin {
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)
                 implementation(libs.sentry.jvm)
+                implementation("net.java.dev.jna:jna-platform:5.14.0") // nuvio-rr fork, Phase 9 S1 (Windows DPAPI)
             }
         }
         val androidHostTest by getting {

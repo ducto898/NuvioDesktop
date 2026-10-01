@@ -83,6 +83,8 @@ internal object DesktopStorage {
         private val file: Path,
         // nuvio-rr fork, Phase 9 #19: null = write on the calling thread (tests, tools).
         private val writer: DesktopStoreWriter? = null,
+        // nuvio-rr fork, Phase 9 S1: encrypts the file of a secret store (null = plain text).
+        private val codec: StoreCodec? = null,
     ) {
         private val lock = Any()
         private val properties = Properties()
@@ -163,14 +165,19 @@ internal object DesktopStorage {
             properties.clear()
             if (!file.exists()) return
             runCatching {
-                Files.newInputStream(file).use { input ->
-                    properties.load(input)
+                val stored = Files.readAllBytes(file)
+                val plain = if (codec == null) stored else codec.decode(stored)
+                if (plain == null) {
+                    System.err.println("nuvio storage: ${file.fileName} can't be decrypted on this Windows account; starting empty")
+                } else {
+                    properties.load(plain.inputStream())
                 }
             }
         }
 
         private fun persist() {
-            val bytes = ByteArrayOutputStream().also { properties.store(it, "Nuvio desktop preferences") }.toByteArray()
+            val plain = ByteArrayOutputStream().also { properties.store(it, "Nuvio desktop preferences") }.toByteArray()
+            val bytes = codec?.encode(plain) ?: plain
             if (writer != null) writer.submit(file, bytes) else writeStoreFileAtomically(file, bytes)
         }
     }
