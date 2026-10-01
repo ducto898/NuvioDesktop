@@ -28,20 +28,22 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
+import io.ktor.util.collections.ConcurrentMap
 
+// nuvio-rr fork, Phase 9 #18: the caches are written from several coroutines at once (were plain HashMaps).
 object TmdbMetadataService {
     private val log = Logger.withTag("TmdbMetadata")
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val enrichmentCache = mutableMapOf<String, TmdbEnrichment>()
-    private val episodeCache = mutableMapOf<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>()
-    private val moreLikeThisCache = mutableMapOf<String, List<MetaPreview>>()
-    private val collectionCache = mutableMapOf<String, Pair<String?, List<MetaPreview>>>()
-    private val trailerCache = mutableMapOf<String, List<MetaTrailer>>()
-    private val personCache = mutableMapOf<String, PersonDetail>()
-    private val entityBrowseCache = mutableMapOf<String, TmdbEntityBrowseData>()
-    private val entityHeaderCache = mutableMapOf<String, TmdbEntityHeader>()
-    private val entityRailCache = mutableMapOf<String, List<MetaPreview>>()
+    private val enrichmentCache = ConcurrentMap<String, TmdbEnrichment>()
+    private val episodeCache = ConcurrentMap<String, Map<Pair<Int, Int>, TmdbEpisodeEnrichment>>()
+    private val moreLikeThisCache = ConcurrentMap<String, List<MetaPreview>>()
+    private val collectionCache = ConcurrentMap<String, Pair<String?, List<MetaPreview>>>()
+    private val trailerCache = ConcurrentMap<String, List<MetaTrailer>>()
+    private val personCache = ConcurrentMap<String, PersonDetail>()
+    private val entityBrowseCache = ConcurrentMap<String, TmdbEntityBrowseData>()
+    private val entityHeaderCache = ConcurrentMap<String, TmdbEntityHeader>()
+    private val entityRailCache = ConcurrentMap<String, List<MetaPreview>>()
     private val backdropCache = linkedMapOf<String, String?>()
     private val backdropCacheMutex = Mutex()
     private val backdropRequests = Semaphore(4)

@@ -19,6 +19,10 @@ import org.jetbrains.compose.resources.getString
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
+import java.io.IOException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 internal actual object AddonStorage {
     private val store = DesktopStorage.store("nuvio_addons")
@@ -122,7 +126,7 @@ actual suspend fun httpRequestRaw(
     }
     val request = buildDesktopRequest(method, url, headers, body, bodyBytes)
 
-    client.newCall(request).execute().use { response ->
+    client.newCall(request).await().use { response ->
         RawHttpResponse(
             status = response.code,
             statusText = response.message,
@@ -144,8 +148,8 @@ private suspend fun executeTextRequest(
     body: String = "",
 ): String = withContext(Dispatchers.IO) {
     val request = buildDesktopRequest(method, url, headers, body)
-    desktopHttpClient.newCall(request).execute().use { response ->
-        val payload = readResponseBody(response.body)
+    desktopHttpClient.newCall(request).await().use { response ->
+        val payload = readResponseBodyLimited(response.body, MaxTextResponseBytes)  // Phase 9 #18: was unbounded
         if (!response.isSuccessful) {
             error(runBlocking { getString(Res.string.network_request_failed_http, response.code) })
         }
@@ -236,6 +240,23 @@ private fun readResponseBodyLimited(body: ResponseBody?, maxBytes: Int): String 
     }
     return if (readResult.truncated) decoded + truncationSuffix else decoded
 }
+
+// nuvio-rr fork, Phase 9 #18: the call is enqueued and cancelled with its coroutine. A blocking execute() inside
+// withContext(IO) ignored cancellation, so a dead addon kept a thread (and its caller) until the 60 s read timeout.
+private suspend fun okhttp3.Call.await(): okhttp3.Response = suspendCancellableCoroutine { continuation ->
+    continuation.invokeOnCancellation { cancel() }
+    enqueue(object : okhttp3.Callback {
+        override fun onFailure(call: okhttp3.Call, e: IOException) {
+            if (!continuation.isCancelled) continuation.resumeWithException(e)
+        }
+
+        override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+            continuation.resume(response) { _, _, _ -> response.close() }
+        }
+    })
+}
+
+private const val MaxTextResponseBytes = 16 * 1024 * 1024
 
 private fun readResponseBody(body: ResponseBody?): String {
     if (body == null) return ""

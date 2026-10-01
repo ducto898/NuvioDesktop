@@ -14,7 +14,7 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.des
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerHost.kt | 16
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/p2p/P2pStreamingEngine.desktop.kt | 8
 composeApp/build.gradle.kts | S1, S6
-composeApp/src/desktopMain/kotlin/com/nuvio/app/features/addons/AddonPlatform.desktop.kt | S2
+composeApp/src/desktopMain/kotlin/com/nuvio/app/features/addons/AddonPlatform.desktop.kt | S2, 18
 composeApp/src/fullCommonMain/kotlin/com/nuvio/app/features/plugins/runtime/network/FetchBridge.kt | S2
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/addons/AddonRepository.kt | S3
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/details/MetaDetailsRepository.kt | S3
@@ -23,3 +23,4 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/AsyncImage.desktop.kt | 
 composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/Theme.kt | 12
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/PlatformImageLoader.desktop.kt | 13
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImage.desktop.kt | 14
+composeApp/src/commonMain/kotlin/com/nuvio/app/features/tmdb/TmdbMetadataService.kt | 18
