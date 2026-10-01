@@ -39,7 +39,7 @@ class SubtitleFontTest {
     fun `choices are the default, the installed recommended fonts in order, with the installed spelling`() {
         val installed = listOf("Arial", "Calibri", "Comic Sans MS", "netflix sans", "Segoe UI", "Verdana", "Wingdings")
         assertEquals(
-            listOf(DEFAULT_SUBTITLE_FONT, "netflix sans", "Segoe UI", "Verdana", "Calibri", "Arial"),
+            listOf(DEFAULT_SUBTITLE_FONT, "netflix sans", "NetflixSans-Bold", "Segoe UI", "Verdana", "Calibri", "Arial"),
             subtitleFontChoices(installed, current = DEFAULT_SUBTITLE_FONT),
         )
     }
@@ -47,14 +47,23 @@ class SubtitleFontTest {
     @Test
     fun `family names with stray spaces still match, offered trimmed (Java lists Netflix Sans as 'Netflix Sans ')`() {
         assertEquals(
-            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans", "Segoe UI"),
+            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans", "NetflixSans-Medium", "NetflixSans-Bold", "Segoe UI"),
             subtitleFontChoices(listOf("Netflix Sans ", "Netflix Sans Light", "Netflix Sans Med", "Segoe UI"), DEFAULT_SUBTITLE_FONT),
         )
         assertEquals(
-            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans"),
+            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans", "NetflixSans-Bold"),
             subtitleFontChoices(listOf("Netflix Sans "), current = "Netflix Sans"),
             "the stored choice is the same font, not listed twice",
         )
+    }
+
+    @Test
+    fun `Netflix Sans weights are offered by PostScript name, which libass matches (its Bold family name has a stray space)`() {
+        assertEquals(
+            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans", "NetflixSans-Medium", "NetflixSans-Bold"),
+            subtitleFontChoices(listOf("Netflix Sans ", "Netflix Sans Med"), DEFAULT_SUBTITLE_FONT),
+        )
+        assertEquals(listOf("sub-font" to "NetflixSans-Bold"), subtitleFontMpvOptions("NetflixSans-Bold"))
     }
 
     @Test
