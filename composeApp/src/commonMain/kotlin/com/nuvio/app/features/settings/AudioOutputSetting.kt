@@ -52,8 +52,28 @@ object AudioOutputSetting {
     fun devices(): List<AudioDevice> = runCatching { listDevices() }.getOrDefault(emptyList())
 }
 
-/** The mpv properties for [settings]; the defaults are mpv's own defaults, so untouched settings change nothing. */
-fun audioMpvOptions(settings: AudioOutputSettings): List<Pair<String, String>> = listOf(
+/** The bitstream formats passthrough can send, with the bit the native device probe reports for each. */
+enum class PassthroughCodec(val mpvName: String, val bit: Int) {
+    AC3("ac3", 1), EAC3("eac3", 2), DTS("dts", 4), DTS_HD("dts-hd", 8), TRUEHD("truehd", 16);
+
+    companion object {
+        /** The codecs in [mask]; a negative mask (the device could not be asked) means none. */
+        fun fromMask(mask: Int): Set<PassthroughCodec> = TODO("Phase 9 E1 fix, commit B")
+    }
+}
+
+/**
+ * The mpv properties for [settings]; the defaults are mpv's own defaults, so untouched settings change nothing.
+ * Passthrough asks only for the codecs the device accepts ([passthroughSupported]): mpv's own fallback for a refused
+ * bitstream left network streams stuck on their first frame (owner report 2026-10-01). With none supported the
+ * output stays as without passthrough (shared mode, decoded).
+ */
+fun audioMpvOptions(
+    settings: AudioOutputSettings,
+    passthroughSupported: Set<PassthroughCodec> = PassthroughCodec.entries.toSet(),
+): List<Pair<String, String>> = TODO("Phase 9 E1 fix, commit B")
+
+private fun audioMpvOptionsBeforeProbe(settings: AudioOutputSettings): List<Pair<String, String>> = listOf(
     "audio-channels" to when (settings.channels) {
         AudioChannelLayout.AUTO -> "auto-safe"
         AudioChannelLayout.STEREO -> "stereo"

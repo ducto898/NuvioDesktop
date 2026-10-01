@@ -4,6 +4,7 @@ import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.features.settings.AudioChannelLayout
 import com.nuvio.app.features.settings.AudioDevice
 import com.nuvio.app.features.settings.AudioOutputSettings
+import com.nuvio.app.features.settings.PassthroughCodec
 import com.nuvio.app.features.settings.audioMpvOptions
 import java.nio.file.Files
 import kotlin.io.path.deleteIfExists
@@ -41,6 +42,25 @@ class AudioOutputTest {
         assertEquals("wasapi/{abc}", options["audio-device"])
         assertEquals("stereo", audioMpvOptions(AudioOutputSettings(AudioChannelLayout.STEREO)).toMap()["audio-channels"])
         assertEquals("7.1,5.1,stereo", audioMpvOptions(AudioOutputSettings(AudioChannelLayout.SURROUND_71)).toMap()["audio-channels"])
+    }
+
+    @Test
+    fun `passthrough asks only for what the device takes, and nothing when it takes none`() {
+        val on = AudioOutputSettings(passthrough = true)
+        val ac3Only = audioMpvOptions(on, setOf(PassthroughCodec.AC3, PassthroughCodec.DTS)).toMap()
+        assertEquals("ac3,dts", ac3Only["audio-spdif"])
+        assertEquals("yes", ac3Only["audio-exclusive"])
+        val none = audioMpvOptions(on, emptySet()).toMap()
+        assertEquals("", none["audio-spdif"], "a device without passthrough plays as with the switch off")
+        assertEquals("no", none["audio-exclusive"])
+        assertEquals("", audioMpvOptions(AudioOutputSettings(), setOf(PassthroughCodec.AC3)).toMap()["audio-spdif"])
+    }
+
+    @Test
+    fun `device probe mask to codecs`() {
+        assertEquals(setOf(PassthroughCodec.AC3, PassthroughCodec.TRUEHD), PassthroughCodec.fromMask(1 or 16))
+        assertEquals(emptySet(), PassthroughCodec.fromMask(0))
+        assertEquals(emptySet(), PassthroughCodec.fromMask(-1), "unknown: no passthrough rather than a stuck video")
     }
 
     @Test
