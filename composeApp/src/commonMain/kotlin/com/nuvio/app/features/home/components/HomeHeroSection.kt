@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -153,8 +154,10 @@ fun HomeHeroSection(
         }
     }
 
-    ScreenActivityEffect(autoScrollPage, items.size) { active ->
-        if (!active || items.size <= 1) return@ScreenActivityEffect
+    // nuvio-rr fork, Phase 9 E5: no auto-advance while Reduce motion is on.
+    val reduceMotion by com.nuvio.app.core.ui.ReduceMotion.enabled.collectAsState()
+    ScreenActivityEffect(autoScrollPage, items.size, reduceMotion) { active ->
+        if (!active || items.size <= 1 || reduceMotion) return@ScreenActivityEffect
         delay(HERO_AUTO_SCROLL_INTERVAL_MS)
         while (pagerState.isScrollInProgress) {
             delay(100L)

@@ -2068,6 +2068,9 @@
     <string name="settings_playback_match_refresh_rate">Match display refresh rate</string> <!-- nuvio-rr fork hook H10 -->
     <string name="settings_playback_match_refresh_rate_desc">Switch the monitor to a multiple of the video's frame rate while playing (e.g. 240 Hz for 24 fps), then back.</string> <!-- nuvio-rr fork hook H10 -->
     <string name="settings_playback_rate_badge">Show refresh rate badge</string> <!-- nuvio-rr fork hook H10 -->
+    <string name="settings_appearance_motion_section">MOTION</string>
+    <string name="settings_appearance_reduce_motion">Reduce motion</string>
+    <string name="settings_appearance_reduce_motion_desc">Keep the home banner still, don't play animated card images, and show images without fading in.</string>
     <string name="settings_playback_rate_badge_desc">Briefly show the monitor's refresh rate in the top-right corner when a video starts.</string> <!-- nuvio-rr fork hook H10 -->
     <!-- Playback settings iOS video output -->
     <string name="settings_playback_ios_video_output">iOS VIDEO OUTPUT</string>

@@ -82,6 +82,7 @@ fun main(args: Array<String>) {
     // Load cached profile data synchronously so the profile color is available
     // on the very first Compose frame (matching Android's SharedPreferences behavior).
     ProfileRepository.loadCachedProfiles()
+    com.nuvio.app.core.ui.bindReduceMotion() // nuvio-rr fork, Phase 9 E5
     AppIconRepository.ensureLoaded()
     DiscordPresenceManager.start()
 

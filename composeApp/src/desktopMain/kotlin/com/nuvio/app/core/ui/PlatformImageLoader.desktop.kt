@@ -11,6 +11,7 @@ internal actual val platformProvidesImageLoader: Boolean = false
 internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder {
     return components {
         add(SkiaGifDecoder.Factory())
+        add(ReduceMotionInterceptor()) // nuvio-rr fork, Phase 9 E5: no crossfade while Reduce motion is on
     }
         // nuvio-rr fork, Phase 9 #13: explicit bounds (Coil's JVM memory default scales with the max heap, ~8 GB on a
         // 32 GB PC) and the disk cache in the app's own cache folder instead of %TEMP%\coil3_disk_cache (shared with

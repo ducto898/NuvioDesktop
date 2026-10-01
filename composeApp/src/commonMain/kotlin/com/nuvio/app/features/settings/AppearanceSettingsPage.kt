@@ -350,6 +350,7 @@ internal fun LazyListScope.appearanceSettingsContent(
             }
         }
     }
+    if (isDesktop) item { ReduceMotionSettingsSection(isTablet = isTablet) } // nuvio-rr fork, Phase 9 E5
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

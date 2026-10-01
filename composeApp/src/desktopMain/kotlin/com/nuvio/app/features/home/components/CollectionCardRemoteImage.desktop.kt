@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -238,7 +239,9 @@ internal actual fun CollectionCardRemoteImage(
     val hoverInteractionSource = remember { MutableInteractionSource() }
     val isHovered by hoverInteractionSource.collectIsHoveredAsState()
 
-    val shouldAnimate = animateIfPossible && (isHovered || staticImageUrl.isNullOrBlank())
+    // nuvio-rr fork, Phase 9 E5: GIFs stay still while Reduce motion is on.
+    val reduceMotion by com.nuvio.app.core.ui.ReduceMotion.enabled.collectAsState()
+    val shouldAnimate = animateIfPossible && !reduceMotion && (isHovered || staticImageUrl.isNullOrBlank())
 
     var composeBitmap by remember(imageUrl) { mutableStateOf<ImageBitmap?>(null) }
 
