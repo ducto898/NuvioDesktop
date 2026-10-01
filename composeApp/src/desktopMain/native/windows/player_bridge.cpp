@@ -49,6 +49,7 @@ typedef enum mpv_event_id {
     MPV_EVENT_SHUTDOWN = 1,
     MPV_EVENT_START_FILE = 6,  // nuvio-rr fork, Phase 9 #4
     MPV_EVENT_END_FILE = 7,
+    MPV_EVENT_VIDEO_RECONFIG = 17,   // nuvio-rr fork, Phase 9 E8
     MPV_EVENT_PROPERTY_CHANGE = 22,  // nuvio-rr fork, Phase 9 #15
 } mpv_event_id;
 
@@ -1161,6 +1162,28 @@ public:
         return flagProperty("eof-reached", false);
     }
 
+    // nuvio-rr fork, Phase 9 E8: RTX Video Super Resolution upscaled every video 2x, so 4K was upscaled to 8K and
+    // scaled back down to the monitor. Upscale by monitor height / video height instead (at most the old 2x), and
+    // not at all when the video is already as tall as the monitor. Runs on the event thread after VIDEO_RECONFIG; a
+    // changed vf reconfigures once more, which then finds nothing to change.
+    void fitVsrScale() {
+        long long sourceHeight = int64Property("video-dec-params/h", 0);
+        if (sourceHeight <= 0 || !containerHwnd) return;
+        MONITORINFO info = {sizeof(info)};
+        if (!GetMonitorInfoW(MonitorFromWindow(containerHwnd, MONITOR_DEFAULTTONEAREST), &info)) return;
+        long long monitorHeight = info.rcMonitor.bottom - info.rcMonitor.top;
+        double scale = std::min(2.0, (double)monitorHeight / (double)sourceHeight);
+        std::string vf;
+        if (scale > 1.05) {
+            char buffer[96];
+            std::snprintf(buffer, sizeof(buffer), "d3d11vpp=scale=%.3f:scaling-mode=nvidia", scale);
+            vf = buffer;
+        }
+        if (vf == appliedVf) return;
+        appliedVf = vf;
+        setStringProperty("vf", vf);
+    }
+
     void requestLayout() {
         postUiTask([self = shared_from_this()]() {
             if (!self->shuttingDown.load()) self->layoutNativeSubviews();
@@ -1371,6 +1394,8 @@ private:
     std::atomic<uint64_t> tracksGeneration = 1;
     std::mutex tracksCacheMutex;
     std::map<std::string, std::pair<uint64_t, std::string>> tracksCache;
+    std::atomic_bool vsrEnabled = false;  // Phase 9 E8
+    std::string appliedVf;                // event thread only after start
     uint64_t subtitleAddCounter = 0x5355420000000000ull;  // "SUB": reply ids of async sub-add requests (Phase 9 #5)
     uint64_t pendingSubtitleAdd = 0;                       // guarded by mpvMutex
     std::mutex playbackErrorMutex;
@@ -1723,6 +1748,9 @@ private:
 
             if (nvidiaRtxSuperResolutionEnabled) {
                 setMpvOptionStringLocked("vf", "d3d11vpp=scale=2:scaling-mode=nvidia");
+                // nuvio-rr fork, Phase 9 E8: the scale is fitted to the video once mpv knows its size (fitVsrScale).
+                vsrEnabled.store(true);
+                appliedVf = "d3d11vpp=scale=2:scaling-mode=nvidia";
             }
             setMpvOptionStringLocked("target-colorspace-hint", "yes");
             if (decoderPriority == 0) {
@@ -1733,7 +1761,8 @@ private:
             } else {
                 setMpvOptionStringLocked("vd-lavc-software-fallback", "yes");
             }
-            setMpvOptionStringLocked("vd-lavc-threads", "4");
+            // nuvio-rr fork, Phase 9 E8: one decoder thread per core for software decoding (was a fixed 4).
+            setMpvOptionStringLocked("vd-lavc-threads", "0");
             setMpvOptionStringLocked("tone-mapping", "auto");
             setMpvOptionStringLocked("dither-depth", "auto");
             setMpvOptionStringLocked("deband", "yes");
@@ -1990,6 +2019,9 @@ private:
             mpv_event *event = mpvApi().waitEvent(current, 0.5);
             nuvio_rr::onMpvEvent(current, event, containerHwnd, stopping.load());  // nuvio-rr fork hook H4
             if (!event) continue;
+            if (event->event_id == MPV_EVENT_VIDEO_RECONFIG && vsrEnabled.load()) {
+                fitVsrScale();
+            }
             if (event->event_id == MPV_EVENT_PROPERTY_CHANGE && event->reply_userdata == kTrackListObserveId) {
                 tracksGeneration.fetch_add(1);
             } else if (event->event_id == MPV_EVENT_START_FILE) {
