@@ -39,6 +39,7 @@ import java.nio.file.StandardCopyOption
 import java.time.Duration
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import com.nuvio.app.core.logging.redactUrlForLog
 
 private val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "avi", "webm", "ts", "m4v", "mov", "wmv", "flv")
 
@@ -99,7 +100,7 @@ actual object P2pStreamingEngine {
             ensureCurrentGeneration(generation)
 
             val streamUrl = api.getStreamUrl(magnetLink, resolvedIdx)
-            log.d { "Stream URL: $streamUrl" }
+            log.d { "Stream URL: ${redactUrlForLog(streamUrl)}" }  // Phase 9 S3
 
             startStatsPolling(hash, generation)
 

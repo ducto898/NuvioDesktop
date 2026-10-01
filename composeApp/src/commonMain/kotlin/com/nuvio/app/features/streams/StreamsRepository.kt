@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.update
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import kotlinx.coroutines.launch
+import com.nuvio.app.core.logging.redactUrlForLog
 
 object StreamsRepository {
     private val log = Logger.withTag("StreamsRepo")
@@ -422,7 +423,7 @@ object StreamsRepository {
                         type = type,
                         id = videoId,
                     )
-                    log.d { "Fetching streams from: $url" }
+                    log.d { "Fetching streams from: ${redactUrlForLog(url)}" }  // Phase 9 S3
 
                     val displayName = addon.addonName
                     val group = runCatchingUnlessCancelled {

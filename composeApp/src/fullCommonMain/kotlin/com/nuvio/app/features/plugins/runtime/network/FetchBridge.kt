@@ -15,6 +15,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import com.nuvio.app.core.logging.redactUrlForLog
 
 private const val MAX_FETCH_HEADER_VALUE_CHARS = 8 * 1024
 private const val FETCH_TRUNCATION_SUFFIX = "\n...[truncated]"
@@ -36,7 +37,7 @@ internal class FetchBridge : HostModule {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (t: Throwable) {
-                log.e(t) { "Fetch bridge error for $method $url" }
+                log.e(t) { "Fetch bridge error for $method ${redactUrlForLog(url)}" }  // Phase 9 S3
                 JsonObject(
                     mapOf(
                         "ok" to JsonPrimitive(false),

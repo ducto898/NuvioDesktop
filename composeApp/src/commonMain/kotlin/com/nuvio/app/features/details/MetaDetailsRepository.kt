@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
+import com.nuvio.app.core.logging.redactUrlForLog
 
 object MetaDetailsRepository {
     private data class CachedMetaEntry(
@@ -241,7 +242,7 @@ object MetaDetailsRepository {
 
         return try {
             TmdbSettingsRepository.ensureLoaded()
-            log.d { "Fetching meta from: $url" }
+            log.d { "Fetching meta from: ${redactUrlForLog(url)}" }  // Phase 9 S3
             val payload = fetchAddonResponseText(url)
             log.d { "Raw payload length=${payload.length}, first 500 chars: ${payload.take(500)}" }
             val result = MetaDetailsParser.parse(payload)
@@ -272,7 +273,7 @@ object MetaDetailsRepository {
             enriched
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            log.e(e) { "Failed to fetch/parse meta from $url (manifest=${manifest.transportUrl})" }
+            log.e(e) { "Failed to fetch/parse meta from ${redactUrlForLog(url)} (manifest=${redactUrlForLog(manifest.transportUrl)})" }  // Phase 9 S3
             null
         }
     }
