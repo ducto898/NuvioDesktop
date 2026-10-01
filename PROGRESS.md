@@ -3,6 +3,7 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-10-01 HANDOFF: Phase 9 batches 1-5 done; batch 6 E4 B uncommitted and suspect (white window). See the Log entry.**
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
 - **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
 - **Phase:** 2 (Measure only) **DONE 2026-09-28**. Verifier round 3/3: **PASS** on P2-0..P2-19 (P2-7/13/17 human parts
@@ -527,6 +528,14 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 HANDOFF (session ended on context). Batch 6 started: E4 A committed (DesktopBackDispatcherTest red).
+  E4 B is UNCOMMITTED in the working tree: PlatformBackHandler.desktop.kt (dispatcher + composable) and Main.kt
+  (SwingWindow onPreviewKeyEvent for Esc/Alt+Left + AWT listener for mouse button 4). It compiles and its test
+  passes, but the live check (scratchpad e4-live.ps1: posted click on a poster, posted Esc) gave a WHITE window in
+  both screenshots, no exceptions in the log. First job next session: find out whether the Main.kt change breaks
+  rendering (run home-mem.ps1 with and without it; check the screenshot) or the posted click/Esc caused it. Do not
+  commit E4 B until the home screen renders. Then: E1, E5, E6, E7, E9; then FORK.md docs, verify -Full, zip.
+  Owner to be told: Nuvio RR builds contain no TorrServer binary (P2P cannot work).
 - 2026-10-01 Phase 9 batch 5 DONE: #7 timeout (serial runtime tried: deadlocked to the 60 s timeout, reverted;
   lesson: check suite durations, a passing loop hid a 60 s hang), R2, R4 (6 of 7 baseline failures fixed, list now
   holds only PluginRuntimeDesktopTest), R5; R3/R6 n/a. verify -Full green. Next: batch 6 (E1, E4-E7, E9).
