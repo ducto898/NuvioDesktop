@@ -527,6 +527,9 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 batch 5 DONE: #7 timeout (serial runtime tried: deadlocked to the 60 s timeout, reverted;
+  lesson: check suite durations, a passing loop hid a 60 s hang), R2, R4 (6 of 7 baseline failures fixed, list now
+  holds only PluginRuntimeDesktopTest), R5; R3/R6 n/a. verify -Full green. Next: batch 6 (E1, E4-E7, E9).
 - 2026-10-01 Phase 9 batch 4 DONE (#10-#14, #18, #20-#22; partials listed in the plan). Found: Nuvio RR builds
   contain no TorrServer binary (vendor/TorrServer unmapped gitlink), so P2P streaming cannot work in the fork; tell
   the owner. Next: batch 5 (#7 QuickJS, R2-R6), then batch 6 (E1, E4-E7, E9), then docs + verify -Full + zip.

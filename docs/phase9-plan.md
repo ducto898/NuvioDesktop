@@ -57,12 +57,12 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 ## Batch 5 — build and robustness
 | # | Item | Status |
 |---|---|---|
-| 7 | QuickJS runtime: confined thread + evaluation timeout | todo |
-| R2 | Native bridge rebuilt when its source changes | todo |
-| R3 | Configuration cache on Windows desktop builds | todo |
-| R4 | The 7 known failing upstream tests fixed | todo |
-| R5 | Gradle memory settings | todo |
-| R6 | Declared vs shipped dependency versions aligned | todo |
+| 7 | QuickJS runtime: confined thread + evaluation timeout | partial eb7760b5 (timeout added; serial-runtime fix deadlocked, reverted; rare race stays) |
+| R2 | Native bridge rebuilt when its source changes | done 74c95e3e |
+| R3 | Configuration cache on Windows desktop builds | n/a (developer build speed only; needs rewriting upstream's bridge task) |
+| R4 | The 7 known failing upstream tests fixed | done 62deab7f (6 of 7; the flaky plugin race stays) |
+| R5 | Gradle memory settings | done 8092176f |
+| R6 | Declared vs shipped dependency versions aligned | n/a (would upgrade libraries upstream has not; risk without a user-visible gain) |
 
 ## Batch 6 — enhancements
 | # | Item | Status |
