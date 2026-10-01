@@ -27,7 +27,7 @@ internal object DesktopStorage {
     private val writer by lazy { DesktopStoreWriter.startDefault() }
 
     fun store(name: String): Store = synchronized(stores) {
-        stores.getOrPut(name) { Store(rootDir.resolve("$name.properties"), writer) }
+        stores.getOrPut(name) { Store(rootDir.resolve("$name.properties"), writer, DesktopSecretStores.codecFor(name)) }
     }
 
     fun wipe() {
@@ -177,7 +177,13 @@ internal object DesktopStorage {
 
         private fun persist() {
             val plain = ByteArrayOutputStream().also { properties.store(it, "Nuvio desktop preferences") }.toByteArray()
-            val bytes = codec?.encode(plain) ?: plain
+            val bytes = try {
+                codec?.encode(plain) ?: plain
+            } catch (t: Throwable) {
+                // Phase 9 S1: never fall back to writing a secret store in plain text; the data stays in memory.
+                System.err.println("nuvio storage: encrypting ${file.fileName} failed ($t); not saved")
+                return
+            }
             if (writer != null) writer.submit(file, bytes) else writeStoreFileAtomically(file, bytes)
         }
     }
