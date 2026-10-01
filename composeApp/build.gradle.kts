@@ -1329,6 +1329,7 @@ compose.desktop {
             // Keep AWT from loading its own GTK (Swing L&F/file dialogs): the
             // bridge owns the process's GTK via initGtkEarly (skoruppa's fix).
             "-Djdk.gtk.version=0",
+            "-Xmx2g", // nuvio-rr fork, Phase 9 #21: cap (default = 1/4 of RAM, ~8 GB here); the home screen uses ~30 MB of heap
             nuvioForkName?.let { "-Dnuvio.fork.name=$it" }, // nuvio-rr fork hook H17
             "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.lwawt=ALL-UNNAMED",
