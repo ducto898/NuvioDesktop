@@ -45,6 +45,19 @@ class SubtitleFontTest {
     }
 
     @Test
+    fun `family names with stray spaces still match, offered trimmed (Java lists Netflix Sans as 'Netflix Sans ')`() {
+        assertEquals(
+            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans", "Segoe UI"),
+            subtitleFontChoices(listOf("Netflix Sans ", "Netflix Sans Light", "Netflix Sans Med", "Segoe UI"), DEFAULT_SUBTITLE_FONT),
+        )
+        assertEquals(
+            listOf(DEFAULT_SUBTITLE_FONT, "Netflix Sans"),
+            subtitleFontChoices(listOf("Netflix Sans "), current = "Netflix Sans"),
+            "the stored choice is the same font, not listed twice",
+        )
+    }
+
+    @Test
     fun `a current font that is not offered stays selectable`() {
         assertEquals(
             listOf(DEFAULT_SUBTITLE_FONT, "Arial", "Gandhi Sans"),
