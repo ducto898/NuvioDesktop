@@ -244,8 +244,9 @@ Phase 9 limits (in addition to §10):
   does not need it. (An earlier note here said P2P could not work; that was wrong.) A torrent stream was not played live.
 
 ## 12. Video quality (2026-10-01)
-Settings → Playback → VIDEO QUALITY (Windows, per PC, from the next video). Defaults send no options, so the player
-keeps its own scalers (spline36 up, mpv's default dscale).
+Settings → Playback → VIDEO QUALITY (Windows, per PC, from the next video). The scaler defaults send no options, so
+the player keeps its own scalers (spline36 up, mpv's default dscale = hermite, read from the running player). The HDR
+default sends the monitor's EDID peak (below).
 
 | Setting | Choice | mpv options set at hook H2 (after the bridge's own) |
 |---|---|---|
@@ -254,10 +255,23 @@ keeps its own scalers (spline36 up, mpv's default dscale).
 | Downscaler | Player default | none |
 | | Catmull-Rom | `dscale=catmull_rom` |
 | | SSimDownscaler | `glsl-shaders=<cache>\shaders\<version>\SSimDownscaler.glsl`, `dscale=mitchell`, `linear-downscaling=no` |
+| HDR | Monitor peak (EDID) (default) | `target-peak=<EDID desired max luminance>` (1532 on the MO27Q28G); none if the EDID has no plausible value |
+| | Pass through to the monitor | `target-colorspace-hint-mode=source` |
+| | Windows HDR calibration | none (mpv's default) |
 
 - The shader ships as a resource and is copied into the app cache (DesktopCache); no usable file = player default.
   It only runs when the video is larger than the screen (its passes are conditional), e.g. 4K on the 1440p monitor.
-- With Windows HDR on, HDR video is passed through, so the HDR peak options do nothing; only the scalers matter.
+- HDR (owner compared with MPC + madVR, 2026-10-01): the output is always HDR10 (R10G10B10A2, PQ/BT.2020 swapchain).
+  mpv's default `target-colorspace-hint-mode=target` takes the display's peak and primaries from the active Windows
+  HDR calibration profile and signals them as the HDR metadata. On this PC the profiles said 8000, later 3500 nits
+  (the calibration app lands high when the monitor tone-maps), while the EDID says 1532 (madVR uses the EDID). Hence
+  the EDID default: the bridge reads the EDID of the player's monitor at H2 (QueryDisplayConfig target name ->
+  `Enum\DISPLAY\<id>\<instance>\Device Parameters\EDID`), Kotlin parses the CTA-861 HDR static metadata block.
+  Pass through = madVR's "passthrough HDR to display": the video's metadata (e.g. 1000 / MaxCLL 203, P3) goes to the
+  monitor unchanged; SDR is then handed to Windows as SDR (the Windows SDR brightness slider applies). The HIGH
+  quality HDR options (peak percentile, contrast recovery) only matter when mpv tone-maps (video brighter than the
+  target peak).
+- Log: `video edid bytes=<n>` (0 = not found) before the option lines.
 - Cost measured on this PC (4K HDR, fullscreen, 240 Hz, display-resample, 60 s): Standard 46.1 W / 14 % GPU,
   High + SSimDownscaler 51.2 W / 19 %, both 0 drops / 0 mistimed. The look was not judged by the owner yet.
 - Log: `video option <name>=<value> rc=<n>` lines in refresh-rate.log, next to the audio options.

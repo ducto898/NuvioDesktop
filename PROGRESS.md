@@ -533,6 +533,12 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 HDR vs MPC + madVR (owner saw differences): Nuvio RR outputs HDR10 correctly, but mpv's hint-mode=target
+  used the Windows calibration profile (1500 HDR Calibrated.icc: 8000 nits, min 0.015; owner re-ran the app 19:32:
+  3500 nits) while the EDID (owner: correct; madVR shows it) says 1532 / avg 296. Owner chose a VIDEO QUALITY choice:
+  HDR = Monitor peak from EDID (default) / Pass through (hint-mode=source) / Windows calibration. f00af3b6 red 7/17,
+  cfe84b96 green (test diff empty). Live 4K HDR: 1532 / 1000+203 P3 / 3500. mpv default dscale = hermite (read live).
+  Open: owner A/B against madVR on real films (madVR's own HDR mode, passthrough or tone-map, not seen yet).
 - 2026-10-01 Video quality (owner: "build it with SSimDownscaler as an option"): 5b517aac red 9/9, e644dfc8 green
   (test diff A->B empty), 878832b6 shader kept LF. Settings > Playback > VIDEO QUALITY: Scaling quality Standard/High,
   Downscaler default/Catmull-Rom/SSimDownscaler (igv, LGPL-3.0, gist rev 38992bce, sha256 f46f4710...). FORK.md section 12.
