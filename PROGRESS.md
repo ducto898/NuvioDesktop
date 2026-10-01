@@ -4,7 +4,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 
 ## Current state
 - **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
-  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-f3f2324b.zip (after the passthrough fix; fd9c57ad passed the packaged smoke run).
+  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-c3108ff0.zip (with video quality; fd9c57ad passed the packaged smoke run).
   Open for the owner: try one torrent (P2P) stream in Nuvio RR (TorrServer IS bundled; the "missing" note was wrong, see Log).
   The OpenGL white window had cleared by 17:08 without a reboot (see Log).
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
@@ -537,6 +537,8 @@ suite, ≈ 15 s with only the patch tests.
   (test diff A->B empty), 878832b6 shader kept LF. Settings > Playback > VIDEO QUALITY: Scaling quality Standard/High,
   Downscaler default/Catmull-Rom/SSimDownscaler (igv, LGPL-3.0, gist rev 38992bce, sha256 f46f4710...). FORK.md section 12.
   Live: High+SSim 4K HDR fs 240 Hz: 8 options rc=0, 4 shader passes registered, 0/0, 51.2 W 19 %; default: no options.
+  verify -Full OK (only PluginRuntimeDesktopTest flaky). Zip ..\dist\Nuvio-RR-1.1.26-c3108ff0.zip; packaged run with
+  High+SSim: shader copied from the jar into "Nuvio RR\Cache\shaders", 4 passes, 0/0.
   Open: owner to judge the look on real films (Standard vs High, default vs Catmull-Rom vs SSim).
 - 2026-10-01 18:03-18:20 Quality headroom (owner asked "is it the best quality?"): measure -Fullscreen -Feature -Power
   60 s, 240 Hz desktop, Windows HDR on (hdr=1, so HDR is passed through and tone-mapping options do nothing), VSR off.
