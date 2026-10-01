@@ -6,6 +6,7 @@ import com.nuvio.app.features.settings.AudioChannelLayout
 import com.nuvio.app.features.settings.AudioDevice
 import com.nuvio.app.features.settings.AudioOutputSetting
 import com.nuvio.app.features.settings.AudioOutputSettings
+import com.nuvio.app.features.settings.PassthroughCodec
 import com.nuvio.app.features.settings.audioMpvOptions
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -57,8 +58,20 @@ internal fun bindAudioOutputSetting() {
 internal object AudioOutputNative {
     /** Called by the native bridge at hook H2 for each new player: "name=value" lines. */
     @JvmStatic
-    fun nativeMpvOptions(): String =
-        audioMpvOptions(AudioOutputSetting.settings.value).joinToString("\n") { (name, value) -> "$name=$value" }
+    fun nativeMpvOptions(): String {
+        val settings = AudioOutputSetting.settings.value
+        // Phase 9 E1 fix: only the bitstreams the device accepts (asked per video: the device can change).
+        val supported = if (settings.passthrough) {
+            PassthroughCodec.fromMask(runCatching { nativePassthroughMask(settings.device) }.getOrDefault(-1))
+        } else {
+            emptySet()
+        }
+        return audioMpvOptions(settings, supported).joinToString("\n") { (name, value) -> "$name=$value" }
+    }
+
+    /** Bit per [PassthroughCodec] the device takes in WASAPI exclusive mode; -1 when it could not be asked. */
+    @JvmStatic
+    external fun nativePassthroughMask(device: String): Int
 
     /** A short-lived mpv instance's audio-device-list (player_bridge.dll, display_mode_matcher.cpp). */
     @JvmStatic

@@ -22,6 +22,10 @@
 #include <map>
 #include <future>
 #pragma comment(lib, "dxgi.lib")
+#include <mmdeviceapi.h>   // Phase 9 E1 fix: passthrough device probe
+#include <audioclient.h>
+#include <mmreg.h>
+#pragma comment(lib, "ole32.lib")
 // Phase 8: the fork's folder name (ForkIdentity via JNI); defined at file scope near the end of this file.
 std::wstring nuvioRrAppDirName();
 namespace {
@@ -1660,6 +1664,62 @@ void applyAudioOptions(mpv_handle *mpv) {
     }
 }
 
+// Phase 9 E1 fix: which IEC 61937 bitstreams the output device takes in exclusive mode, as mpv would open them
+// (ao_wasapi: AC3/DTS 48 kHz stereo, E-AC3 192 kHz stereo, TrueHD/DTS-HD 192 kHz 7.1, 16 bit). Bits match Kotlin's
+// PassthroughCodec: 1 ac3, 2 eac3, 4 dts, 8 dts-hd, 16 truehd. -1 = the device could not be asked. mpv's own
+// fallback for a refused bitstream left network streams stuck on the first frame, so we only ask for what works.
+int passthroughSupportMask(const std::wstring &mpvDevice) {
+    HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    bool uninit = SUCCEEDED(init);
+    int mask = -1;
+    IMMDeviceEnumerator *enumerator = nullptr;
+    IMMDevice *device = nullptr;
+    IAudioClient *client = nullptr;
+    if (SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
+            reinterpret_cast<void **>(&enumerator)))) {
+        HRESULT found;
+        if (mpvDevice.empty() || mpvDevice == L"auto") {
+            found = enumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &device);
+        } else {
+            std::wstring id = mpvDevice.rfind(L"wasapi/", 0) == 0 ? mpvDevice.substr(7) : mpvDevice;
+            if (!id.empty() && id[0] == L'{' && id.find(L"}.{") == std::wstring::npos) id = L"{0.0.0.00000000}." + id;
+            found = enumerator->GetDevice(id.c_str(), &device);
+        }
+        if (SUCCEEDED(found) && device &&
+                SUCCEEDED(device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void **>(&client)))) {
+            struct Probe { int bit; GUID subFormat; DWORD rate; WORD channels; };
+            const Probe probes[] = {
+                {1, {0x00000092, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}}, 48000, 2},   // DOLBY_DIGITAL
+                {2, {0x0000000a, 0x0cea, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}}, 192000, 2},  // DOLBY_DIGITAL_PLUS
+                {4, {0x00000008, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}}, 48000, 2},   // DTS
+                {8, {0x0000000b, 0x0cea, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}}, 192000, 8},  // DTS_HD
+                {16, {0x0000000c, 0x0cea, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}}, 192000, 8}, // DOLBY_MLP
+            };
+            mask = 0;
+            for (const Probe &probe : probes) {
+                WAVEFORMATEXTENSIBLE format{};
+                format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+                format.Format.nChannels = probe.channels;
+                format.Format.nSamplesPerSec = probe.rate;
+                format.Format.wBitsPerSample = 16;
+                format.Format.nBlockAlign = (WORD)(probe.channels * 2);
+                format.Format.nAvgBytesPerSec = probe.rate * format.Format.nBlockAlign;
+                format.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+                format.Samples.wValidBitsPerSample = 16;
+                format.dwChannelMask = probe.channels == 8 ? 0x63F : 0x3;  // 7.1 surround : stereo
+                format.SubFormat = probe.subFormat;
+                if (client->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &format.Format, nullptr) == S_OK) mask |= probe.bit;
+            }
+        }
+    }
+    if (client) client->Release();
+    if (device) device->Release();
+    if (enumerator) enumerator->Release();
+    if (uninit) CoUninitialize();
+    nlog(strf("audio passthrough probe mask=%d", mask));
+    return mask;
+}
+
 // mpv's audio-device-list from a short-lived, never-playing mpv instance (the settings page has no player).
 std::string audioDeviceListJson() {
     MpvApi &api = mpvApi();
@@ -1854,6 +1914,24 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_ru
     } catch (...) {
     }
     env->ReleaseStringUTFChars(line, chars);
+}
+
+// Phase 9 E1 fix (Kotlin AudioOutputNative)
+JNIEXPORT jint JNICALL Java_com_nuvio_app_features_player_desktop_audio_AudioOutputNative_nativePassthroughMask(
+    JNIEnv *env, jclass, jstring device) {
+    try {
+        std::wstring name;
+        if (device) {
+            const jchar *chars = env->GetStringChars(device, nullptr);
+            if (chars) {
+                name.assign(reinterpret_cast<const wchar_t *>(chars), (size_t)env->GetStringLength(device));
+                env->ReleaseStringChars(device, chars);
+            }
+        }
+        return (jint)nuvio_rr::passthroughSupportMask(name);
+    } catch (...) {
+        return -1;
+    }
 }
 
 // Phase 9 E1 (Kotlin AudioOutputNative)

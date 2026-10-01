@@ -2075,7 +2075,7 @@
     <string name="settings_playback_audio_channels_51">5.1 surround</string>
     <string name="settings_playback_audio_channels_71">7.1 surround</string>
     <string name="settings_playback_audio_passthrough">Passthrough to receiver</string>
-    <string name="settings_playback_audio_passthrough_desc">Send Dolby (AC3, E-AC3, TrueHD) and DTS undecoded to an AV receiver. Takes the device exclusively while playing (other sounds are muted).</string>
+    <string name="settings_playback_audio_passthrough_desc">Send Dolby (AC3, E-AC3, TrueHD) and DTS undecoded to an AV receiver. Only formats the device accepts are sent; others play decoded as usual. Takes the device exclusively while such a video plays (other sounds are muted).</string>
     <string name="settings_playback_audio_device">Output device</string>
     <string name="settings_playback_audio_device_default">Windows default</string>
     <string name="settings_playback_audio_device_loading">Looking for devices…</string>

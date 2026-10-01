@@ -58,7 +58,8 @@ enum class PassthroughCodec(val mpvName: String, val bit: Int) {
 
     companion object {
         /** The codecs in [mask]; a negative mask (the device could not be asked) means none. */
-        fun fromMask(mask: Int): Set<PassthroughCodec> = TODO("Phase 9 E1 fix, commit B")
+        fun fromMask(mask: Int): Set<PassthroughCodec> =
+            if (mask < 0) emptySet() else entries.filter { mask and it.bit != 0 }.toSet()
     }
 }
 
@@ -71,16 +72,17 @@ enum class PassthroughCodec(val mpvName: String, val bit: Int) {
 fun audioMpvOptions(
     settings: AudioOutputSettings,
     passthroughSupported: Set<PassthroughCodec> = PassthroughCodec.entries.toSet(),
-): List<Pair<String, String>> = TODO("Phase 9 E1 fix, commit B")
-
-private fun audioMpvOptionsBeforeProbe(settings: AudioOutputSettings): List<Pair<String, String>> = listOf(
-    "audio-channels" to when (settings.channels) {
-        AudioChannelLayout.AUTO -> "auto-safe"
-        AudioChannelLayout.STEREO -> "stereo"
-        AudioChannelLayout.SURROUND_51 -> "5.1,stereo"
-        AudioChannelLayout.SURROUND_71 -> "7.1,5.1,stereo"
-    },
-    "audio-spdif" to if (settings.passthrough) "ac3,eac3,dts,dts-hd,truehd" else "",
-    "audio-exclusive" to if (settings.passthrough) "yes" else "no",
-    "audio-device" to settings.device.ifBlank { AUTO_AUDIO_DEVICE },
-)
+): List<Pair<String, String>> {
+    val passthrough = if (settings.passthrough) PassthroughCodec.entries.filter { it in passthroughSupported } else emptyList()
+    return listOf(
+        "audio-channels" to when (settings.channels) {
+            AudioChannelLayout.AUTO -> "auto-safe"
+            AudioChannelLayout.STEREO -> "stereo"
+            AudioChannelLayout.SURROUND_51 -> "5.1,stereo"
+            AudioChannelLayout.SURROUND_71 -> "7.1,5.1,stereo"
+        },
+        "audio-spdif" to passthrough.joinToString(",") { it.mpvName },
+        "audio-exclusive" to if (passthrough.isNotEmpty()) "yes" else "no",
+        "audio-device" to settings.device.ifBlank { AUTO_AUDIO_DEVICE },
+    )
+}
