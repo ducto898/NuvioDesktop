@@ -155,9 +155,23 @@ function Write-DiffReport {
     $budget = @{ code = 12; strings = 5; gradle = 6 }
     $count = @{ code = 0; strings = 0; gradle = 0 }
     $untagged = @()
+    # Phase 9 (owner 2026-10-01: audit fixes in the fork only): upstream files listed in scripts/fork-fixes.txt
+    # ("<path> | <audit ids>") may carry untagged fix lines; they are counted per file instead of against the budget.
+    $fixList = @{}
+    $fixFile = Join-Path $repo 'scripts/fork-fixes.txt'
+    if (Test-Path $fixFile) {
+        foreach ($fl in Get-Content $fixFile) {
+            if ($fl -match '^\s*#' -or $fl -notmatch '\|') { continue }
+            $parts = $fl -split '\|', 2
+            $fixList[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+    $fixLines = 0
     foreach ($r in $up) {
         $added = @(git diff -U0 $base -- $r.Path 2>$null | Where-Object { $_ -match '^\+' -and $_ -notmatch '^\+\+\+' })
+        $isFix = $fixList.ContainsKey($r.Path)
         foreach ($l in $added) {
+            if ($isFix -and $l -notmatch 'nuvio-rr fork hook H\d+') { $fixLines++; continue }
             if ($l -notmatch 'nuvio-rr fork hook H\d+') { $untagged += "$($r.Path): $($l.Trim())"; continue }
             $kind = if ($r.Path -like '*strings.xml') { 'strings' } elseif ($r.Path -like '*build.gradle.kts') { 'gradle' } else { 'code' }
             $count[$kind]++
@@ -165,6 +179,7 @@ function Write-DiffReport {
     }
     Write-Host ("    hook lines (budget)    : code {0}/{1}, strings {2}/{3}, gradle {4}/{5}" -f
         $count.code, $budget.code, $count.strings, $budget.strings, $count.gradle, $budget.gradle)
+    Write-Host ("    audit fix lines        : {0} added in {1} listed file(s) (scripts/fork-fixes.txt)" -f $fixLines, @($up | Where-Object { $fixList.ContainsKey($_.Path) }).Count)
     foreach ($u in $untagged) { Write-Host "      untagged: $u" -ForegroundColor Red }
     if ($untagged) { $failures.Add("upstream diff: $($untagged.Count) added line(s) without a 'nuvio-rr fork hook Hn' tag") }
     foreach ($k in $budget.Keys) {

@@ -1,0 +1,75 @@
+# Phase 9 — audit fixes in the fork (owner 2026-10-01)
+
+Owner: "fix only on my fork. Step 3 fix all". Scope (owner choice): every bug, robustness, security and performance
+item of `docs/audit-2026-09-30.md` plus enhancements E1, E4–E9; **not** R7 (split large files) or E10 (one HTTP client).
+No upstream issues or PRs (the 4 `upstream-pr/*` branches stay local; their fixes are taken into the fork here).
+
+Rules: one commit per item (tests first where the code is testable: red commit, then green); upstream files touched
+are listed in `scripts/fork-fixes.txt` (verify.ps1 allows untagged lines only there); `verify -Full` green after each
+batch; a live run where the change is visible at run time; official profile never written (D8, test profile).
+
+Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
+
+## Batch 1 — data safety
+| # | Item | Status |
+|---|---|---|
+| 1 | Atomic preference writes (temp + ATOMIC_MOVE, `.bak` fallback) | todo |
+| 2 | Downloads: throttle progress; repository persists on status change only; atomic state update (Pause race) | todo |
+| 3 | Window geometry saved once the window settles, off the UI thread | todo |
+| 19 | Watch progress / store writes off the UI thread (one background writer, debounced) | todo |
+| 6 | Delete old native runtime copies after install | todo |
+
+## Batch 2 — playback
+| # | Item | Status |
+|---|---|---|
+| 4 | Playback errors after loadfile (END_FILE error) reach Kotlin | todo |
+| 5 | Async `sub-add` (no UI freeze) | todo |
+| R1 | Player shutdown timeout path: no std::terminate / use-after-destroy | todo |
+| 15 | mpv property observation instead of 2 Hz polling | todo |
+| 16 | Video/overlay follow a resize at once | todo |
+| 17 | Exact seeks for scrub release and skip-intro | todo |
+| E8 | Video settings by content (decoder threads, VSR scale, no deband for 10-bit/HDR) | todo |
+
+## Batch 3 — security
+| # | Item | Status |
+|---|---|---|
+| 8 | Native DLL/exe only from the bundle (dev paths behind a dev property) | todo |
+| S1 | Tokens and API keys encrypted (DPAPI on Windows) | todo |
+| S2 | Plugin fetch: block loopback/link-local/private ranges after DNS | todo |
+| S3 | Addon URLs redacted in logs | todo |
+| S4 | TorrServer "is running" check verifies it is ours | todo |
+| S5 | Updater: hash/signature check (the fork has the updater off) | todo |
+| S6 | desktopTest never writes the real profile (env in the Gradle test task) | todo |
+
+## Batch 4 — performance
+| # | Item | Status |
+|---|---|---|
+| 10 | libmpv not re-read/hashed from the jar on every launch | todo |
+| 11 | Poster downscale off the UI thread, cached, sensible decode size | todo |
+| 12 | UI scale stepped (no relayout every resize frame) | todo |
+| 13 | Coil memory/disk cache bounds and location | todo |
+| 14 | GIF cards: pause when hidden, decode off the main thread, safe LRU | todo |
+| 18 | Addon/TMDB networking: cancellable calls, timeouts, response cap, thread-safe caches, de-dup | todo |
+| 20 | `runBlocking { getString }` removed from composition paths | todo |
+| 21 | Packaged app JVM options (heap cap, AppCDS) | todo |
+| 22 | Package size (icons, TorrServer copy into Roaming) | todo |
+
+## Batch 5 — build and robustness
+| # | Item | Status |
+|---|---|---|
+| 7 | QuickJS runtime: confined thread + evaluation timeout | todo |
+| R2 | Native bridge rebuilt when its source changes | todo |
+| R3 | Configuration cache on Windows desktop builds | todo |
+| R4 | The 7 known failing upstream tests fixed | todo |
+| R5 | Gradle memory settings | todo |
+| R6 | Declared vs shipped dependency versions aligned | todo |
+
+## Batch 6 — enhancements
+| # | Item | Status |
+|---|---|---|
+| E1 | Audio options: channel layout, passthrough (WASAPI exclusive), device | todo |
+| E4 | Esc / Alt+Left / Backspace go back | todo |
+| E5 | Reduce motion setting | todo |
+| E6 | Shelf arrows for mouse users | todo |
+| E7 | Live scrub preview | todo |
+| E9 | Window restore after a monitor change; keyboard navigation | todo |
