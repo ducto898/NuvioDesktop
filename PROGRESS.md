@@ -4,7 +4,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 
 ## Current state
 - **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
-  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-fd9c57ad.zip (packaged smoke run OK).
+  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-6312a44a.zip (after the focus-ring fix; fd9c57ad passed the packaged smoke run).
   Open for the owner: OpenGL white window (reboot check), TorrServer missing in fork builds.
   **Owner: dev app GPU (DirectX) rendering gives a white window since ~11:40 today (see Log); software renderer fine.**
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
@@ -531,6 +531,8 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Owner: focus ring stayed on while mouse-scrolling. Fixed (2f07bed2 red, 6312a44a green): ring only after
+  arrows/Tab, hidden by a mouse press or wheel. New zip Nuvio-RR-1.1.26-6312a44a.zip.
 - 2026-10-01 Owner: no Backspace-back (E4 stays Esc + Alt+Left + mouse Back).
 - 2026-10-01 Phase 9 DONE: verify -Full OK (1612 tests, only PluginRuntimeDesktopTest flaky); package-fork zip
   Nuvio-RR-1.1.26-fd9c57ad.zip (198 MB); measure -Packaged smoke: file-loaded, audio options applied at H2, MEASURE OK.

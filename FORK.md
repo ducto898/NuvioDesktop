@@ -210,7 +210,7 @@ in the fork only (no upstream PRs). Per-item status and commits: `docs/phase9-pl
 | Area | What changed | Where / how |
 |---|---|---|
 | Back navigation (E4) | Esc and Alt+Left go back (dialogs and panels first, then the screen); the mouse Back button as before. Esc on the home tabs does nothing (no "Exit app?") | always on |
-| Keyboard (E9) | Arrow keys move focus (cards, rows, buttons, sidebar) with a white focus ring; Enter opens; Ctrl+F opens Search with the field focused | always on |
+| Keyboard (E9) | Arrow keys move focus (cards, rows, buttons, sidebar) with a white focus ring (only while using the keyboard: a mouse click or wheel hides it); Enter opens; Ctrl+F opens Search with the field focused | always on |
 | Shelves (E6) | Hovering a horizontal shelf shows left/right arrows; a click scrolls most of a screen width | home and catalog shelves |
 | Reduce motion (E5) | No hero auto-advance, no animated GIF cards, no image fade-in | Settings → General → MOTION → Reduce motion (per PC, default off) |
 | Scrub preview (E7) | Dragging the seek bar shows the frame under it (keyframe seeks, ~7 per second); release seeks exactly | Windows player |
