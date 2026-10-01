@@ -1738,3 +1738,15 @@ configurations.all {
     exclude(group = "androidx.media3", module = "media3-exoplayer")
     exclude(group = "androidx.media3", module = "media3-ui")
 }
+
+// nuvio-rr fork, Phase 9 S6: desktop tests write through the real storage code; however they are started (plain
+// gradlew included) they get a throw-away profile under build/, never the user's %APPDATA% / %LOCALAPPDATA%.
+tasks.withType<Test>().configureEach {
+    if (name == "desktopTest") {
+        val testProfile = layout.buildDirectory.dir("test-profile").get().asFile
+        environment("APPDATA", testProfile.resolve("Roaming").absolutePath)
+        environment("LOCALAPPDATA", testProfile.resolve("Local").absolutePath)
+        environment("XDG_CONFIG_HOME", testProfile.resolve("config").absolutePath)
+        doFirst { testProfile.mkdirs() }
+    }
+}
