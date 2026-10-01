@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class CollectionCardRemoteImageTest {
     @get:Rule
@@ -75,7 +76,9 @@ class CollectionCardRemoteImageTest {
                 }
             }
             waitForColor(2)
-            assertEquals(0, requests.get(), "The focus asset should not load before hover")
+            // nuvio-rr fork, Phase 9 R4: upstream prefetches the animated asset once the card is visible (so hover is
+            // instant); the test predated that. At most that one prefetch before hover, and no second load on hover.
+            assertTrue(requests.get() <= 1, "The focus asset loads at most once before hover (visibility prefetch)")
             card.performMouseInput { enter(center) }
             waitForColor(0)
             waitForColor(1)

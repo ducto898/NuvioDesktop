@@ -24,3 +24,8 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/Theme.kt | 12
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/PlatformImageLoader.desktop.kt | 13
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImage.desktop.kt | 14
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/tmdb/TmdbMetadataService.kt | 18
+composeApp/src/desktopMain/kotlin/com/nuvio/app/features/plugins/runtime/PluginRuntime.desktop.kt | 7
+gradle.properties | R5
+composeApp/src/commonTest/kotlin/com/nuvio/app/features/home/components/HomeHeroSectionTest.kt | R4
+composeApp/src/desktopTest/kotlin/com/nuvio/app/features/updater/LinuxUpdateInstallTest.kt | R4
+composeApp/src/desktopTest/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImageTest.kt | R4

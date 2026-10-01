@@ -8,6 +8,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LinuxUpdateInstallTest {
+    private val isWindowsHost = System.getProperty("os.name").orEmpty().lowercase().contains("win")
+
 
     // The asset names of a real release, in the order the GitHub API returns them.
     private val releaseAssets = listOf(
@@ -172,6 +174,7 @@ class LinuxUpdateInstallTest {
 
     @Test
     fun `a package install is handed to the desktop package handler`() {
+        if (isWindowsHost) return  // nuvio-rr fork, Phase 9 R4: Linux paths (/tmp/...) mean nothing to java.io.File on Windows
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.RPM,
             updateFile = File("/tmp/updates/Nuvio.rpm"),
@@ -184,6 +187,7 @@ class LinuxUpdateInstallTest {
 
     @Test
     fun `an app image replaces itself once this process is gone`() {
+        if (isWindowsHost) return  // nuvio-rr fork, Phase 9 R4: Linux paths (/tmp/...) mean nothing to java.io.File on Windows
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.APP_IMAGE,
             updateFile = File("/tmp/updates/Nuvio.AppImage"),
@@ -202,6 +206,7 @@ class LinuxUpdateInstallTest {
 
     @Test
     fun `an app image with no known path falls back to the desktop handler`() {
+        if (isWindowsHost) return  // nuvio-rr fork, Phase 9 R4: Linux paths (/tmp/...) mean nothing to java.io.File on Windows
         val command = linuxInstallerCommand(
             method = LinuxInstallMethod.APP_IMAGE,
             updateFile = File("/tmp/updates/Nuvio.AppImage"),

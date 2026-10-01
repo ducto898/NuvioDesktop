@@ -53,7 +53,7 @@ class HomeHeroSectionTest {
             preferDesktopLayout = true,
         )
 
-        assertEquals(660f, layout.heroHeight.value, 0.001f)
+        assertEquals(640f, layout.heroHeight.value, 0.001f)  // nuvio-rr fork, Phase 9 R4: upstream 50c5e321 set the max to 640 dp
         assertEquals(2560f, layout.contentContainerMaxWidth.value, 0.001f)
         assertEquals(32f, layout.contentHorizontalPadding.value, 0.001f)
         assertEquals(40f, layout.contentVerticalPadding.value, 0.001f)
