@@ -506,25 +506,19 @@ actual object P2pStreamingEngine {
                 File("vendor/TorrServer/dist/${platform.binaryName}"),
             )
 
+        // nuvio-rr fork, Phase 9 #22: the ~58 MB binary was copied from the jar into the roaming profile on every
+        // stream start. Now it is installed once per version into the local cache (jar CRC + size decide).
         private fun extractBundledBinary(platform: DesktopTorrServerPlatform): File? {
             val resource = "/torrserver/${platform.resourceDir}/${platform.binaryName}"
-            val input = P2pStreamingEngine::class.java.getResourceAsStream(resource) ?: return null
-            val dir = DesktopStorage.rootDir.resolve("torrserver/bin/${platform.resourceDir}").toFile().apply { mkdirs() }
-            val file = File(dir, platform.binaryName)
-            val tempFile = File(dir, "${platform.binaryName}.tmp")
-            input.use { source ->
-                tempFile.outputStream().use { target -> source.copyTo(target) }
-            }
-            runCatching {
-                Files.move(
-                    tempFile.toPath(),
-                    file.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE,
-                )
-            }.getOrElse {
-                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
+            val anchor = P2pStreamingEngine::class.java
+            if (com.nuvio.app.core.storage.DesktopCache.resourceStamp(anchor, resource) == null) return null
+            val dir = com.nuvio.app.core.storage.DesktopCache.installVersionedResources(
+                namespace = "torrserver/${platform.resourceDir}",
+                names = listOf(platform.binaryName),
+                stampOf = { com.nuvio.app.core.storage.DesktopCache.resourceStamp(anchor, resource) },
+                read = { anchor.getResourceAsStream(resource)?.use { it.readBytes() } },
+            )
+            val file = dir.resolve(platform.binaryName).toFile()
             file.setExecutable(true)
             return file
         }

@@ -65,6 +65,15 @@ internal object DesktopCache {
         return directory
     }
 
+    /** Phase 9 #10/#22: a cheap identity of a bundled resource (jar entry CRC-32 + size; classes dir: size + time). */
+    fun resourceStamp(anchor: Class<*>, resource: String): String? {
+        val url = anchor.getResource(resource) ?: return null
+        return when (val connection = url.openConnection()) {
+            is java.net.JarURLConnection -> connection.jarEntry.let { entry -> "crc=${entry.crc} size=${entry.size}" }
+            else -> runCatching { java.io.File(url.toURI()) }.getOrNull()?.let { file -> "size=${file.length()} time=${file.lastModified()}" }
+        }
+    }
+
     /**
      * nuvio-rr fork, Phase 9 #6: delete the other version folders of a namespace that were not used for
      * [olderThanMs] (each update left a ~113 MB native runtime behind). A folder used recently may belong to another
