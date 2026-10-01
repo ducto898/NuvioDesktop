@@ -1069,7 +1069,9 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)positionMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", nullptr};
+        // nuvio-rr fork, Phase 9 #17: absolute seeks (scrub release, skip intro, chapters) land where asked; with a
+        // 10 s keyframe interval "+keyframes" landed up to 7 s early. Relative +-10 s steps stay on keyframes (fast).
+        const char *command[] = {"seek", seconds.c_str(), "absolute+exact", nullptr};
         mpvApi().command(mpv, command);
     }
 
