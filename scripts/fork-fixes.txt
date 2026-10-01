@@ -1,3 +1,5 @@
 # Phase 9 (owner 2026-10-01): audit fixes kept in the fork only (docs/audit-2026-09-30.md). One line per upstream file:
 #   <repo-relative path> | <audit ids>
 # verify.ps1 allows untagged added lines only in the files listed here; every other upstream line still needs a hook tag.
+composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt | 1
+composeApp/src/desktopTest/kotlin/com/nuvio/app/core/storage/DesktopStorageTest.kt | 1
