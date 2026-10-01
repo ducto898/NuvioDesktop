@@ -20,6 +20,13 @@ internal object DesktopCache {
         return directory
     }
 
+    /**
+     * nuvio-rr fork, Phase 9 #6: delete the other version folders of a namespace that were not used for
+     * [olderThanMs] (each update left a ~113 MB native runtime behind). A folder used recently may belong to another
+     * running copy of the app; a file Windows can't delete (a loaded DLL) is skipped.
+     */
+    fun pruneOldVersions(namespaceDir: Path, keep: Path, olderThanMs: Long): Unit = TODO("Phase 9 #6 commit B")
+
     private fun contentVersion(files: Map<String, ByteArray>): String {
         val digest = MessageDigest.getInstance("SHA-256")
         files.toSortedMap().forEach { (path, bytes) ->
