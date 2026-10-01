@@ -502,6 +502,7 @@ struct MpvApi {
     using mpv_get_property_fn = int (*)(mpv_handle *, const char *, mpv_format, void *);
     using mpv_command_fn = int (*)(mpv_handle *, const char **);
     using mpv_command_async_fn = int (*)(mpv_handle *, uint64_t, const char **);
+    using mpv_abort_async_command_fn = void (*)(mpv_handle *, uint64_t);  // nuvio-rr fork, Phase 9 #5
     using mpv_error_string_fn = const char *(*)(int);
     using mpv_free_fn = void (*)(void *);
     using mpv_wait_event_fn = mpv_event *(*)(mpv_handle *, double);
@@ -521,6 +522,7 @@ struct MpvApi {
     mpv_get_property_fn getProperty = nullptr;
     mpv_command_fn command = nullptr;
     mpv_command_async_fn commandAsync = nullptr;
+    mpv_abort_async_command_fn abortAsyncCommand = nullptr;
     mpv_error_string_fn errorString = nullptr;
     mpv_free_fn freeValue = nullptr;
     mpv_wait_event_fn waitEvent = nullptr;
@@ -581,6 +583,7 @@ struct MpvApi {
         getProperty = loadSymbol<mpv_get_property_fn>("mpv_get_property");
         command = loadSymbol<mpv_command_fn>("mpv_command");
         commandAsync = loadSymbol<mpv_command_async_fn>("mpv_command_async");
+        abortAsyncCommand = loadSymbol<mpv_abort_async_command_fn>("mpv_abort_async_command");
         errorString = loadSymbol<mpv_error_string_fn>("mpv_error_string");
         freeValue = loadSymbol<mpv_free_fn>("mpv_free");
         waitEvent = loadSymbol<mpv_wait_event_fn>("mpv_wait_event");
@@ -1176,8 +1179,20 @@ public:
         // the controls sync. The async reply event is ignored by drainMpvEvents like every other event.
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
+        // nuvio-rr fork, Phase 9 #5: only the newest pick may finish. Async adds can run in parallel, so a slow
+        // earlier pick finishing last would end up selected.
+        abortPendingSubtitleAddLocked();
+        pendingSubtitleAdd = ++subtitleAddCounter;
         const char *args[] = {"sub-add", url.c_str(), "select", nullptr};
-        mpvApi().commandAsync(mpv, 0, args);
+        mpvApi().commandAsync(mpv, pendingSubtitleAdd, args);
+    }
+
+    // Caller holds mpvMutex. Aborting a request that already finished does nothing.
+    void abortPendingSubtitleAddLocked() {
+        if (pendingSubtitleAdd != 0 && mpv && mpvApi().abortAsyncCommand) {
+            mpvApi().abortAsyncCommand(mpv, pendingSubtitleAdd);
+        }
+        pendingSubtitleAdd = 0;
     }
 
     void removeExternalSubtitles() {
@@ -1321,6 +1336,8 @@ private:
     mpv_handle *mpv = nullptr;
     // nuvio-rr fork, Phase 9 #4: a load/playback failure after loadfile (END_FILE with reason error), handed to
     // Kotlin once by takePlaybackError(); cleared when mpv starts the next file.
+    uint64_t subtitleAddCounter = 0x5355420000000000ull;  // "SUB": reply ids of async sub-add requests (Phase 9 #5)
+    uint64_t pendingSubtitleAdd = 0;                       // guarded by mpvMutex
     std::mutex playbackErrorMutex;
     std::string playbackError;
     std::thread eventThread;
@@ -2078,6 +2095,11 @@ private:
     }
 
     void removeExternalSubtitleTracks() {
+        {
+            // nuvio-rr fork, Phase 9 #5: a subtitle still downloading must not appear after it was cleared.
+            std::lock_guard<std::mutex> lock(mpvMutex);
+            abortPendingSubtitleAddLocked();
+        }
         long long count = int64Property("track-list/count", 0);
         if (count <= 0) return;
         for (long long index = count - 1; index >= 0; index--) {
