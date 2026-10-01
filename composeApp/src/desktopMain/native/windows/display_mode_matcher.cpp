@@ -1402,8 +1402,10 @@ void dropDriverRead(int64_t playerId) {
     gDriverReads.erase(playerId);
 }
 
+void applyAudioOptions(mpv_handle *mpv);  // Phase 9 E1, defined near the end of nuvio_rr
 inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container) {
     if (!mpv) return;
+    applyAudioOptions(mpv);  // Phase 9 E1: for every player, whether refresh-rate matching is on or not
     std::string why;
     double asked = nowSeconds();
     int code = -1;
@@ -1607,6 +1609,78 @@ void throwJava(JNIEnv *env, const char *what) {
     if (type) env->ThrowNew(type, what);
 }
 
+// ---------------------------------------------------------------- Phase 9 E1: audio output options
+// At H2 (after mpv_initialize, before loadfile) Kotlin's AudioOutputNative.nativeMpvOptions() gives "name=value" lines
+// (audio-channels, audio-spdif, audio-exclusive, audio-device); each is set as a property. Any failure leaves mpv's
+// defaults, so playback never depends on it.
+std::string upcallAudioOptions() {
+    JavaVM *vm = javaVm();
+    if (!vm) return {};
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) == JNI_EDETACHED) {
+        if (vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void **>(&env), nullptr) != JNI_OK) return {};
+        attached = true;
+    }
+    std::string result;
+    if (env) {
+        jclass type = env->FindClass("com/nuvio/app/features/player/desktop/audio/AudioOutputNative");
+        if (env->ExceptionCheck()) { env->ExceptionClear(); type = nullptr; }
+        jmethodID method = type ? env->GetStaticMethodID(type, "nativeMpvOptions", "()Ljava/lang/String;") : nullptr;
+        if (env->ExceptionCheck()) { env->ExceptionClear(); method = nullptr; }
+        auto value = method ? static_cast<jstring>(env->CallStaticObjectMethod(type, method)) : nullptr;
+        if (env->ExceptionCheck()) { env->ExceptionClear(); value = nullptr; }
+        if (value) {
+            const char *chars = env->GetStringUTFChars(value, nullptr);
+            if (chars) {
+                result = chars;
+                env->ReleaseStringUTFChars(value, chars);
+            }
+            env->DeleteLocalRef(value);
+        }
+        if (type) env->DeleteLocalRef(type);
+    }
+    if (attached) vm->DetachCurrentThread();
+    return result;
+}
+
+void applyAudioOptions(mpv_handle *mpv) {
+    std::string lines = upcallAudioOptions();
+    size_t start = 0;
+    while (start < lines.size()) {
+        size_t end = lines.find('\n', start);
+        if (end == std::string::npos) end = lines.size();
+        std::string line = lines.substr(start, end - start);
+        start = end + 1;
+        size_t eq = line.find('=');
+        if (eq == std::string::npos || eq == 0) continue;
+        std::string name = line.substr(0, eq), value = line.substr(eq + 1);
+        int rc = mpvApi().setPropertyString(mpv, name.c_str(), value.c_str());
+        nlog(strf("audio option %s=%s rc=%d", name.c_str(), value.c_str(), rc));
+    }
+}
+
+// mpv's audio-device-list from a short-lived, never-playing mpv instance (the settings page has no player).
+std::string audioDeviceListJson() {
+    MpvApi &api = mpvApi();
+    if (!api.create || !api.initialize || !api.terminateDestroy) return "[]";
+    mpv_handle *probe = api.create();
+    if (!probe) return "[]";
+    api.setOptionString(probe, "config", "no");
+    api.setOptionString(probe, "vo", "null");
+    api.setOptionString(probe, "idle", "yes");
+    std::string json = "[]";
+    if (api.initialize(probe) >= 0) {
+        char *value = nullptr;
+        if (api.getProperty(probe, "audio-device-list", MPV_FORMAT_STRING, &value) >= 0 && value) {
+            json = value;
+            api.freeValue(value);
+        }
+    }
+    api.terminateDestroy(probe);
+    return json;
+}
+
 }  // namespace nuvio_rr
 }  // namespace
 
@@ -1780,6 +1854,20 @@ JNIEXPORT void JNICALL Java_com_nuvio_app_features_player_desktop_refreshrate_ru
     } catch (...) {
     }
     env->ReleaseStringUTFChars(line, chars);
+}
+
+// Phase 9 E1 (Kotlin AudioOutputNative)
+JNIEXPORT jstring JNICALL Java_com_nuvio_app_features_player_desktop_audio_AudioOutputNative_nativeDeviceListJson(
+    JNIEnv *env, jclass) {
+    try {
+        std::string json = nuvio_rr::audioDeviceListJson();
+        return env->NewStringUTF(json.c_str());
+    } catch (const std::exception &e) {
+        nuvio_rr::throwJava(env, e.what());
+    } catch (...) {
+        nuvio_rr::throwJava(env, "unknown native error in nativeDeviceListJson");
+    }
+    return nullptr;
 }
 
 }  // extern "C"

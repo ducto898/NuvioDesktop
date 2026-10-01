@@ -83,6 +83,7 @@ fun main(args: Array<String>) {
     // on the very first Compose frame (matching Android's SharedPreferences behavior).
     ProfileRepository.loadCachedProfiles()
     com.nuvio.app.core.ui.bindReduceMotion() // nuvio-rr fork, Phase 9 E5
+    com.nuvio.app.features.player.desktop.audio.bindAudioOutputSetting() // nuvio-rr fork, Phase 9 E1
     AppIconRepository.ensureLoaded()
     DiscordPresenceManager.start()
 

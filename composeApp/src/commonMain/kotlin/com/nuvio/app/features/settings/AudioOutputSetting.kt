@@ -53,4 +53,14 @@ object AudioOutputSetting {
 }
 
 /** The mpv properties for [settings]; the defaults are mpv's own defaults, so untouched settings change nothing. */
-fun audioMpvOptions(settings: AudioOutputSettings): List<Pair<String, String>> = TODO("Phase 9 E1 commit B")
+fun audioMpvOptions(settings: AudioOutputSettings): List<Pair<String, String>> = listOf(
+    "audio-channels" to when (settings.channels) {
+        AudioChannelLayout.AUTO -> "auto-safe"
+        AudioChannelLayout.STEREO -> "stereo"
+        AudioChannelLayout.SURROUND_51 -> "5.1,stereo"
+        AudioChannelLayout.SURROUND_71 -> "7.1,5.1,stereo"
+    },
+    "audio-spdif" to if (settings.passthrough) "ac3,eac3,dts,dts-hd,truehd" else "",
+    "audio-exclusive" to if (settings.passthrough) "yes" else "no",
+    "audio-device" to settings.device.ifBlank { AUTO_AUDIO_DEVICE },
+)

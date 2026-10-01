@@ -14,6 +14,7 @@ import org.jetbrains.compose.resources.stringResource
 /** nuvio-rr fork (SPEC P6-11): the "Display" section, called by hook H9 below "NVIDIA RTX Video". Windows only. */
 @Composable
 internal fun RefreshRateMatchSettingsSection(isTablet: Boolean) {
+    AudioOutputSettingsSection(isTablet = isTablet) // Phase 9 E1: audio options, above Display
     if (!RefreshRateMatchSetting.available) return
     val enabled by RefreshRateMatchSetting.enabled.collectAsStateWithLifecycle()
     val badge by RefreshRateMatchSetting.badgeEnabled.collectAsStateWithLifecycle()

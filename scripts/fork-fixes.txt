@@ -5,7 +5,7 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt |
 composeApp/src/desktopTest/kotlin/com/nuvio/app/core/storage/DesktopStorageTest.kt | 1
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/downloads/DownloadsPlatformDownloader.desktop.kt | 2
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/downloads/DownloadsRepository.kt | 2
-composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt | 3, 20, E4, E5, E9
+composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt | 3, 20, E4, E5, E9, E1
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopCache.kt | 6
 composeApp/src/desktopMain/native/windows/player_bridge.cpp | 4, E7
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerBridge.kt | 4, E7
@@ -34,7 +34,7 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/MainTabsDestination.kt | E4
 composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt | E6
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/home/components/HomeHeroSection.kt | E5
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/AppearanceSettingsPage.kt | E5
-composeApp/src/commonMain/composeResources/values/strings.xml | E5
+composeApp/src/commonMain/composeResources/values/strings.xml | E5, E1
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerEngine.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeState.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeUi.kt | E7
