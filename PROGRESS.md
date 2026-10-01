@@ -4,9 +4,9 @@ The only memory between phases. Read it at the start of every phase; update it a
 
 ## Current state
 - **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
-  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-6312a44a.zip (after the focus-ring fix; fd9c57ad passed the packaged smoke run).
-  Open for the owner: OpenGL white window (reboot check), TorrServer missing in fork builds.
-  **Owner: dev app GPU (DirectX) rendering gives a white window since ~11:40 today (see Log); software renderer fine.**
+  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-f3f2324b.zip (after the passthrough fix; fd9c57ad passed the packaged smoke run).
+  Open for the owner: try one torrent (P2P) stream in Nuvio RR (TorrServer IS bundled; the "missing" note was wrong, see Log).
+  The OpenGL white window had cleared by 17:08 without a reboot (see Log).
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
 - **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
 - **Phase:** 2 (Measure only) **DONE 2026-09-28**. Verifier round 3/3: **PASS** on P2-0..P2-19 (P2-7/13/17 human parts
@@ -531,6 +531,14 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Correction: fork builds DO contain TorrServer. The batch 4 note looked only at the unmapped
+  vendor/TorrServer source submodule; the prebuilt binary is a Git LFS file (resources/torrserver/windows-amd64/
+  TorrServer.exe, 58 MB, SHA-256 13031185... = upstream release check) and is in the zip's composeApp-desktop jar
+  (checked in Nuvio-RR-1.1.26-f3f2324b.zip). P2P not yet played live.
+- 2026-10-01 17:08 White window gone: the dev build started with its own setting (OpenGL, no SKIKO_RENDER_API) draws
+  the home screen normally (scratchpad gl-check.ps1 + screenshot). No reboot since 2026-09-30 23:31, so it was a
+  temporary OpenGL/driver state that cleared by itself, not a fork change. All three profiles (official, Nuvio RR, dev)
+  have had open_gl_enabled=true since 2026-08-25. Dev runs no longer need SKIKO_RENDER_API=DIRECT3D.
 - 2026-10-01 Owner: movies did not play with Passthrough on. Reproduced on a real stream (dev profile, 4K E-AC3,
   default device SteelSeries Sonar virtual): bitstream refused, mpv "Falling back to PCM output" but never reopened
   the AO, time-pos stuck at the resume point (local files recover from the same fallback, so they missed it).

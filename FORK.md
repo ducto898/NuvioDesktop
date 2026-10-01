@@ -222,7 +222,8 @@ Phase 9 limits (in addition to §10):
 - **White window in the dev build (2026-10-01):** since about 11:40 that day the dev profile's renderer setting
   (`open_gl_enabled=true`, Settings → Advanced) gives an all-white window on this PC; Direct3D and the software
   renderer draw normally, logs and app state are fine. Not caused by a fork change (it stays with the suspect
-  change reverted); likely a driver/GPU state. Check after a reboot; dev runs use `SKIKO_RENDER_API=DIRECT3D` until then.
+  change reverted); likely a driver/GPU state. It had cleared by 17:08 the same day without a reboot (OpenGL draws
+  normally again). If it comes back: Settings → Advanced → turn OpenGL off, or start with `SKIKO_RENDER_API=DIRECT3D`.
 - **Passthrough** needs a device that accepts the bitstream in exclusive mode (HDMI to an AV receiver or TV, S/PDIF).
   Before each video the bridge asks Windows which formats the chosen device takes and sends only those (log line
   `audio passthrough probe mask=<n>`: 1 AC3, 2 E-AC3, 4 DTS, 8 DTS-HD, 16 TrueHD); other tracks are decoded, and a
@@ -235,5 +236,7 @@ Phase 9 limits (in addition to §10):
 - **Keyboard:** Backspace does not go back (it would from an empty text field). Inside the player the native
   window keeps its own keys.
 - **Reduce motion:** GIF cards and the crossfade were not checked live (no GIF collection in the dev profile).
-- **P2P/torrent streams do not work in fork builds:** `vendor/TorrServer` is an unmapped submodule, so no TorrServer
-  binary is bundled.
+- **P2P/torrent streams:** fork builds DO bundle TorrServer: the prebuilt `TorrServer.exe` comes from Git LFS
+  (`composeApp/src/desktopMain/resources/torrserver/windows-amd64/`, SHA-256 equal to upstream's release check) and
+  sits inside the app jar of the zip. Only the unmapped `vendor/TorrServer` source submodule is missing, and the build
+  does not need it. (An earlier note here said P2P could not work; that was wrong.) A torrent stream was not played live.
