@@ -17,17 +17,91 @@ import java.nio.file.StandardOpenOption
 internal class DesktopStoreWriter(
     private val write: (Path, ByteArray) -> Unit = ::writeStoreFileAtomically,
 ) : AutoCloseable {
-    fun submit(path: Path, bytes: ByteArray): Unit = TODO("Phase 9 #19 commit B")
+    private val lock = Object()
+    private val pending = LinkedHashMap<Path, ByteArray>()
+    private var writing = false
+    private var closed = false
+    private val thread = Thread(::drainQueue, "nuvio-store-writer").apply {
+        isDaemon = true
+        start()
+    }
 
-    fun flush(): Unit = TODO("Phase 9 #19 commit B")
+    fun submit(path: Path, bytes: ByteArray) {
+        val key = path.toAbsolutePath().normalize()
+        synchronized(lock) {
+            if (!closed) {
+                pending[key] = bytes  // replaces an older queued save of the same file
+                lock.notifyAll()
+                return
+            }
+        }
+        writeLogged(key, bytes)  // after shutdown: write on the caller, nothing is lost
+    }
 
-    fun discardUnder(dir: Path): Unit = TODO("Phase 9 #19 commit B")
+    /** Waits until every queued save is written (at most [timeoutMs]). Never call it from the writer thread. */
+    fun flush(timeoutMs: Long = Long.MAX_VALUE) {
+        val deadline = if (timeoutMs == Long.MAX_VALUE) Long.MAX_VALUE else System.currentTimeMillis() + timeoutMs
+        synchronized(lock) {
+            while (pending.isNotEmpty() || writing) {
+                val left = deadline - System.currentTimeMillis()
+                if (left <= 0) return
+                lock.wait(minOf(left, 1_000L))
+            }
+        }
+    }
 
-    override fun close(): Unit = TODO("Phase 9 #19 commit B")
+    /** Drops queued (not yet started) saves of files under [dir]; a save already being written still finishes. */
+    fun discardUnder(dir: Path) {
+        val root = dir.toAbsolutePath().normalize()
+        synchronized(lock) { pending.keys.removeIf { it.startsWith(root) } }
+    }
+
+    override fun close() = close(Long.MAX_VALUE)
+
+    fun close(timeoutMs: Long) {
+        flush(timeoutMs)
+        synchronized(lock) {
+            closed = true
+            lock.notifyAll()
+        }
+        thread.join(if (timeoutMs == Long.MAX_VALUE) 0 else timeoutMs)
+    }
+
+    private fun drainQueue() {
+        while (true) {
+            val next = synchronized(lock) {
+                while (pending.isEmpty() && !closed) lock.wait()
+                if (pending.isEmpty()) return
+                val first = pending.entries.first()
+                pending.remove(first.key)
+                writing = true
+                first.key to first.value
+            }
+            try {
+                writeLogged(next.first, next.second)
+            } finally {
+                synchronized(lock) {
+                    writing = false
+                    lock.notifyAll()
+                }
+            }
+        }
+    }
+
+    private fun writeLogged(path: Path, bytes: ByteArray) {
+        try {
+            write(path, bytes)
+        } catch (t: Throwable) {
+            // The store keeps the data in memory; its next save tries again.
+            System.err.println("nuvio-store-writer: writing $path failed: $t")
+        }
+    }
 
     companion object {
-        /** The process-wide writer, with its shutdown hook. */
-        fun startDefault(): DesktopStoreWriter = TODO("Phase 9 #19 commit B")
+        /** The process-wide writer; a shutdown hook flushes it (at most 5 s) at exit. */
+        fun startDefault(): DesktopStoreWriter = DesktopStoreWriter().also { writer ->
+            Runtime.getRuntime().addShutdownHook(Thread({ writer.close(5_000L) }, "nuvio-store-writer-exit"))
+        }
     }
 }
 

@@ -23,8 +23,11 @@ internal object DesktopStorage {
         resolveCacheDir().also { Files.createDirectories(it) }
     }
 
+    // nuvio-rr fork, Phase 9 #19: app stores save on a background writer, not on the calling (UI) thread.
+    private val writer by lazy { DesktopStoreWriter.startDefault() }
+
     fun store(name: String): Store = synchronized(stores) {
-        stores.getOrPut(name) { Store(rootDir.resolve("$name.properties")) }
+        stores.getOrPut(name) { Store(rootDir.resolve("$name.properties"), writer) }
     }
 
     fun wipe() {
@@ -32,6 +35,9 @@ internal object DesktopStorage {
             stores.values.forEach(Store::clearInMemory)
             stores.clear()
         }
+        // Phase 9 #19: no queued save may recreate a file after the wipe.
+        writer.discardUnder(rootDir)
+        writer.flush(5_000L)
         if (!rootDir.exists()) return
         Files.walk(rootDir).use { stream ->
             stream
