@@ -6,4 +6,7 @@ import kotlinx.coroutines.Dispatchers
 
 internal val pluginDispatcher: CoroutineDispatcher = Dispatchers.Default
 
-internal fun QuickJs.configurePluginRuntime() = Unit
+// nuvio-rr fork, Phase 9 #7: the same evaluation timeout as Android (a while(true) scraper held its thread forever).
+internal fun QuickJs.configurePluginRuntime() {
+    evaluationTimeoutMillis = PLUGIN_TIMEOUT_MS
+}
