@@ -4,7 +4,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 
 ## Current state
 - **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
-  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-75c6887b.zip (with video quality + HDR choice; packaged run: EDID read, target-peak=1532, 0/0; fd9c57ad passed the packaged smoke run).
+  verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-f70deb6d.zip (HDR pass through default; 75c6887b had the HDR choice, packaged run: EDID read, target-peak=1532, 0/0; fd9c57ad passed the packaged smoke run).
   Open for the owner: try one torrent (P2P) stream in Nuvio RR (TorrServer IS bundled; the "missing" note was wrong, see Log).
   The OpenGL white window had cleared by 17:08 without a reboot (see Log).
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
