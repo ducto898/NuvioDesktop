@@ -23,7 +23,10 @@ internal object NativePlayerBridge {
     private val preloadStarted = AtomicBoolean(false)
 
     init {
+        // nuvio-rr fork, Phase 9 #10: this runs on whichever thread touches the bridge first (startup: main).
+        val started = System.nanoTime()
         loadNativeLibrary()
+        println("[nuvio] native player bridge loaded in ${(System.nanoTime() - started) / 1_000_000} ms on ${Thread.currentThread().name}")
     }
 
     /**

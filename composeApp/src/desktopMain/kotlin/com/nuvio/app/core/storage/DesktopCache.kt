@@ -26,6 +26,18 @@ internal object DesktopCache {
     }
 
     /**
+     * nuvio-rr fork, Phase 9 #10: like [installVersionedFiles], but the version comes from cheap per-file stamps
+     * ([stampOf]: e.g. the jar entry's CRC-32 and size; null = resource absent, skipped), and a version that was
+     * installed completely (marker file) is returned without reading any resource. [read] is only called to install.
+     */
+    fun installVersionedResources(
+        namespace: String,
+        names: List<String>,
+        stampOf: (String) -> String?,
+        read: (String) -> ByteArray?,
+    ): Path = TODO("Phase 9 #10 commit B")
+
+    /**
      * nuvio-rr fork, Phase 9 #6: delete the other version folders of a namespace that were not used for
      * [olderThanMs] (each update left a ~113 MB native runtime behind). A folder used recently may belong to another
      * running copy of the app; a file Windows can't delete (a loaded DLL) is skipped.
