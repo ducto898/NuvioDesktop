@@ -348,12 +348,20 @@ actual object P2pStreamingEngine {
         val baseUrl: String get() = "http://127.0.0.1:$PORT"
 
         suspend fun start() = withContext(Dispatchers.IO) {
-            if (isRunning()) {
+            // nuvio-rr fork, Phase 9 S4: reuse only the TorrServer this app started. Anything else answering on the
+            // port is asked to shut down (an orphan of an earlier session does); if it keeps answering, it is
+            // another program and gets no torrent.
+            if (isProcessAlive(process) && isRunning()) {
                 log.d { "TorrServer already running" }
                 return@withContext
             }
 
             killOrphanedProcess()
+            if (isRunning()) {
+                throw P2pStreamingException(
+                    "Port $PORT is in use by another program, so P2P streaming can't start safely. Close that program and try again.",
+                )
+            }
 
             val binaryFile = resolveBinaryFile()
             if (!binaryFile.canExecute()) {
