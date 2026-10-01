@@ -246,7 +246,7 @@ Phase 9 limits (in addition to §10):
 ## 12. Video quality (2026-10-01)
 Settings → Playback → VIDEO QUALITY (Windows, per PC, from the next video). The scaler defaults send no options, so
 the player keeps its own scalers (spline36 up, mpv's default dscale = hermite, read from the running player). The HDR
-default sends the monitor's EDID peak (below).
+default passes each video's own HDR10 metadata to the monitor (below).
 
 | Setting | Choice | mpv options set at hook H2 (after the bridge's own) |
 |---|---|---|
@@ -255,8 +255,8 @@ default sends the monitor's EDID peak (below).
 | Downscaler | Player default | none |
 | | Catmull-Rom | `dscale=catmull_rom` |
 | | SSimDownscaler | `glsl-shaders=<cache>\shaders\<version>\SSimDownscaler.glsl`, `dscale=mitchell`, `linear-downscaling=no` |
-| HDR | Monitor peak (EDID) (default) | `target-peak=<EDID desired max luminance>` (1532 on the MO27Q28G); none if the EDID has no plausible value |
-| | Pass through to the monitor | `target-colorspace-hint-mode=source` |
+| HDR | Pass through to the monitor (default) | `target-colorspace-hint-mode=source` |
+| | Monitor peak (EDID) | `target-peak=<EDID desired max luminance>` (1532 on the MO27Q28G); none if the EDID has no plausible value |
 | | Windows HDR calibration | none (mpv's default) |
 
 - The shader ships as a resource and is copied into the app cache (DesktopCache); no usable file = player default.
@@ -271,6 +271,10 @@ default sends the monitor's EDID peak (below).
   monitor unchanged; SDR is then handed to Windows as SDR (the Windows SDR brightness slider applies). The HIGH
   quality HDR options (peak percentile, contrast recovery) only matter when mpv tone-maps (video brighter than the
   target peak).
+- Metadata test (`scripts/gen-metadata-clips.py`: identical pixels, HDR10 metadata 10000 vs 400 nits): the owner
+  saw the two clips differ in Nuvio RR with Pass through, so the player's metadata reaches this monitor through
+  Windows (the player presents as "Hardware Composed: Independent Flip") and the monitor tone-maps by it. Hence Pass
+  through became the default (owner, 2026-10-01). A profile that already stored an HDR choice keeps it.
 - Log: `video edid bytes=<n>` (0 = not found) before the option lines.
 - Cost measured on this PC (4K HDR, fullscreen, 240 Hz, display-resample, 60 s): Standard 46.1 W / 14 % GPU,
   High + SSimDownscaler 51.2 W / 19 %, both 0 drops / 0 mistimed. The look was not judged by the owner yet.

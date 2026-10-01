@@ -533,6 +533,12 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 HDR metadata test: scripts/gen-metadata-clips.py (030c2d1f) made 2 clips, identical decoded frames,
+  HDR10 metadata 10000/10000/400 vs 400/400/100 (C:\TestAPP\hdr-meta + launchers). Pass through hands each clip's
+  own metadata to Windows (read live). Owner: the clips look DIFFERENT in Nuvio RR => metadata reaches the monitor
+  and it tone-maps by it. Owner: make Pass through the default; thinks madVR is set up wrong. 1792082b red 1/17,
+  dd000930 green (test diff empty); fresh profile live: hint-mode=source, target 400/400/100. The owner's own
+  Nuvio RR profile stored hdr=WINDOWS_CALIBRATION (19:47), so it keeps that until changed in the settings.
 - 2026-10-01 HDR vs MPC + madVR (owner saw differences): Nuvio RR outputs HDR10 correctly, but mpv's hint-mode=target
   used the Windows calibration profile (1500 HDR Calibrated.icc: 8000 nits, min 0.015; owner re-ran the app 19:32:
   3500 nits) while the EDID (owner: correct; madVR shows it) says 1532 / avg 296. Owner chose a VIDEO QUALITY choice:
