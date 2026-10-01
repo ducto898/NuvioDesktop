@@ -7,7 +7,7 @@ package com.nuvio.app.fork
  * runs only; jpackage sets `jpackage.app-path` in every packaged app.
  */
 internal object DesktopDevPaths {
-    fun allowed(jpackageAppPath: String?): Boolean = TODO("Phase 9 #8 commit B")
+    fun allowed(jpackageAppPath: String?): Boolean = jpackageAppPath.isNullOrBlank()
 
     val allowedHere: Boolean
         get() = allowed(System.getProperty("jpackage.app-path"))

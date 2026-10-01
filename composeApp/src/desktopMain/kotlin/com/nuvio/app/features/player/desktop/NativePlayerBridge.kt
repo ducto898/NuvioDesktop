@@ -166,7 +166,8 @@ internal object NativePlayerBridge {
             System.load(packagedLibrary.absolutePath)
             return
         }
-        findLocalBuildLibrary(platformDir, libraryName)?.let { localLibrary ->
+        // nuvio-rr fork, Phase 9 #8: working-directory dev build outputs only outside a packaged app.
+        findLocalBuildLibrary(platformDir, libraryName)?.takeIf { com.nuvio.app.fork.DesktopDevPaths.allowedHere }?.let { localLibrary ->
             copyLocalRuntimeResources(platformDir, localLibrary.parentFile)
             loadNativeRuntimeDependencies(platform, localLibrary.parentFile)
             System.load(localLibrary.absolutePath)

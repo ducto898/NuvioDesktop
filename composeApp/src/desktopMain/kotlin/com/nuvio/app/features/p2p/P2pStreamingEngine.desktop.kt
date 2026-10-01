@@ -466,8 +466,10 @@ actual object P2pStreamingEngine {
             }
 
             val platform = DesktopTorrServerPlatform.current()
+            // nuvio-rr fork, Phase 9 #8: working-directory dev build outputs only outside a packaged app.
             localBinaryCandidates(platform)
-                .firstOrNull(File::exists)
+                .takeIf { com.nuvio.app.fork.DesktopDevPaths.allowedHere }
+                ?.firstOrNull(File::exists)
                 ?.let { return it }
 
             extractBundledBinary(platform)?.let { return it }

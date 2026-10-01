@@ -12,3 +12,4 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePl
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerController.kt | 4
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt | 4
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerHost.kt | 16
+composeApp/src/desktopMain/kotlin/com/nuvio/app/features/p2p/P2pStreamingEngine.desktop.kt | 8
