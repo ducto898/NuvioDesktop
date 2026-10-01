@@ -527,6 +527,13 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 batch 3 DONE (8, S1-S4, S6; S5 n/a) and batch 4 #10-#12 done; per-item commits + numbers in
+  docs/phase9-plan.md. Next: #13 Coil caches (App.kt AppEnvironment ImageLoader, BadgeImageLoader), then #14, #18,
+  #20, #21, #22, batch 5, batch 6. Method per item: test-first (red commit A, green commit B) where testable, a
+  live measurement where it shows (scratchpad scripts: home-mem.ps1 = dev app home + scroll + screenshot; cpu-run.ps1;
+  drag-repro.ps1; resize-lag.ps1; packaged runs via measure.ps1 -Packaged). verify -Full at the end of each batch.
+  Shell lessons: backslashes in heredocs get mangled (use the Edit tool or chr(92)); close dev apps via
+  MainWindowHandle; never Remove-Item Env: in the main shell (blocked); run tests with APPDATA=testprofile in a child.
 - 2026-10-01 Phase 9 batches 1-2 DONE (docs/phase9-plan.md has per-item commits + numbers). Batch 1: atomic writes
   (60/60 kills intact), downloads (2 real races reproduced red, fixed; writes <=1/10 s), geometry (1 write/drag, IO
   thread), background store writer (save 2.7 -> 0.25 ms on caller; exit flush, wipe discards), runtime pruning.
