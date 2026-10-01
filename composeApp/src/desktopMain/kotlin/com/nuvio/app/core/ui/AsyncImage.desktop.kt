@@ -22,6 +22,9 @@ import coil3.PlatformContext
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
+import coil3.compose.rememberConstraintsSizeResolver
+import coil3.size.Dimension
+import coil3.size.SizeResolver
 import coil3.request.ImageRequest
 import coil3.request.NullRequestDataException
 import org.jetbrains.skia.Bitmap
@@ -29,7 +32,9 @@ import org.jetbrains.skia.FilterMipmap
 import org.jetbrains.skia.FilterMode
 import org.jetbrains.skia.Image as SkiaImage
 import org.jetbrains.skia.MipmapMode
+import java.util.WeakHashMap
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 private const val MinCustomDownscaleRatio = 1.08f
@@ -64,11 +69,14 @@ internal actual fun NuvioAsyncImage(
     val effectiveDesktopImageScaling = remember(desktopImageScaling) {
         if (IsWindowsDesktop) desktopImageScaling else NuvioDesktopImageScaling.Disabled
     }
-    val requestModel = remember(context, model, effectiveDesktopImageScaling) {
+    // nuvio-rr fork, Phase 9 #11: decode at twice the laid-out size (still capped at MaxDesktopSourceSizePx) instead of
+    // always 1536 px: a 1024x1536 poster bitmap (~6 MB) per card shown at ~180 px.
+    val layoutSizeResolver = rememberConstraintsSizeResolver()
+    val requestModel = remember(context, model, effectiveDesktopImageScaling, layoutSizeResolver) {
         if (effectiveDesktopImageScaling == NuvioDesktopImageScaling.Disabled) {
             model
         } else {
-            model.withDesktopHighQualitySize(context)
+            model.withDesktopHighQualitySize(context, HeadroomSizeResolver(layoutSizeResolver))
         }
     }
     val transform: (AsyncImagePainter.State) -> AsyncImagePainter.State = remember(
@@ -117,7 +125,7 @@ internal actual fun NuvioAsyncImage(
     AsyncImage(
         model = requestModel,
         contentDescription = contentDescription,
-        modifier = modifier,
+        modifier = if (effectiveDesktopImageScaling == NuvioDesktopImageScaling.Disabled) modifier else modifier.then(layoutSizeResolver),
         transform = transform,
         onState = onState,
         alignment = alignment,
@@ -129,18 +137,48 @@ internal actual fun NuvioAsyncImage(
     )
 }
 
-private fun Any?.withDesktopHighQualitySize(context: PlatformContext): Any? {
+private fun Any?.withDesktopHighQualitySize(context: PlatformContext, sizeResolver: SizeResolver): Any? {
     if (this == null) return null
 
     return if (this is ImageRequest) {
         newBuilder()
-            .size(MaxDesktopSourceSizePx)
+            .size(sizeResolver)
             .build()
     } else {
         ImageRequest.Builder(context)
             .data(this)
-            .size(MaxDesktopSourceSizePx)
+            .size(sizeResolver)
             .build()
+    }
+}
+
+/** Phase 9 #11: twice the layout size for the mipmap downscale below, never more than the old fixed size. */
+private class HeadroomSizeResolver(private val layout: SizeResolver) : SizeResolver {
+    override suspend fun size(): coil3.size.Size {
+        val laidOut = layout.size()
+        return coil3.size.Size(laidOut.width.withHeadroom(), laidOut.height.withHeadroom())
+    }
+
+    private fun Dimension.withHeadroom(): Dimension = when (this) {
+        is Dimension.Pixels -> Dimension(min(px * 2, MaxDesktopSourceSizePx).coerceAtLeast(1))
+        else -> Dimension(MaxDesktopSourceSizePx)
+    }
+}
+
+/**
+ * Phase 9 #11: the downscaled copy per decoded bitmap, shared by painters. A poster scrolling back into view (new
+ * painter, same bitmap from Coil's memory cache) no longer redoes the mipmap scale inside onDraw. Weak keys: an
+ * entry goes when Coil drops its bitmap; one size per bitmap.
+ */
+private object ScaledBitmapCache {
+    private val entries = WeakHashMap<Bitmap, Pair<IntSize, ImageBitmap>>()
+
+    @Synchronized
+    fun get(source: Bitmap, size: IntSize): ImageBitmap? = entries[source]?.takeIf { it.first == size }?.second
+
+    @Synchronized
+    fun put(source: Bitmap, size: IntSize, scaled: ImageBitmap) {
+        entries[source] = size to scaled
     }
 }
 
@@ -149,12 +187,12 @@ private fun Image.toScaledBitmapPainter(desktopImageScaling: NuvioDesktopImageSc
 
     return (this as? BitmapImage)
         ?.bitmap
-        ?.asComposeImageBitmap()
-        ?.let { imageBitmap -> ScaledBitmapPainter(imageBitmap) }
+        ?.let { skiaBitmap -> ScaledBitmapPainter(skiaBitmap.asComposeImageBitmap(), skiaBitmap) }
 }
 
 private class ScaledBitmapPainter(
     private val image: ImageBitmap,
+    private val source: Bitmap,
 ) : Painter() {
     private var cachedSize: IntSize? = null
     private var cachedBitmap: ImageBitmap? = null
@@ -208,10 +246,11 @@ private class ScaledBitmapPainter(
         cachedBitmap?.let { bitmap ->
             if (cachedSize == size) return bitmap
         }
-        return image.scale(size.width, size.height).also { bitmap ->
-            cachedSize = size
-            cachedBitmap = bitmap
-        }
+        val bitmap = ScaledBitmapCache.get(source, size)
+            ?: image.scale(size.width, size.height).also { scaled -> ScaledBitmapCache.put(source, size, scaled) }
+        cachedSize = size
+        cachedBitmap = bitmap
+        return bitmap
     }
 
     private fun DrawScope.drawSource(drawSize: IntSize) {
