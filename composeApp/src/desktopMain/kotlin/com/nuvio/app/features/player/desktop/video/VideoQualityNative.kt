@@ -76,6 +76,15 @@ internal fun hexBytes(hex: String): ByteArray {
     return bytes
 }
 
+internal const val SUBTITLE_FONT_STORE = "nuvio_subtitle_font"
+
+/** The subtitle font in its per-PC store ("" / missing = the player's default). */
+internal class SubtitleFontPreference(private val store: DesktopStorage.Store) {
+    fun load(): String = TODO("nuvio-rr fork: subtitle font")
+
+    fun save(font: String): Unit = TODO("nuvio-rr fork: subtitle font")
+}
+
 /** The bundled shader's bytes; null when the resource is missing. */
 internal fun ssimShaderBytes(): ByteArray? =
     VideoQualityPreference::class.java.getResourceAsStream(SSIM_SHADER_RESOURCE)?.use { it.readBytes() }
