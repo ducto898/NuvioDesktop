@@ -26,6 +26,7 @@
 #include <audioclient.h>
 #include <mmreg.h>
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "advapi32.lib")  // video quality: the monitor's EDID from the registry
 // Phase 8: the fork's folder name (ForkIdentity via JNI); defined at file scope near the end of this file.
 std::wstring nuvioRrAppDirName();
 namespace {
@@ -1407,11 +1408,11 @@ void dropDriverRead(int64_t playerId) {
 }
 
 void applyAudioOptions(mpv_handle *mpv);  // Phase 9 E1, defined near the end of nuvio_rr
-void applyVideoOptions(mpv_handle *mpv);  // video quality, defined near the end of nuvio_rr
+void applyVideoOptions(mpv_handle *mpv, HWND container);  // video quality, defined near the end of nuvio_rr
 inline void onMpvInitialized(const void *owner, mpv_handle *mpv, HWND container) {
     if (!mpv) return;
     applyAudioOptions(mpv);  // Phase 9 E1: for every player, whether refresh-rate matching is on or not
-    applyVideoOptions(mpv);  // video quality: scalers over the bridge's own (same rule)
+    applyVideoOptions(mpv, container);  // video quality: scalers and HDR peak over the bridge's own (same rule)
     std::string why;
     double asked = nowSeconds();
     int code = -1;
@@ -1619,7 +1620,7 @@ void throwJava(JNIEnv *env, const char *what) {
 // At H2 (after mpv_initialize, before loadfile) Kotlin's AudioOutputNative.nativeMpvOptions() gives "name=value" lines
 // (audio-channels, audio-spdif, audio-exclusive, audio-device); each is set as a property. Any failure leaves mpv's
 // defaults, so playback never depends on it. The video quality options (VideoQualityNative) use the same path.
-std::string upcallOptionLines(const char *className) {
+std::string upcallOptionLines(const char *className, const std::string *argument = nullptr) {
     JavaVM *vm = javaVm();
     if (!vm) return {};
     JNIEnv *env = nullptr;
@@ -1632,10 +1633,17 @@ std::string upcallOptionLines(const char *className) {
     if (env) {
         jclass type = env->FindClass(className);
         if (env->ExceptionCheck()) { env->ExceptionClear(); type = nullptr; }
-        jmethodID method = type ? env->GetStaticMethodID(type, "nativeMpvOptions", "()Ljava/lang/String;") : nullptr;
+        const char *signature = argument ? "(Ljava/lang/String;)Ljava/lang/String;" : "()Ljava/lang/String;";
+        jmethodID method = type ? env->GetStaticMethodID(type, "nativeMpvOptions", signature) : nullptr;
         if (env->ExceptionCheck()) { env->ExceptionClear(); method = nullptr; }
-        auto value = method ? static_cast<jstring>(env->CallStaticObjectMethod(type, method)) : nullptr;
+        jstring arg = (method && argument) ? env->NewStringUTF(argument->c_str()) : nullptr;
+        jstring value = nullptr;
+        if (method) {
+            value = argument ? static_cast<jstring>(env->CallStaticObjectMethod(type, method, arg))
+                             : static_cast<jstring>(env->CallStaticObjectMethod(type, method));
+        }
         if (env->ExceptionCheck()) { env->ExceptionClear(); value = nullptr; }
+        if (arg) env->DeleteLocalRef(arg);
         if (value) {
             const char *chars = env->GetStringUTFChars(value, nullptr);
             if (chars) {
@@ -1650,8 +1658,8 @@ std::string upcallOptionLines(const char *className) {
     return result;
 }
 
-void applyOptionLines(mpv_handle *mpv, const char *className, const char *what) {
-    std::string lines = upcallOptionLines(className);
+void applyOptionLines(mpv_handle *mpv, const char *className, const char *what, const std::string *argument = nullptr) {
+    std::string lines = upcallOptionLines(className, argument);
     size_t start = 0;
     while (start < lines.size()) {
         size_t end = lines.find('\n', start);
@@ -1670,9 +1678,63 @@ void applyAudioOptions(mpv_handle *mpv) {
     applyOptionLines(mpv, "com/nuvio/app/features/player/desktop/audio/AudioOutputNative", "audio");
 }
 
-// Video quality (scale / cscale / dscale, SSimDownscaler shader): set after the bridge's own scalers, so they win.
-void applyVideoOptions(mpv_handle *mpv) {
-    applyOptionLines(mpv, "com/nuvio/app/features/player/desktop/video/VideoQualityNative", "video");
+// The EDID (hex) of the monitor nearest to `hwnd`: GDI name -> active display path -> target's monitorDevicePath
+// (\\?\DISPLAY#<id>#<instance>#{guid}) -> HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY\<id>\<instance>\Device Parameters\EDID.
+// Empty when any step fails; the caller then keeps mpv's default (the Windows calibration's peak).
+std::string monitorEdidHex(HWND hwnd) {
+    std::wstring device = monitorName(hwnd);
+    if (device.empty()) return {};
+    UINT32 pathCount = 0, modeCount = 0;
+    if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != ERROR_SUCCESS) return {};
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+    if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &pathCount, paths.data(), &modeCount, modes.data(), nullptr) != ERROR_SUCCESS) return {};
+    std::wstring devicePath;
+    for (UINT32 i = 0; i < pathCount && devicePath.empty(); ++i) {
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME source = {};
+        source.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        source.header.size = sizeof(source);
+        source.header.adapterId = paths[i].sourceInfo.adapterId;
+        source.header.id = paths[i].sourceInfo.id;
+        if (DisplayConfigGetDeviceInfo(&source.header) != ERROR_SUCCESS) continue;
+        if (_wcsicmp(source.viewGdiDeviceName, device.c_str()) != 0) continue;
+        DISPLAYCONFIG_TARGET_DEVICE_NAME target = {};
+        target.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+        target.header.size = sizeof(target);
+        target.header.adapterId = paths[i].targetInfo.adapterId;
+        target.header.id = paths[i].targetInfo.id;
+        if (DisplayConfigGetDeviceInfo(&target.header) == ERROR_SUCCESS) devicePath = target.monitorDevicePath;
+    }
+    std::vector<std::wstring> parts;
+    size_t slash = devicePath.rfind(L'\\');
+    size_t begin = slash == std::wstring::npos ? 0 : slash + 1;
+    for (size_t at = begin; at <= devicePath.size();) {
+        size_t hash = devicePath.find(L'#', at);
+        if (hash == std::wstring::npos) hash = devicePath.size();
+        parts.push_back(devicePath.substr(at, hash - at));
+        at = hash + 1;
+    }
+    if (parts.size() < 3 || _wcsicmp(parts[0].c_str(), L"DISPLAY") != 0) return {};
+    std::wstring key = L"SYSTEM\\CurrentControlSet\\Enum\\DISPLAY\\" + parts[1] + L"\\" + parts[2] + L"\\Device Parameters";
+    BYTE edid[1024];
+    DWORD size = sizeof(edid);
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, key.c_str(), L"EDID", RRF_RT_REG_BINARY, nullptr, edid, &size) != ERROR_SUCCESS) return {};
+    static const char digits[] = "0123456789abcdef";
+    std::string hex;
+    hex.reserve(size * 2);
+    for (DWORD i = 0; i < size; ++i) {
+        hex.push_back(digits[edid[i] >> 4]);
+        hex.push_back(digits[edid[i] & 15]);
+    }
+    return hex;
+}
+
+// Video quality (scale / cscale / dscale, SSimDownscaler shader, HDR peak): set after the bridge's own options, so
+// they win. Kotlin gets the EDID of the player's monitor for the HDR peak.
+void applyVideoOptions(mpv_handle *mpv, HWND container) {
+    std::string edid = monitorEdidHex(container);
+    nlog(strf("video edid bytes=%d", (int)(edid.size() / 2)));
+    applyOptionLines(mpv, "com/nuvio/app/features/player/desktop/video/VideoQualityNative", "video", &edid);
 }
 
 // Phase 9 E1 fix: which IEC 61937 bitstreams the output device takes in exclusive mode, as mpv would open them

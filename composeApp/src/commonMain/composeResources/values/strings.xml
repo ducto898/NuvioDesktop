@@ -2088,6 +2088,10 @@
     <string name="settings_playback_video_downscaler_default">Player default</string>
     <string name="settings_playback_video_downscaler_catmull_rom">Catmull-Rom (sharp)</string>
     <string name="settings_playback_video_downscaler_ssim">SSimDownscaler (sharp, keeps fine detail)</string>
+    <string name="settings_playback_video_hdr">HDR (Windows HDR on)</string>
+    <string name="settings_playback_video_hdr_monitor_peak">Monitor peak from its EDID (player tone-maps above it)</string>
+    <string name="settings_playback_video_hdr_passthrough">Pass through to the monitor (monitor tone-maps; SDR follows the Windows SDR brightness)</string>
+    <string name="settings_playback_video_hdr_windows">Windows HDR calibration profile</string>
     <string name="settings_appearance_motion_section">MOTION</string>
     <string name="settings_appearance_reduce_motion">Reduce motion</string>
     <string name="settings_appearance_reduce_motion_desc">Keep the home banner still, don't play animated card images, and show images without fading in.</string>

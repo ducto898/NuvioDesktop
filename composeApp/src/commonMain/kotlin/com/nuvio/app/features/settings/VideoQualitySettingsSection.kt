@@ -22,6 +22,10 @@ import nuvio.composeapp.generated.resources.settings_playback_video_downscaler
 import nuvio.composeapp.generated.resources.settings_playback_video_downscaler_catmull_rom
 import nuvio.composeapp.generated.resources.settings_playback_video_downscaler_default
 import nuvio.composeapp.generated.resources.settings_playback_video_downscaler_ssim
+import nuvio.composeapp.generated.resources.settings_playback_video_hdr
+import nuvio.composeapp.generated.resources.settings_playback_video_hdr_monitor_peak
+import nuvio.composeapp.generated.resources.settings_playback_video_hdr_passthrough
+import nuvio.composeapp.generated.resources.settings_playback_video_hdr_windows
 import nuvio.composeapp.generated.resources.settings_playback_video_quality
 import nuvio.composeapp.generated.resources.settings_playback_video_quality_high
 import nuvio.composeapp.generated.resources.settings_playback_video_quality_standard
@@ -35,6 +39,7 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
     val settings by VideoQualitySetting.settings.collectAsState()
     var showQuality by remember { mutableStateOf(false) }
     var showDownscaler by remember { mutableStateOf(false) }
+    var showHdr by remember { mutableStateOf(false) }
     val nextPlayback = stringResource(Res.string.settings_playback_audio_next_playback)
 
     SettingsSection(title = stringResource(Res.string.settings_playback_video_section), isTablet = isTablet) {
@@ -51,6 +56,13 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
                 description = downscalerLabel(settings.downscaler) + " · " + nextPlayback,
                 isTablet = isTablet,
                 onClick = { showDownscaler = true },
+            )
+            SettingsGroupDivider(isTablet = isTablet)
+            SettingsNavigationRow(
+                title = stringResource(Res.string.settings_playback_video_hdr),
+                description = hdrLabel(settings.hdr) + " · " + nextPlayback,
+                isTablet = isTablet,
+                onClick = { showHdr = true },
             )
         }
     }
@@ -79,7 +91,28 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
             onDismiss = { showDownscaler = false },
         )
     }
+    if (showHdr) {
+        VideoChoiceDialog(
+            title = stringResource(Res.string.settings_playback_video_hdr),
+            options = HdrOutput.entries.map { it to hdrLabel(it) },
+            selected = settings.hdr,
+            onSelect = { hdr ->
+                VideoQualitySetting.update { it.copy(hdr = hdr) }
+                showHdr = false
+            },
+            onDismiss = { showHdr = false },
+        )
+    }
 }
+
+@Composable
+private fun hdrLabel(hdr: HdrOutput): String = stringResource(
+    when (hdr) {
+        HdrOutput.MONITOR_PEAK -> Res.string.settings_playback_video_hdr_monitor_peak
+        HdrOutput.PASSTHROUGH -> Res.string.settings_playback_video_hdr_passthrough
+        HdrOutput.WINDOWS_CALIBRATION -> Res.string.settings_playback_video_hdr_windows
+    },
+)
 
 @Composable
 private fun qualityLabel(quality: VideoQuality): String = stringResource(

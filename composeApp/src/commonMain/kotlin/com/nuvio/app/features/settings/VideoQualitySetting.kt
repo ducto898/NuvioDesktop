@@ -102,5 +102,15 @@ fun videoMpvOptions(
     return quality + downscaler + hdrOptions(settings.hdr, monitorPeakNits)
 }
 
-@Suppress("UNUSED_PARAMETER")
-private fun hdrOptions(hdr: HdrOutput, monitorPeakNits: Int?): List<Pair<String, String>> = emptyList() // TODO
+/** A real HDR peak: above SDR reference white (203 nits) and within PQ's 10 000 nits. */
+private val plausibleHdrPeak = 204..10_000
+
+// Only HDR rendering changes: an SDR video keeps its 203-nit white either way (measured), except that PASSTHROUGH
+// also hands SDR to Windows as SDR, so the Windows "SDR content brightness" slider then sets its brightness.
+private fun hdrOptions(hdr: HdrOutput, monitorPeakNits: Int?): List<Pair<String, String>> = when (hdr) {
+    HdrOutput.MONITOR_PEAK -> monitorPeakNits?.takeIf { it in plausibleHdrPeak }
+        ?.let { listOf("target-peak" to it.toString()) }
+        ?: emptyList()
+    HdrOutput.PASSTHROUGH -> listOf("target-colorspace-hint-mode" to "source")
+    HdrOutput.WINDOWS_CALIBRATION -> emptyList()
+}
