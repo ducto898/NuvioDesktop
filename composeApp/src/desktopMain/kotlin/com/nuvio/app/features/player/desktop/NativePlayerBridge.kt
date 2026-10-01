@@ -70,6 +70,8 @@ internal object NativePlayerBridge {
     external fun isEnded(handle: Long): Boolean
     // nuvio-rr fork, Phase 9 #4: mpv's error text for a failed load (once), or null.
     external fun takePlaybackError(handle: Long): String?
+    // nuvio-rr fork, Phase 9 #16: lay the video/overlay out now (host resized). Returns at once.
+    external fun requestLayout(handle: Long)
     external fun isPaused(handle: Long): Boolean
     external fun speed(handle: Long): Float
     external fun audioTracksJson(handle: Long): String

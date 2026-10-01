@@ -82,6 +82,15 @@ internal class NativePlayerController(
     @Volatile
     private var handle: Long = 0L
 
+    init {
+        // nuvio-rr fork, Phase 9 #16: lay the native video/overlay out at once when the host resizes (F11, window
+        // resize), instead of on the bridge's next 500 ms timer tick.
+        host.onResized = {
+            val current = handle
+            if (current != 0L) runCatching { NativePlayerBridge.requestLayout(current) }
+        }
+    }
+
     /** Native teardown of the previous player, if one is still running. */
     @Volatile
     private var disposeInFlight: Thread? = null

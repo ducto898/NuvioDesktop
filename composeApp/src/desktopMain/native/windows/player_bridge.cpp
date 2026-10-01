@@ -1159,6 +1159,12 @@ public:
         return flagProperty("eof-reached", false);
     }
 
+    void requestLayout() {
+        postUiTask([self = shared_from_this()]() {
+            if (!self->shuttingDown.load()) self->layoutNativeSubviews();
+        });
+    }
+
     std::string takePlaybackError() {
         std::lock_guard<std::mutex> lock(playbackErrorMutex);
         std::string taken;
@@ -2560,6 +2566,14 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_isEnded(JNIEnv *, jobject, jlong handle) {
     auto player = playerFromHandle(handle);
     return player && player->isEnded() ? JNI_TRUE : JNI_FALSE;
+}
+
+// nuvio-rr fork, Phase 9 #16: the host resized; lay the container and the controls WebView out on the native UI
+// thread now (the 500 ms timer stays as a fallback).
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_requestLayout(JNIEnv *, jobject, jlong handle) {
+    auto player = playerFromHandle(handle);
+    if (player) player->requestLayout();
 }
 
 // nuvio-rr fork, Phase 9 #4: mpv's error text for a failed load since the last call, or null.

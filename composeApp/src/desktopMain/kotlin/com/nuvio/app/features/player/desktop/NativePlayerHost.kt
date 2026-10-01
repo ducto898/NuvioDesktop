@@ -18,6 +18,7 @@ internal class NativePlayerHost : Canvas() {
     var onFirstPaint: (() -> Unit)? = null
     var onFirstFullSizePaint: (() -> Unit)? = null
     var onCursorActivity: (() -> Unit)? = null
+    var onResized: (() -> Unit)? = null  // nuvio-rr fork, Phase 9 #16 (Windows)
     private var firstPaintNotified = false
     private var firstFullSizePaintNotified = false
     private var controlsVisible = true
@@ -47,6 +48,13 @@ internal class NativePlayerHost : Canvas() {
         // first-full-size-paint signal (which unlocks the native attach) can never fire and
         // playback silently never starts. componentResized fires reliably on layout, so use it
         // to drive the same signal. Linux-only to keep macOS/Windows behaviour byte-identical.
+        if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+            addComponentListener(object : ComponentAdapter() {
+                override fun componentResized(event: ComponentEvent) {
+                    onResized?.invoke()
+                }
+            })
+        }
         if (DesktopHostOs.current == DesktopHostOs.LINUX) {
             addComponentListener(object : ComponentAdapter() {
                 override fun componentResized(event: ComponentEvent) {
