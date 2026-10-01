@@ -22,3 +22,4 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/features/streams/StreamsRepositor
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/AsyncImage.desktop.kt | 11
 composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/Theme.kt | 12
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/PlatformImageLoader.desktop.kt | 13
+composeApp/src/desktopMain/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImage.desktop.kt | 14

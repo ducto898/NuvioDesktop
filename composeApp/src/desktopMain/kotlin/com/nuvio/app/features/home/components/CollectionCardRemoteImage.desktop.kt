@@ -38,6 +38,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.Codec
@@ -124,16 +125,28 @@ private class GifCodecHolder(
     val targetWidth: Int,
     val targetHeight: Int,
     val needsScale: Boolean,
-)
+) {
+    // nuvio-rr fork, Phase 9 #14: cards animating this codec. The LRU used to close an evicted codec while a card was
+    // still reading frames from it; now the last user closes it. Both counters are guarded by gifCodecCache's lock.
+    var users = 0
+    var evicted = false
+
+    fun closeQuietly() {
+        try {
+            codec.close()
+        } catch (_: Exception) {}
+    }
+}
 
 // LRU Cache holding raw GIF Codecs (max 15 items in memory, tiny compressed bytes ~10-20MB total)
 private val gifCodecCache = object : LinkedHashMap<String, GifCodecHolder?>(16, 0.75f, true) {
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, GifCodecHolder?>?): Boolean {
         val shouldRemove = size > 15
         if (shouldRemove) {
-            try {
-                eldest?.value?.codec?.close()
-            } catch (_: Exception) {}
+            eldest?.value?.let { holder ->
+                holder.evicted = true
+                if (holder.users == 0) holder.closeQuietly()  // else the last card using it closes it
+            }
         }
         return shouldRemove
     }
@@ -279,8 +292,33 @@ internal actual fun CollectionCardRemoteImage(
                 } else null
             }
 
-            DisposableEffect(singleBitmap, fullBitmap) {
+            // Phase 9 #14: frames are decoded off the UI thread into a second buffer, then swapped in.
+            val backBitmap = remember(imageUrl, currentHolder) {
+                try {
+                    Bitmap().apply {
+                        allocPixels(ImageInfo.makeN32Premul(currentHolder.targetWidth, currentHolder.targetHeight))
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }
+
+            DisposableEffect(currentHolder) {
+                synchronized(gifCodecCache) { currentHolder.users++ }
                 onDispose {
+                    val close = synchronized(gifCodecCache) {
+                        currentHolder.users--
+                        currentHolder.users == 0 && currentHolder.evicted
+                    }
+                    if (close) currentHolder.closeQuietly()
+                }
+            }
+
+            DisposableEffect(singleBitmap, fullBitmap, backBitmap) {
+                onDispose {
+                    try {
+                        backBitmap?.close()
+                    } catch (_: Exception) {}
                     try {
                         singleBitmap?.close()
                     } catch (_: Exception) {}
@@ -290,15 +328,22 @@ internal actual fun CollectionCardRemoteImage(
                 }
             }
 
-            if (singleBitmap != null) {
-                LaunchedEffect(imageUrl, currentHolder, singleBitmap, fullBitmap) {
+            if (singleBitmap != null && backBitmap != null) {
+                LaunchedEffect(imageUrl, currentHolder, singleBitmap, fullBitmap, backBitmap) {
+                    var target: Bitmap = singleBitmap
+                    var spare: Bitmap = backBitmap
                     while (true) {
                         try {
+                            val frame = frameIndex
+                            val decodeInto = target
+                            withContext(Dispatchers.Default) {
+                            // one codec can be shared by two cards: read its frames one at a time
+                            synchronized(currentHolder.codec) {
                             if (currentHolder.needsScale && fullBitmap != null) {
-                                currentHolder.codec.readPixels(fullBitmap, frameIndex)
+                                currentHolder.codec.readPixels(fullBitmap, frame)
                                 val skiaImg = Image.makeFromBitmap(fullBitmap)
                                 try {
-                                    Canvas(singleBitmap).drawImageRect(
+                                    Canvas(decodeInto).drawImageRect(
                                         skiaImg,
                                         Rect.makeWH(currentHolder.width.toFloat(), currentHolder.height.toFloat()),
                                         Rect.makeWH(currentHolder.targetWidth.toFloat(), currentHolder.targetHeight.toFloat()),
@@ -310,9 +355,13 @@ internal actual fun CollectionCardRemoteImage(
                                     skiaImg.close()
                                 }
                             } else {
-                                currentHolder.codec.readPixels(singleBitmap, frameIndex)
+                                currentHolder.codec.readPixels(decodeInto, frame)
                             }
-                            composeBitmap = singleBitmap.asComposeImageBitmap()
+                            }
+                            }
+                            composeBitmap = decodeInto.asComposeImageBitmap()
+                            target = spare
+                            spare = decodeInto
                         } catch (_: Exception) {}
 
                         val delayMs = currentHolder.frameDelaysMs.getOrElse(frameIndex) { 100L }
