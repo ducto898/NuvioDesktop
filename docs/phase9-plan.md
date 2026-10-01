@@ -68,7 +68,7 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 | # | Item | Status |
 |---|---|---|
 | E1 | Audio options: channel layout, passthrough (WASAPI exclusive), device | todo |
-| E4 | Esc / Alt+Left / Backspace go back | todo |
+| E4 | Esc / Alt+Left / Backspace go back | done 4247f329, 2d6f716c (Esc + Alt+Left via the window back dispatcher; mouse Back was already upstream; no Backspace: empty text fields) |
 | E5 | Reduce motion setting | todo |
 | E6 | Shelf arrows for mouse users | todo |
 | E7 | Live scrub preview | todo |

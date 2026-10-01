@@ -3,7 +3,8 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
-- **2026-10-01 HANDOFF: Phase 9 batches 1-5 done; batch 6 E4 B uncommitted and suspect (white window). See the Log entry.**
+- **2026-10-01: Phase 9 batches 1-5 done; batch 6: E4 done. Next: E1, E5, E6, E7, E9, then FORK.md docs, verify -Full, zip.**
+  **Owner: dev app GPU (DirectX) rendering gives a white window since ~11:40 today (see Log); software renderer fine.**
 - **2026-10-01: Phase 9 started** (owner: all audit fixes in the fork only, no upstream PRs; skip R7/E10). Plan and per-item status: docs/phase9-plan.md. Upstream files changed by fixes are listed in scripts/fork-fixes.txt.
 - **2026-10-01: Phase 8 DONE, project done** (owner checklist accepted; see Log). Open: Q47, Q48, 250 Hz current-mode idea.
 - **Phase:** 2 (Measure only) **DONE 2026-09-28**. Verifier round 3/3: **PASS** on P2-0..P2-19 (P2-7/13/17 human parts
@@ -528,6 +529,14 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 E4 DONE (4247f329 red, 2d6f716c green). White window was NOT E4: it started between the 11:38 and 11:46
+  runs, stays with #20 reverted, EDT idle, logs identical to a good run; SKIKO_RENDER_API=SOFTWARE renders fine, so the
+  DirectX path on this machine broke (driver/GPU state?); owner to check (reboot, packaged app). Live checks now run with
+  the software renderer. E4 B redesigned: Compose 1.12 already maps Esc to the window NavigationEventDispatcher (NavDisplay
+  listens there); the old separate handler list missed Alt+Left on details and made Esc on home ask to exit. Now desktop
+  PlatformBackHandler = NavigationBackHandler, Alt+Left = DirectNavigationEventInput on that dispatcher, home exit handler
+  off on desktop, mouse Back left to upstream (MainAppContent pops the stack), no Backspace. Real-input script:
+  scratchpad e4-real.ps1 (arrow keys need KEYEVENTF_EXTENDEDKEY, or Compose sees no Left; posted WM_ clicks do nothing).
 - 2026-10-01 HANDOFF (session ended on context). Batch 6 started: E4 A committed (DesktopBackDispatcherTest red).
   E4 B is UNCOMMITTED in the working tree: PlatformBackHandler.desktop.kt (dispatcher + composable) and Main.kt
   (SwingWindow onPreviewKeyEvent for Esc/Alt+Left + AWT listener for mouse button 4). It compiles and its test
