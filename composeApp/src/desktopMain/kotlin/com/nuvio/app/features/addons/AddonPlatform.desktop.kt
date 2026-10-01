@@ -52,6 +52,11 @@ private val desktopHttpClient = OkHttpClient.Builder()
     .followSslRedirects(true)
     .build()
 
+// nuvio-rr fork, Phase 9 S2: scraper plugin requests may not connect to this PC or the LAN.
+private val pluginHttpClient = desktopHttpClient.newBuilder()
+    .addNetworkInterceptor(PluginNetworkGuard.interceptor)
+    .build()
+
 private const val truncationSuffix = "\n...[truncated]"
 
 actual suspend fun httpGetText(url: String): String =
@@ -106,10 +111,11 @@ actual suspend fun httpRequestRaw(
     maxResponseBodyBytes: Int,
     bodyBytes: ByteArray?,
 ): RawHttpResponse = withContext(Dispatchers.IO) {
+    val base = if (coroutineContext[PluginNetworkRestrictionKey] != null) pluginHttpClient else desktopHttpClient
     val client = if (followRedirects) {
-        desktopHttpClient
+        base
     } else {
-        desktopHttpClient.newBuilder()
+        base.newBuilder()
             .followRedirects(false)
             .followSslRedirects(false)
             .build()

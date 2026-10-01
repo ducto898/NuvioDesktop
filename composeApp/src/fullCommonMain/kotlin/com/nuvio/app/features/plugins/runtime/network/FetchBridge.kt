@@ -3,9 +3,11 @@ package com.nuvio.app.features.plugins.runtime.network
 import co.touchlab.kermit.Logger
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.asyncFunction
+import com.nuvio.app.features.addons.PluginNetworkRestriction
 import com.nuvio.app.features.addons.httpRequestRaw
 import com.nuvio.app.features.plugins.runtime.host.HostModule
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -63,14 +65,17 @@ internal class FetchBridge : HostModule {
             headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
 
-        val response = httpRequestRaw(
-            method = method,
-            url = url,
-            headers = headers,
-            body = if (bodyKind == "text") body else "",
-            followRedirects = followRedirects,
-            bodyBytes = decodeBinaryBody(bodyKind, body),
-        )
+        // nuvio-rr fork, Phase 9 S2: marked as a plugin request (desktop refuses local/private addresses).
+        val response = withContext(PluginNetworkRestriction) {
+            httpRequestRaw(
+                method = method,
+                url = url,
+                headers = headers,
+                body = if (bodyKind == "text") body else "",
+                followRedirects = followRedirects,
+                bodyBytes = decodeBinaryBody(bodyKind, body),
+            )
+        }
 
         val responseHeaders = response.headers.mapKeys { (key, _) -> key.lowercase() }
             .mapValues { (_, value) -> truncateString(value, MAX_FETCH_HEADER_VALUE_CHARS) }

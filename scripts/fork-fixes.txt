@@ -14,3 +14,5 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.des
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerHost.kt | 16
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/p2p/P2pStreamingEngine.desktop.kt | 8
 composeApp/build.gradle.kts | S1
+composeApp/src/desktopMain/kotlin/com/nuvio/app/features/addons/AddonPlatform.desktop.kt | S2
+composeApp/src/fullCommonMain/kotlin/com/nuvio/app/features/plugins/runtime/network/FetchBridge.kt | S2
