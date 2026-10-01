@@ -13,11 +13,11 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 ## Batch 1 — data safety
 | # | Item | Status |
 |---|---|---|
-| 1 | Atomic preference writes (temp + ATOMIC_MOVE, `.bak` fallback) | todo |
-| 2 | Downloads: throttle progress; repository persists on status change only; atomic state update (Pause race) | todo |
-| 3 | Window geometry saved once the window settles, off the UI thread | todo |
-| 19 | Watch progress / store writes off the UI thread (one background writer, debounced) | todo |
-| 6 | Delete old native runtime copies after install | todo |
+| 1 | Atomic preference writes (temp + ATOMIC_MOVE; `.bak` dropped: a truncated file loads without error, so it would never trigger) | done 01758271 (60/60 kills intact) |
+| 2 | Downloads: throttle progress; repository persists on status change only; atomic state update (Pause race) | done 5a0d4d3c (races fixed; ≤1 write/10 s) |
+| 3 | Window geometry saved once the window settles, off the UI thread | done 670acd94 (1 write per drag) |
+| 19 | Watch progress / store writes off the UI thread (one background writer, debounced) | done 5632a0a3 (save 2.7 → 0.25 ms on caller) |
+| 6 | Delete old native runtime copies after install | done 177112dc (old versions pruned after 24 h) |
 
 ## Batch 2 — playback
 | # | Item | Status |
