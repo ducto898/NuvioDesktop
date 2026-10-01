@@ -12,6 +12,8 @@ interface PlayerEngineController {
         return true
     }
     fun seekBy(offsetMs: Long)
+    /** nuvio-rr fork, Phase 9 E7: a fast (keyframe) seek to show the frame under a dragged seek bar; no-op by default. */
+    fun previewSeekTo(positionMs: Long) {}
     fun retry()
     fun setPlaybackSpeed(speed: Float)
     fun setMuted(muted: Boolean) {}

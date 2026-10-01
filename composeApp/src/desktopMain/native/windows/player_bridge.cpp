@@ -1076,6 +1076,15 @@ public:
         mpvApi().command(mpv, command);
     }
 
+    // nuvio-rr fork, Phase 9 E7: scrub preview, fast keyframe seek (mpv drops a queued seek when a newer one arrives).
+    void seekPreviewMilliseconds(long long positionMs) {
+        std::lock_guard<std::mutex> lock(mpvMutex);
+        if (!mpv) return;
+        std::string seconds = std::to_string((double)positionMs / 1000.0);
+        const char *command[] = {"seek", seconds.c_str(), "absolute+keyframes", nullptr};
+        mpvApi().commandAsync(mpv, 0, command);
+    }
+
     void seekByMilliseconds(long long offsetMs) {
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
@@ -2552,6 +2561,13 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_seekBy(JNIEnv *, jobject, jlong handle, jlong offsetMs) {
     auto player = playerFromHandle(handle);
     if (player) player->seekByMilliseconds(offsetMs);
+}
+
+// nuvio-rr fork, Phase 9 E7
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_seekPreview(JNIEnv *, jobject, jlong handle, jlong positionMs) {
+    auto player = playerFromHandle(handle);
+    if (player) player->seekPreviewMilliseconds(positionMs);
 }
 
 extern "C" JNIEXPORT void JNICALL

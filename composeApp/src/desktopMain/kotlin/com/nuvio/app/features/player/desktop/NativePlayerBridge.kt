@@ -61,6 +61,7 @@ internal object NativePlayerBridge {
     external fun setPaused(handle: Long, paused: Boolean)
     external fun seekTo(handle: Long, positionMs: Long)
     external fun seekBy(handle: Long, offsetMs: Long)
+    external fun seekPreview(handle: Long, positionMs: Long) // nuvio-rr fork, Phase 9 E7
     external fun setSpeed(handle: Long, speed: Float)
     external fun adjustVolume(handle: Long, delta: Float)
     external fun setVolume(handle: Long, level: Float)

@@ -6,8 +6,21 @@ package com.nuvio.app.features.player
  */
 internal class ScrubPreviewThrottle(private val intervalMs: Long = 150L) {
     /** The position to preview now, or null to skip this drag update. */
-    fun offer(positionMs: Long, nowMs: Long): Long? = TODO("Phase 9 E7 commit B")
+    private var lastPreviewAtMs: Long? = null
+    private var lastPositionMs: Long? = null
+
+    fun offer(positionMs: Long, nowMs: Long): Long? {
+        if (positionMs == lastPositionMs) return null
+        val last = lastPreviewAtMs
+        if (last != null && nowMs - last < intervalMs) return null
+        lastPreviewAtMs = nowMs
+        lastPositionMs = positionMs
+        return positionMs
+    }
 
     /** Drag finished: the next drag previews its first position at once. */
-    fun reset(): Unit = TODO("Phase 9 E7 commit B")
+    fun reset() {
+        lastPreviewAtMs = null
+        lastPositionMs = null
+    }
 }

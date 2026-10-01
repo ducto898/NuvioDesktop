@@ -178,6 +178,8 @@ internal class PlayerScreenRuntime(
     var errorMessage by mutableStateOf<String?>(null)
     var isScrubbingTimeline by mutableStateOf(false)
     var scrubbingPositionMs by mutableStateOf<Long?>(null)
+    val scrubPreviewThrottle = ScrubPreviewThrottle() // nuvio-rr fork, Phase 9 E7
+    val scrubPreviewClock = kotlin.time.TimeSource.Monotonic.markNow() // nuvio-rr fork, Phase 9 E7
     var pausedOverlayVisible by mutableStateOf(false)
     var gestureFeedback by mutableStateOf<GestureFeedbackState?>(null)
     var liveGestureFeedback by mutableStateOf<GestureFeedbackState?>(null)

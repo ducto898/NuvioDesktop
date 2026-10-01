@@ -935,6 +935,11 @@ internal class NativePlayerController(
         return true
     }
 
+    // nuvio-rr fork, Phase 9 E7: keyframe seek while the seek bar is dragged (no per-call log: up to ~7 per second).
+    override fun previewSeekTo(positionMs: Long) {
+        handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekPreview(it, positionMs) }
+    }
+
     override fun seekBy(offsetMs: Long) {
         log.d { "seekBy offsetMs=$offsetMs handle=$handle" }
         handle.takeIf { it != 0L }?.let { NativePlayerBridge.seekBy(it, offsetMs) }

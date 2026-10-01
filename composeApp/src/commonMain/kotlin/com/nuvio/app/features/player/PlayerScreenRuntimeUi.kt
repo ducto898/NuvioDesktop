@@ -1232,11 +1232,15 @@ private fun PlayerScreenRuntime.handlePlayerControlsScrubChange(positionMs: Long
     playerControlsLog.d { "scrubChange positionMs=$positionMs ${playerControlLogContext()}" }
     isScrubbingTimeline = true
     scrubbingPositionMs = positionMs
+    // nuvio-rr fork, Phase 9 E7: show the frame under the bar while dragging (throttled keyframe seeks).
+    scrubPreviewThrottle.offer(positionMs, scrubPreviewClock.elapsedNow().inWholeMilliseconds)
+        ?.let { playerController?.previewSeekTo(it) }
 }
 
 private fun PlayerScreenRuntime.handlePlayerControlsScrubFinished(positionMs: Long) {
     playerControlsLog.d { "scrubFinished positionMs=$positionMs controller=${playerController != null} ${playerControlLogContext()}" }
     finishTimelineScrub(positionMs)
+    scrubPreviewThrottle.reset() // nuvio-rr fork, Phase 9 E7
     playerController?.seekTo(positionMs)
     scheduleProgressSyncAfterSeek()
 }
