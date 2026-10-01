@@ -12,6 +12,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
@@ -67,14 +70,20 @@ object FocusRingVisibility {
     var visible by mutableStateOf(false)
         private set
 
-    fun onKey(type: KeyEventType, key: Key): Unit = TODO("focus ring visibility, commit B")
+    fun onKey(type: KeyEventType, key: Key) {
+        if (type == KeyEventType.KeyDown && key in FocusNavigationKeys) visible = true
+    }
 
-    fun onPointer(): Unit = TODO("focus ring visibility, commit B")
+    fun onPointer() {
+        if (visible) visible = false
+    }
 
     internal fun reset() {
         visible = false
     }
 }
+
+private val FocusNavigationKeys = setOf(Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown, Key.Tab)
 
 object DesktopShortcuts {
     private val search = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -90,8 +99,7 @@ object DesktopShortcuts {
 
 /**
  * One focus ring for the whole window: the bounds of whatever has keyboard focus (any focusable, including
- * clickables drawn without an indication) get a white outline. Mouse clicks do not move focus on desktop, so it
- * shows for keyboard use; text fields show it while typing too.
+ * clickables drawn without an indication) get a white outline, while [FocusRingVisibility] says the keyboard is in use.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -101,8 +109,20 @@ fun Modifier.desktopFocusHighlight(): Modifier {
     var focused by remember { mutableStateOf<LayoutCoordinates?>(null) }
     return onGloballyPositioned { self = it }
         .onFocusedBoundsChanged { focused = it }
+        // Observe (never consume) mouse presses and wheel turns anywhere in the window: they hide the ring.
+        .pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) {
+                        FocusRingVisibility.onPointer()
+                    }
+                }
+            }
+        }
         .drawWithContent {
             drawContent()
+            if (!FocusRingVisibility.visible) return@drawWithContent
             val root = self ?: return@drawWithContent
             val target = focused?.takeIf { it.isAttached && root.isAttached } ?: return@drawWithContent
             val bounds = runCatching { root.localBoundingBoxOf(target, clipBounds = true) }.getOrNull() ?: return@drawWithContent

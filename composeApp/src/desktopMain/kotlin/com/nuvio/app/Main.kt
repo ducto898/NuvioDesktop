@@ -157,6 +157,7 @@ fun main(args: Array<String>) {
             init = ::configureMacosWindowBeforePeer,
             // nuvio-rr fork, Phase 9 E4: Alt+Left goes back like Esc (same dispatcher, newest enabled handler wins).
             onPreviewKeyEvent = { event ->
+                com.nuvio.app.core.ui.FocusRingVisibility.onKey(event.type, event.key) // nuvio-rr fork, Phase 9 E9
                 DesktopBackInput.isBackShortcut(event.type, event.key, event.isAltPressed).also { if (it) DesktopBackInput.main.back() }
             },
             // nuvio-rr fork, Phase 9 E9: keys nothing focused used: arrows move focus, Ctrl+F opens Search.
