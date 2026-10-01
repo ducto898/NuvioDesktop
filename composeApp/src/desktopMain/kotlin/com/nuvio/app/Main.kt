@@ -6,7 +6,9 @@ import androidx.compose.ui.awt.SwingWindow
 import androidx.compose.ui.configureSwingGlobalsForCompose
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -178,19 +180,22 @@ fun main(args: Array<String>) {
                         // whole window-state store file on the UI thread.
                         delay(WINDOW_GEOMETRY_SAVE_DELAY_MS)
                         val isFullscreen = fullscreenController.isFullscreen(window, windowState)
-                        if (!isFullscreen && restoresMaximizedWindowPlacement) {
-                            DesktopWindowModeStorage.saveWasMaximized(placement == WindowPlacement.Maximized)
-                        }
                         val isWindowed = placement == WindowPlacement.Floating && !isFullscreen
-                        if (isWindowed && position.isSpecified) {
-                            DesktopWindowModeStorage.saveWindowedGeometry(
-                                DesktopWindowGeometry(
-                                    x = position.x.value,
-                                    y = position.y.value,
-                                    width = size.width.value,
-                                    height = size.height.value,
-                                ),
-                            )
+                        // nuvio-rr fork, Phase 9 #3: the file writes run off the UI thread.
+                        withContext(Dispatchers.IO) {
+                            if (!isFullscreen && restoresMaximizedWindowPlacement) {
+                                DesktopWindowModeStorage.saveWasMaximized(placement == WindowPlacement.Maximized)
+                            }
+                            if (isWindowed && position.isSpecified) {
+                                DesktopWindowModeStorage.saveWindowedGeometry(
+                                    DesktopWindowGeometry(
+                                        x = position.x.value,
+                                        y = position.y.value,
+                                        width = size.width.value,
+                                        height = size.height.value,
+                                    ),
+                                )
+                            }
                         }
                     }
             }

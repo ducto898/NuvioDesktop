@@ -5,3 +5,4 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt |
 composeApp/src/desktopTest/kotlin/com/nuvio/app/core/storage/DesktopStorageTest.kt | 1
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/downloads/DownloadsPlatformDownloader.desktop.kt | 2
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/downloads/DownloadsRepository.kt | 2
+composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt | 3
