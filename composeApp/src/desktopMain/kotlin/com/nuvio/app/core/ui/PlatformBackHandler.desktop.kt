@@ -1,20 +1,27 @@
 package com.nuvio.app.core.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.navigationevent.NavigationEventDispatcher
 
-/** nuvio-rr fork, Phase 9 E4: back handlers of the composed screens; Esc / Alt+Left / mouse Back run the newest. */
-internal class DesktopBackDispatcher {
-    class Entry(var enabled: Boolean, var onBack: () -> Unit)
+/**
+ * nuvio-rr fork, Phase 9 E4: Alt+Left and the mouse Back button feed the window's back dispatcher, the one Compose
+ * already feeds with Esc and the navigation stack (NavDisplay) listens to.
+ */
+internal class DesktopBackInput {
+    fun attach(dispatcher: NavigationEventDispatcher): Unit = TODO("Phase 9 E4 commit B")
 
-    fun register(enabled: Boolean, onBack: () -> Unit): Entry = TODO("Phase 9 E4 commit B")
+    fun detach(): Unit = TODO("Phase 9 E4 commit B")
 
-    fun unregister(entry: Entry): Unit = TODO("Phase 9 E4 commit B")
-
-    /** Runs the newest enabled handler; false when there is none (then the key or button is not consumed). */
-    fun dispatch(): Boolean = TODO("Phase 9 E4 commit B")
+    /** Runs the newest enabled back handler (an overlay, a screen, then the navigation stack); no-op when detached. */
+    fun back(): Unit = TODO("Phase 9 E4 commit B")
 
     companion object {
-        val main = DesktopBackDispatcher()
+        val main = DesktopBackInput()
+
+        /** Alt+Left. Not Esc (Compose maps it already) and not Backspace (it would go back from an empty text field). */
+        fun isBackShortcut(type: KeyEventType, key: Key, altPressed: Boolean): Boolean = TODO("Phase 9 E4 commit B")
     }
 }
 
