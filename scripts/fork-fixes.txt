@@ -3,3 +3,5 @@
 # verify.ps1 allows untagged added lines only in the files listed here; every other upstream line still needs a hook tag.
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt | 1
 composeApp/src/desktopTest/kotlin/com/nuvio/app/core/storage/DesktopStorageTest.kt | 1
+composeApp/src/desktopMain/kotlin/com/nuvio/app/features/downloads/DownloadsPlatformDownloader.desktop.kt | 2
+composeApp/src/commonMain/kotlin/com/nuvio/app/features/downloads/DownloadsRepository.kt | 2

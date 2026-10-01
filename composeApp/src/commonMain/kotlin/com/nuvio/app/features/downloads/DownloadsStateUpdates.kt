@@ -1,5 +1,7 @@
 package com.nuvio.app.features.downloads
 
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -12,11 +14,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal fun MutableStateFlow<DownloadsUiState>.updateItems(
     transform: (List<DownloadItem>) -> List<DownloadItem>,
 ): Pair<List<DownloadItem>, List<DownloadItem>> {
-    // TODO Phase 9 #2 commit B: atomic. This is the old read-then-assign behaviour.
-    val before = value.items
-    val after = transform(before)
-    value = DownloadsUiState(after)
-    return before to after
+    while (true) {
+        val current = value
+        val after = transform(current.items)
+        if (compareAndSet(current, DownloadsUiState(after))) return current.items to after
+    }
 }
 
 /** [updateItems] for one item; null when no item has [downloadId] (then nothing changes). */
@@ -35,6 +37,27 @@ internal fun MutableStateFlow<DownloadsUiState>.updateItem(
  * (status, file, error, new or removed item) is written at once.
  */
 internal class DownloadPersistPolicy(private val progressIntervalMs: Long = 10_000L) {
-    fun shouldPersist(before: List<DownloadItem>, after: List<DownloadItem>, nowMs: Long): Boolean =
-        TODO("Phase 9 #2 commit B")
+    private val lock = SynchronizedObject()
+    private val lastWrittenMs = mutableMapOf<String, Long>()
+
+    fun shouldPersist(before: List<DownloadItem>, after: List<DownloadItem>, nowMs: Long): Boolean = synchronized(lock) {
+        val previous = before.associateBy { it.id }
+        var structural = after.size != before.size || after.any { it.id !in previous }
+        val progressed = mutableListOf<String>()
+        for (item in after) {
+            val old = previous[item.id] ?: continue
+            if (old == item) continue
+            if (old.withProgressOf(item) == item) progressed += item.id else structural = true
+        }
+        val due = structural || progressed.any { id -> lastWrittenMs[id]?.let { nowMs - it >= progressIntervalMs } ?: true }
+        if (due) progressed.forEach { lastWrittenMs[it] = nowMs }
+        lastWrittenMs.keys.retainAll(after.map { it.id }.toSet())
+        due
+    }
+
+    private fun DownloadItem.withProgressOf(other: DownloadItem): DownloadItem = copy(
+        downloadedBytes = other.downloadedBytes,
+        totalBytes = other.totalBytes,
+        updatedAtEpochMs = other.updatedAtEpochMs,
+    )
 }

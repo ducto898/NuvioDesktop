@@ -2,6 +2,8 @@ package com.nuvio.app.features.downloads
 
 import com.nuvio.app.features.player.addonSubtitleRequests
 import com.nuvio.app.features.streams.StreamItem
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,9 @@ object DownloadsRepository {
     val hasUnseenCompleted: StateFlow<Boolean> = _hasUnseenCompleted.asStateFlow()
 
     private val activeHandles = mutableMapOf<String, DownloadsTaskHandle>()
+    // nuvio-rr fork, Phase 9 #2: progress is written at most every 10 s per download; writes read the newest list.
+    private val persistPolicy = DownloadPersistPolicy()
+    private val persistLock = SynchronizedObject()
     private var hasLoaded = false
     private var nextDownloadOrdinal = 0L
 
@@ -145,14 +150,12 @@ object DownloadsRepository {
         )
 
         var replacedExisting = false
-        val currentItems = _uiState.value.items.toMutableList()
-        val existing = currentItems.firstOrNull { it.logicalContentKey == logicalKey }
+        val existing = _uiState.value.items.firstOrNull { it.logicalContentKey == logicalKey }
         if (existing != null) {
             replacedExisting = true
             activeHandles.remove(existing.id)?.cancel()
             DownloadsPlatformDownloader.removeFile(playableLocalFileUri(existing) ?: existing.localFileUri)
             DownloadsPlatformDownloader.removePartialFile(existing.fileName)
-            currentItems.removeAll { it.id == existing.id }
         }
 
         val downloadId = nextDownloadId(now)
@@ -199,8 +202,7 @@ object DownloadsRepository {
             updatedAtEpochMs = now,
         )
 
-        currentItems.add(0, item)
-        publish(currentItems)
+        afterChange(_uiState.updateItems { items -> listOf(item) + items.filterNot { it.id == existing?.id } })
         persist()
         startDownload(item)
 
@@ -273,7 +275,7 @@ object DownloadsRepository {
         DownloadsPlatformDownloader.removeFile(playableLocalFileUri(item) ?: item.localFileUri)
         DownloadsPlatformDownloader.removePartialFile(item.fileName)
 
-        publish(_uiState.value.items.filterNot { it.id == downloadId })
+        afterChange(_uiState.updateItems { items -> items.filterNot { it.id == downloadId } })
         persist()
     }
 
@@ -377,37 +379,22 @@ object DownloadsRepository {
     }
 
     private fun mutateItem(downloadId: String, transform: (DownloadItem) -> DownloadItem) {
-        var changed = false
-        val updated = _uiState.value.items.map { item ->
-            if (item.id == downloadId) {
-                changed = true
-                transform(item)
-            } else {
-                item
-            }
-        }
-
-        if (changed) {
-            publish(updated)
-            persist()
-        }
+        val change = _uiState.updateItem(downloadId, transform) ?: return
+        afterChange(change)
+        if (persistPolicy.shouldPersist(change.first, change.second, DownloadsClock.nowEpochMs())) persist()
     }
 
     private fun replaceItem(item: DownloadItem) {
-        val updated = _uiState.value.items.map { existing ->
-            if (existing.id == item.id) item else existing
-        }
-        publish(updated)
+        _uiState.updateItem(item.id) { item }?.let(::afterChange)
     }
 
-    private fun publish(items: List<DownloadItem>) {
-        val previousStatuses = _uiState.value.items.associate { it.id to it.status }
-        if (items.any { it.status == DownloadStatus.Completed && previousStatuses[it.id].let { status -> status != null && status != DownloadStatus.Completed } }) {
+    /** After one atomic change of the list (nuvio-rr fork, Phase 9 #2): completion badge + platform live status. */
+    private fun afterChange(change: Pair<List<DownloadItem>, List<DownloadItem>>) {
+        val (before, after) = change
+        val previousStatuses = before.associate { it.id to it.status }
+        if (after.any { it.status == DownloadStatus.Completed && previousStatuses[it.id].let { status -> status != null && status != DownloadStatus.Completed } }) {
             _hasUnseenCompleted.value = true
         }
-        _uiState.value = DownloadsUiState(
-            items = items,
-        )
         notifyLiveStatusPlatform()
     }
 
@@ -417,7 +404,7 @@ object DownloadsRepository {
         }
     }
 
-    private fun persist() {
+    private fun persist() = synchronized(persistLock) {
         DownloadsStorage.savePayload(
             DownloadsCodec.encodeItems(_uiState.value.items),
         )
