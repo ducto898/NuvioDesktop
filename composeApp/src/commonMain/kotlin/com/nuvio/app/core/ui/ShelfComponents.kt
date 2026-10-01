@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -546,8 +547,9 @@ internal fun Modifier.desktopPosterHoverScale(
     if (!enabled || !isDesktop) return this
 
     val hovered by interactionSource.collectIsHoveredAsState()
+    val focused by interactionSource.collectIsFocusedAsState() // nuvio-rr fork, Phase 9 E9: keyboard focus lifts too
     val scale by animateFloatAsState(
-        targetValue = if (hovered) DesktopPosterHoverScale else 1f,
+        targetValue = if (hovered || focused) DesktopPosterHoverScale else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -555,7 +557,7 @@ internal fun Modifier.desktopPosterHoverScale(
         label = "desktop_poster_hover_scale",
     )
 
-    val isScaling = hovered || scale != 1f
+    val isScaling = hovered || focused || scale != 1f
 
     return this
         .then(

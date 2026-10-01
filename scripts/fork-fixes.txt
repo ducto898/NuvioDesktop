@@ -31,10 +31,11 @@ composeApp/src/desktopTest/kotlin/com/nuvio/app/features/updater/LinuxUpdateInst
 composeApp/src/desktopTest/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImageTest.kt | R4
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/PlatformBackHandler.desktop.kt | E4
 composeApp/src/commonMain/kotlin/com/nuvio/app/MainTabsDestination.kt | E4
-composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt | E6
-composeApp/src/commonMain/kotlin/com/nuvio/app/features/home/components/HomeHeroSection.kt | E5
+composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt | E6, E9
+composeApp/src/commonMain/kotlin/com/nuvio/app/features/home/components/HomeHeroSection.kt | E5, E9
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/AppearanceSettingsPage.kt | E5
 composeApp/src/commonMain/composeResources/values/strings.xml | E5, E1
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerEngine.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeState.kt | E7
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRuntimeUi.kt | E7
+composeApp/src/commonMain/kotlin/com/nuvio/app/MainAppContent.kt | E9

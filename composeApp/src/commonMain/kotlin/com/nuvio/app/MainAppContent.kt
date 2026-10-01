@@ -478,6 +478,16 @@ internal fun MainAppContent(
         }
     }
 
+    // nuvio-rr fork, Phase 9 E9: Ctrl+F (desktop) opens Search and focuses its field, from the home tabs.
+    LaunchedEffect(Unit) {
+        com.nuvio.app.core.ui.DesktopShortcuts.searchRequests.collect {
+            if (navBackStack.lastOrNull() is TabsRoute) {
+                if (selectedTab != AppScreenTab.Search) activateTab(AppScreenTab.Search)
+                searchFocusRequestCount++
+            }
+        }
+    }
+
     LaunchedEffect(selectedTab, navBackStack.lastOrNull()) {
         val topRoute = navBackStack.lastOrNull()
         if (topRoute is PlayerRoute) return@LaunchedEffect

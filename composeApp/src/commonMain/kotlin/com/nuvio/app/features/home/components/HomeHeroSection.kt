@@ -2,6 +2,8 @@ package com.nuvio.app.features.home.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -403,7 +405,10 @@ private fun HeroDesktopContentLayers(
 
                     alpha = heroPageVisibility(pageOffset)
                     translationX = -pageOffset * heroWidthPx * HERO_CONTENT_PARALLAX
-                },
+                }
+                // nuvio-rr fork, Phase 9 E9: the pages are stacked; keyboard focus enters only the visible one.
+                .focusProperties { onEnter = { if (page != pagerState.currentPage) cancelFocusChange() } }
+                .focusGroup(),
         ) {
             DesktopHeroContentBlock(
                 item = items[page % items.size],
