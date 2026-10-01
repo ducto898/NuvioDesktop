@@ -527,6 +527,11 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Phase 9 batch 4: #13 done, #14 and #18 partial (plan has what is left). Mistake found: piping a
+  measurement script into Select-Object -First 1 stops it after its first line, so the screenshot + app-close steps
+  never ran and 4 dev apps stayed open; later runs then measured an old idle instance (the "CPU 0.0 s" runs for #14
+  and #18). Apps closed, home-mem.ps1 now picks the newest instance, #18 re-checked properly (home loads, screenshot).
+  Never pipe these scripts into Select-Object.
 - 2026-10-01 Phase 9 batch 3 DONE (8, S1-S4, S6; S5 n/a) and batch 4 #10-#12 done; per-item commits + numbers in
   docs/phase9-plan.md. Next: #13 Coil caches (App.kt AppEnvironment ImageLoader, BadgeImageLoader), then #14, #18,
   #20, #21, #22, batch 5, batch 6. Method per item: test-first (red commit A, green commit B) where testable, a

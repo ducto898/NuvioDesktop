@@ -47,9 +47,9 @@ Status: `todo`, `done <commit>`, `n/a <reason>`, `partial <what is left>`.
 | 10 | libmpv not re-read/hashed from the jar on every launch | done 78ee679a (bridge load 680 → 21 ms on main) |
 | 11 | Poster downscale off the UI thread, cached, sensible decode size | done 420d5fdf (decode follows layout; no memory change measured: sources already small) |
 | 12 | UI scale stepped (no relayout every resize frame) | done ea87e2c6 (≤5 scales per drag) |
-| 13 | Coil memory/disk cache bounds and location | todo |
-| 14 | GIF cards: pause when hidden, decode off the main thread, safe LRU | todo |
-| 18 | Addon/TMDB networking: cancellable calls, timeouts, response cap, thread-safe caches, de-dup | todo |
+| 13 | Coil memory/disk cache bounds and location | done 045d2d13 (256 MB / 512 MB, disk cache out of %TEMP%) |
+| 14 | GIF cards: pause when hidden, decode off the main thread, safe LRU | partial 94056e20 (off-UI decode + safe LRU; pause-when-hidden not done, GIF-only cards still animate: upstream design, see E5) |
+| 18 | Addon/TMDB networking: cancellable calls, timeouts, response cap, thread-safe caches, de-dup | partial af0bb1de (cancellable calls, 16 MB cap, concurrent TMDB caches; no HTTP cache / de-dup) |
 | 20 | `runBlocking { getString }` removed from composition paths | todo |
 | 21 | Packaged app JVM options (heap cap, AppCDS) | todo |
 | 22 | Package size (icons, TorrServer copy into Roaming) | todo |
