@@ -533,6 +533,10 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-01 Subtitle look ("optimise every aspect"): 1394a71c red 3/27 -> green (automatic font, outline 2,
+  shadow 1 @50 %, blur 0.3, libass-mode size made linear, desktop size default 15). Live: NetflixSans-Medium + look
+  applied with no setting touched. Open: owner to check the size on a real film (the smoke launcher doesn't apply
+  the app's subtitle style); the owner's saved size 12 now renders at 36 (was 24).
 - 2026-10-01 Subtitle font (owner asked about the best subtitle font, supplied a Netflix Sans zip: 4 genuine OTFs,
   installed per-user only, never bundled/committed). Default was mpv's sans-serif -> Arial. Setting built
   tests-first: 3f643bca red 5/5 -> 4ca80d59 green; a22d31d2/88af7fad trim fix (Java lists "Netflix Sans "); 40433d0d/

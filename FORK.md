@@ -290,3 +290,10 @@ with the video options at H2. The dialog offers the installed fonts subtitle ent
 Tahoma, Calibri, Arial, plus the current choice. Fonts are never bundled: Netflix Sans is proprietary and was
 installed by the owner for their own Windows account only (`%LOCALAPPDATA%\Microsoft\Windows\Fonts`), which libass
 and Java both see. With a Medium/Bold face chosen, keep the app's subtitle Bold switch off (it would embolden again).
+
+Optimised defaults (owner, 2026-10-01): the default is now **Automatic** = the best installed of NetflixSans-Medium,
+Gandhi Sans, Segoe UI Semibold (else Arial). Every player also gets `sub-border-size=2.0`, `sub-shadow-offset=1.0`,
+`sub-shadow-color=#80000000`, `sub-blur=0.3` (plain-text only). Size: upstream's libass mode set both
+`sub-font-size=size` and `sub-scale=size/54`, so plain-text size went with the square of the slider; the bridge now
+sets a fixed `sub-font-size=54` in that mode (player_bridge.cpp, fork fix "SUB"), and the desktop default size is 15
+(`SubtitleAudioModels.kt`, fork fix "SUB"). Kept from mpv: `sub-hdr-peak=sdr` (203 nits), `blend-subtitles=no`.
