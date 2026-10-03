@@ -41,3 +41,4 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerScreenRunti
 composeApp/src/commonMain/kotlin/com/nuvio/app/MainAppContent.kt | E9
 .gitattributes | VQ
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/SubtitleAudioModels.kt | SUB
+composeApp/src/commonTest/kotlin/com/nuvio/app/features/watchprogress/WatchProgressIdentityTest.kt | SYNC1

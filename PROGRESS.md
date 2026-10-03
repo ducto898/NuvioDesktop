@@ -5,7 +5,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 ## Current state
 - **2026-10-03: upstream sync by MERGE** (owner: maintain the fork with upstream fixes; branch is public, so merge, no
   more rebases). Merged upstream/Dev `ed77003b` (0.5.6). Future syncs: `scripts/sync-upstream.ps1` (FORK.md §4).
-  Open: upstream test failure `WatchProgressIdentityTest#legacy payload ...` (see Log 2026-10-03), owner to decide.
+  The upstream test failure it brought in is fixed in the fork (SYNC1, FORK.md §4); verify -Full green.
 - **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
   verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-f70deb6d.zip (HDR pass through default; 75c6887b had the HDR choice, packaged run: EDID read, target-peak=1532, 0/0; fd9c57ad passed the packaged smoke run).
   Open for the owner: try one torrent (P2P) stream in Nuvio RR (TorrServer IS bundled; the "missing" note was wrong, see Log).
@@ -539,6 +539,14 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-03 SYNC1 (owner: investigate and fix). Cause: upstream `80860602` `isProgressComplete` returns false for
+  any duration in 1 ms..121 s; `WatchProgressIdentityTest` legacy-payload test still used 940/1000 ms. Not fixed in
+  NuvioMobile cmp-rewrite either (checked via gh). Product impact checked: Trakt history/show-progress rows use
+  durationMs = 1 but carry isCompleted = true + progressPercent = 100, and `isEffectivelyCompleted` keeps either, so
+  they stay watched; Simkl series rows use 0 (outside the rule); sync records re-derive completion (short clips no
+  longer complete, intended). Fix: fixture -> 940 000/1 000 000 ms (still 94 %, position kept) + fork test
+  `PlaceholderDurationCompletionTest` (3 tests; mutation `isCompleted ||` -> `false ||` fails it). verify -Full: 1661
+  tests, only the known flaky PluginRuntimeDesktopTest; budget 12/5/6.
 - 2026-10-03 Upstream sync by merge (owner chose to maintain the fork; branch public => merge, not rebase). Backup
   `backup/pre-merge-2026-10-03` = `5288c1fa`; merge `1146f22d` of upstream/Dev `ed77003b` (57 commits, 0.5.4-0.5.6;
   8 files changed on both sides, 0 conflicts). Fork +/- lines vs upstream identical before/after (18 346). verify -Full:

@@ -112,6 +112,11 @@ Since 2026-10-03 the branch is public on origin, so upstream is **merged in, not
    the last archived patch on a fresh branch from `upstream/Dev`
    (`git apply --3way ..\patches\nuvio-rr-<base>-<head>.patch`) and fix the rejected hunks by the hook tags.
 Update SPEC's upstream base line and PROGRESS "Repo facts" after a sync.
+Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
+- SYNC1 (2026-10-03): upstream `80860602` made durations of 1 ms..121 s never complete (error/placeholder clips) but
+  left `WatchProgressIdentityTest#legacy payload ...` on a 1 s fixture; the fork uses a real episode length there.
+  Fork test `PlaceholderDurationCompletionTest` guards that Trakt rows (`durationMs = 1` placeholder, explicit
+  `isCompleted`/`progressPercent = 100`) stay watched, and that a short clip alone is not derived as watched.
 
 ## 5. Known conflict hot spots
 - `PlaybackSettingsPage.kt`, the `if (isWindows)` "NVIDIA RTX Video" section: H9 sits on the line right after it.
