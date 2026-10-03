@@ -3,6 +3,9 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-10-03: upstream sync by MERGE** (owner: maintain the fork with upstream fixes; branch is public, so merge, no
+  more rebases). Merged upstream/Dev `ed77003b` (0.5.6). Future syncs: `scripts/sync-upstream.ps1` (FORK.md §4).
+  Open: upstream test failure `WatchProgressIdentityTest#legacy payload ...` (see Log 2026-10-03), owner to decide.
 - **2026-10-01: Phase 9 DONE.** Batches 1-6 done (partials listed in docs/phase9-plan.md), FORK.md section 11,
   verify -Full green (1612 tests, 1 known flaky), zip ..\dist\Nuvio-RR-1.1.26-f70deb6d.zip (HDR pass through default; 75c6887b had the HDR choice, packaged run: EDID read, target-peak=1532, 0/0; fd9c57ad passed the packaged smoke run).
   Open for the owner: try one torrent (P2P) stream in Nuvio RR (TorrServer IS bundled; the "missing" note was wrong, see Log).
@@ -150,7 +153,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 - Upstream default branch is **`Dev`** (not `main`). Upstream HEAD at fork time: `083921cf`.
 - Clone: `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`
   - `origin` = ducto898/NuvioDesktop (**public** fork); `upstream` = NuvioMedia/NuvioDesktop
-- Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`. **Pushed to origin (public fork)**:
+- Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`; since 2026-10-03 upstream is merged in (last: `ed77003b`). **Pushed to origin (public fork)**:
   `origin/feature/refresh-rate-matching` = `6a9ae226` (2026-10-01 17:13), local is ahead (24 commits on 2026-10-02).
   Checked 2026-10-02: no secrets in any git object (Real-Debrid key scan, all refs + unreachable: 0 hits).
 - Submodules: only `MPVKit` is mapped. `libass-android`, `vendor/TorrServer` and `vendor/quickjs-kt`
@@ -536,6 +539,19 @@ suite, ≈ 15 s with only the patch tests.
 - SDR clips are rendered to a PQ/BT.2020 swapchain (`RGB_FULL_G2084_NONE_P2020`) because Windows HDR is on.
 
 ## Log
+- 2026-10-03 Upstream sync by merge (owner chose to maintain the fork; branch public => merge, not rebase). Backup
+  `backup/pre-merge-2026-10-03` = `5288c1fa`; merge `1146f22d` of upstream/Dev `ed77003b` (57 commits, 0.5.4-0.5.6;
+  8 files changed on both sides, 0 conflicts). Fork +/- lines vs upstream identical before/after (18 346). verify -Full:
+  1658 tests, 1 NEW failure = upstream bug: `80860602` (fix(player): ignore short clips for tracking) makes durations
+  < 121 s never complete; its own older `WatchProgressIdentityTest#legacy payload derives episode progress key and
+  preserves completed position` still uses durationMs=1000 and expects completed. Fork touches none of those files.
+  Live (`*merge-*`): 240 already-at-target PASS; -MaxHz 144 switch+restore 7 runs: 5 PASS, 1 audio correction 1.002063
+  (> 0.2 % limit; same value in 5 earlier pre-merge runs of 37 => known blip), 1 display-sync collapse (est 5.86 Hz,
+  health fallback `resample-unhealthy` fired, restore OK). First collapse outside PresentMon/fault runs in the history;
+  it ran right after verify -Full with 2 Gradle daemons (3.8 GB) still alive; 4 later runs clean. Watch for it.
+  New `scripts/sync-upstream.ps1` (fetch, report overlap/hook/fork-fixes files, trial merge, backup, merge, patch
+  identity, verify, 2 live runs, package + patch); tested in a worktree (dry run, merge, up-to-date). Note: a worktree
+  has no `local.properties`, so verify fails there at generateRuntimeConfigs; copy it in first.
 - 2026-10-01 23:13-23:45 Seek timing (owner: "faster seeking time?", measure first). Dev build, feature off, mpv IPC;
   time = seek command to mpv playback-restart. Realistic clips made with NVENC (scratchpad seek\: 4K HEVC 10-bit
   41 Mbit/s keyframes every 10 s and 2 s, 1080p H.264 10 Mbit/s every 10 s); streams through a local Range server

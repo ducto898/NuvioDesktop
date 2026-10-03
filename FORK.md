@@ -91,19 +91,27 @@ pwsh -File scripts/run-dev.ps1        # run the dev build with an ISOLATED profi
   failures. Prune the list after upstream updates.
 
 ## 4. Updating to a new upstream release (runbook)
+Since 2026-10-03 the branch is public on origin, so upstream is **merged in, not rebased** (no force-push).
+`scripts\sync-upstream.ps1` runs steps 1–5 (`-DryRun` = report + trial merge only; `-SkipVerify`, `-SkipLive`,
+`-NoPackage`; `-Target <release commit>` to sync to a release). Sync on each upstream release
+(`chore(store): publish x.y.z`). The steps by hand:
 1. `git fetch upstream` and read what changed in the hook files (§5): `git diff <old base> upstream/Dev -- <file>`.
-2. `git rebase upstream/Dev` on `feature/refresh-rate-matching` (local; never push without the owner's OK). Conflicts
-   only happen at the tagged hook lines: `git grep -n "nuvio-rr fork hook"` lists all 21 (H1–H21, SPEC §2). Keep each
-   hook's line at the same place in the new code; the fork's own files never conflict.
+   The script also lists `scripts\fork-fixes.txt` files upstream touched: if upstream fixed the same bug, drop the
+   fork's fix (fewer modified upstream files means easier merges).
+2. Backup branch `backup/pre-merge-<date>`, then `git merge --no-ff upstream/Dev` on `feature/refresh-rate-matching`
+   (local; never push without the owner's OK). Check that the fork's +/- lines vs upstream are unchanged. Conflicts
+   only happen at the tagged hook lines and the fork-fixes files: `git grep -n "nuvio-rr fork hook"` lists all 21
+   (H1–H21, SPEC §2). Keep each hook's line at the same place in the new code; the fork's own files never conflict.
 3. `scripts\verify.ps1 -Full` ⇒ green with only the known upstream failures (prune
    `scripts\known-upstream-test-failures.txt` if upstream fixed some) and the hook budget met (every added upstream
    line tagged; code 12, strings 3, Gradle 6).
 4. Re-verify on the hardware: §6.
 5. `scripts\package-fork.ps1` (new zip) and `scripts\export-patch.ps1` (archive patch in `..\patches`, checked with
    `git apply --check` on the new base).
-6. Fallback if a rebase gets messy: apply the last archived patch on a fresh branch from `upstream/Dev`
+6. Fallback if a merge gets messy: `git merge --abort` (or `git reset --hard backup/pre-merge-<date>`), or apply
+   the last archived patch on a fresh branch from `upstream/Dev`
    (`git apply --3way ..\patches\nuvio-rr-<base>-<head>.patch`) and fix the rejected hunks by the hook tags.
-Update SPEC's upstream base line and PROGRESS "Repo facts" after a rebase.
+Update SPEC's upstream base line and PROGRESS "Repo facts" after a sync.
 
 ## 5. Known conflict hot spots
 - `PlaybackSettingsPage.kt`, the `if (isWindows)` "NVIDIA RTX Video" section: H9 sits on the line right after it.

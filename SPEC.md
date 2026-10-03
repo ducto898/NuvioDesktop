@@ -3,7 +3,7 @@
 Describes ONLY what this patch adds or changes. It's the reference for re-applying and
 re-verifying the patch after an upstream update. Keep it in sync with the code.
 
-Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `fe92d414` (rebased 2026-09-28; forked at `083921cf` on 2026-09-27).
+Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `ed77003b` (merged 2026-10-03; earlier rebases onto `fe92d414`, `cf185993`; forked at `083921cf` on 2026-09-27).
 
 ## 1. Behaviour
 State after Phase 8 (details in §4 per phase):
