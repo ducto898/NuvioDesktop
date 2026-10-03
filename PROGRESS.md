@@ -547,6 +547,7 @@ suite, ≈ 15 s with only the patch tests.
   longer complete, intended). Fix: fixture -> 940 000/1 000 000 ms (still 94 %, position kept) + fork test
   `PlaceholderDurationCompletionTest` (3 tests; mutation `isCompleted ||` -> `false ||` fails it). verify -Full: 1661
   tests, only the known flaky PluginRuntimeDesktopTest; budget 12/5/6.
+  Zip ../dist/Nuvio-RR-1.1.26-7192c407.zip, patch ../patches/nuvio-rr-ed77003b-7192c407.patch (apply --check OK).
 - 2026-10-03 Upstream sync by merge (owner chose to maintain the fork; branch public => merge, not rebase). Backup
   `backup/pre-merge-2026-10-03` = `5288c1fa`; merge `1146f22d` of upstream/Dev `ed77003b` (57 commits, 0.5.4-0.5.6;
   8 files changed on both sides, 0 conflicts). Fork +/- lines vs upstream identical before/after (18 346). verify -Full:
