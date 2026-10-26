@@ -16,6 +16,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   refresh-rate.log now has `buffer pN cache|idle|seek <s> | start ... | end ...` lines (cache s/MB, cache-speed,
   raw-input-rate, host only). Open: owner to send those lines the next time it buffers. 1.1.26 had no
   stream-lavf-o reconnect (0.1.32 has it).
+  BUF2 (2026-10-27): owner's 1 h watch on 7aba5f98 had no mid-play cache waits (cache 54-68 s ahead), but a seek
+  back of 38 s waited 47 s with the cache stuck. Back buffer 512 MiB, network-timeout 15 s (FORK.md §4); local hang
+  test (scratchpad hangtest.py: Range server that hangs the seek's request): 60.3 s before, 15.2 s after. The file
+  summary line is now written (it never was).
   Note: release targets are the desktop tags `0.1.x-alpha` on Dev, NOT `chore(store): publish x.y.z-beta` (those are
   mobile commits; 0.6.4-beta is not even on Dev).
 - **2026-10-03: upstream sync by MERGE** (owner: maintain the fork with upstream fixes; branch is public, so merge, no

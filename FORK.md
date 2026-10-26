@@ -128,6 +128,11 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   0.1.32: 150/50 MiB, ~15 s of a 4K remux), plus the `buffer pN ...` lines in refresh-rate.log (`watchBuffering`,
   display_mode_matcher.cpp, from H4; feature-on players only). `cache` = network/debrid too slow; `idle` = mpv
   waiting on something else (audio, video output, decoder).
+- BUF2 (2026-10-27, owner log 2026-10-26: no mid-play stalls, but a 38 s seek back waited 47 s with the cache
+  stuck): demuxer-max-back-bytes 256 -> 512 MiB (~50 s of an 84 Mbit/s remux) and network-timeout 15 s (mpv: 60 s),
+  so a hung debrid read fails fast and stream-lavf-o reconnects. The `buffer pN file summary` line was never written:
+  H5 clears the entry's mpv before END_FILE reaches H4; `BufferWatch` now keeps the id, and the summary is written
+  for every loaded file (stalls, and how many of them were cache waits).
 - RACE (2026-10-26): upstream's collection card skipped the hover load when the visibility prefetch had filled the
   codec cache after the hover composition read it (null): the animation never started. CollectionCardRemoteImageTest
   flaked on it under verify load; CollectionCardHoverRaceTest holds that frame and reproduced it 3/3 before the fix.

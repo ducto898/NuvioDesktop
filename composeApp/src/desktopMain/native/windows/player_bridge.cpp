@@ -1883,9 +1883,13 @@ private:
                 setMpvOptionStringLocked("scale", "spline36");
                 setMpvOptionStringLocked("cscale", "spline36");
             }
-            // nuvio-rr fork, BUF: upstream 0.1.32 cut these to 150/50 MiB (~15 s of a 4K remux); back to 512/256 MiB.
+            // nuvio-rr fork, BUF: upstream 0.1.32 cut these to 150/50 MiB (~15 s of a 4K remux); back to 512 MiB ahead.
+            // BUF2: 512 MiB behind too (~50 s of an 84 Mbit/s remux), so a short seek back stays in the cache.
             setMpvOptionStringLocked("demuxer-max-bytes", "512MiB");
-            setMpvOptionStringLocked("demuxer-max-back-bytes", "256MiB");
+            setMpvOptionStringLocked("demuxer-max-back-bytes", "512MiB");
+            // BUF2: a debrid read that hangs (owner log 2026-10-26: a seek back stuck 47 s) times out after 15 s instead
+            // of mpv's 60 s; the reconnect options below then retry it.
+            setMpvOptionStringLocked("network-timeout", "15");
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
             setMpvOptionStringLocked(
                 "stream-lavf-o",

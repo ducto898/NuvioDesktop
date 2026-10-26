@@ -1525,14 +1525,18 @@ void cacheTimingStats(mpv_handle *mpv) {
 // stream host only (debrid links carry an API key).
 struct BufferWatch {
     mpv_handle *mpv = nullptr;
+    long long id = -1;  // kept: at shutdown the player entry is already gone, but the summary still needs it
     bool active = false;
     double since = 0.0;
     double lastNote = 0.0;
     double lastPoll = 0.0;
     std::string reason;
     std::string startText;
+    bool loaded = false;  // a file was loaded and its summary is not written yet
     int stalls = 0;
     double stalledSeconds = 0.0;
+    int cacheStalls = 0;  // the part of stalls that waited on the network
+    double cacheSeconds = 0.0;
 };
 
 std::string bufferSnapshot(mpv_handle *mpv) {
@@ -1560,11 +1564,13 @@ std::string bufferSnapshot(mpv_handle *mpv) {
 
 void watchBuffering(mpv_handle *mpv, mpv_event *event, bool stopping) {
     thread_local BufferWatch w;
-    auto entry = findPlayer([mpv](const PlayerEntry &p) { return p.mpv == mpv; });
-    if (!entry) return;
-    long long id = (long long)entry->id;
-    if (w.mpv != mpv) w = BufferWatch(), w.mpv = mpv;
     int eventId = event ? (int)event->event_id : 0;
+    bool ending = eventId == 7 || stopping;  // MPV_EVENT_END_FILE
+    auto entry = findPlayer([mpv](const PlayerEntry &p) { return p.mpv == mpv; });
+    if (!entry && !(ending && w.mpv == mpv)) return;
+    if (w.mpv != mpv) w = BufferWatch(), w.mpv = mpv;
+    if (entry) w.id = (long long)entry->id;
+    long long id = w.id;
     if (eventId == 8) {  // MPV_EVENT_FILE_LOADED
         std::string path, host = "local";
         if (readStringProperty(mpv, "path", path)) {
@@ -1576,18 +1582,27 @@ void watchBuffering(mpv_handle *mpv, mpv_event *event, bool stopping) {
                 if (at != std::string::npos) host = host.substr(at + 1);
             }
         }
-        nlog(strf("buffer p%lld file loaded from %s", id, host.c_str()));
-        w.stalls = 0;
-        w.stalledSeconds = 0.0;
+        std::string ahead = "?", back = "?", timeout = "?";  // read back: a rejected option keeps mpv's default
+        readStringProperty(mpv, "demuxer-max-bytes", ahead);
+        readStringProperty(mpv, "demuxer-max-back-bytes", back);
+        readStringProperty(mpv, "network-timeout", timeout);
+        nlog(strf("buffer p%lld file loaded from %s (cache ahead %s, back %s, network-timeout %s s)", id, host.c_str(),
+            ahead.c_str(), back.c_str(), timeout.c_str()));
+        w.loaded = true;
+        w.stalls = w.cacheStalls = 0;
+        w.stalledSeconds = w.cacheSeconds = 0.0;
     }
-    if (eventId == 7 || stopping) {  // MPV_EVENT_END_FILE
-        if (w.stalls > 0 || w.active) {
-            nlog(strf("buffer p%lld file summary: %d stall(s), %.1f s stalled%s", id, w.stalls, w.stalledSeconds,
-                w.active ? " (one still open)" : ""));
+    if (ending) {
+        if (w.loaded) {
+            // a wait still open at the end is usually the close itself; name it so it is not read as a stall
+            std::string open = w.active ? strf(" (open at the end: %s %.1f s)", w.reason.c_str(), nowSeconds() - w.since) : "";
+            nlog(strf("buffer p%lld file summary: %d stall(s), %.1f s stalled, of which cache %d, %.1f s%s", id, w.stalls,
+                w.stalledSeconds, w.cacheStalls, w.cacheSeconds, open.c_str()));
         }
+        w.loaded = false;
         w.active = false;
-        w.stalls = 0;
-        w.stalledSeconds = 0.0;
+        w.stalls = w.cacheStalls = 0;
+        w.stalledSeconds = w.cacheSeconds = 0.0;
         return;
     }
     double now = nowSeconds();
@@ -1629,6 +1644,7 @@ void watchBuffering(mpv_handle *mpv, mpv_event *event, bool stopping) {
         if (took >= 0.5 && w.reason != "opening") {
             w.stalls++;
             w.stalledSeconds += took;
+            if (w.reason == "cache") w.cacheStalls++, w.cacheSeconds += took;
             nlog(strf("buffer p%lld %s %.1f s | start %s | end %s", id, w.reason.c_str(), took, w.startText.c_str(),
                 bufferSnapshot(mpv).c_str()));
         } else if (w.reason == "opening") {
