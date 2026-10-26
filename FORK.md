@@ -121,6 +121,10 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   fork's scrub preview (E7) would leave the player at the preview position. No preview seeks while locked.
 - SYNC3 (2026-10-26): upstream `DesktopCache.resourceStamp()`/install used cached `URLConnection`s, which kept the jar or
   file open; on Windows `DesktopCacheTest` failed in cleanup. Uncached and closed now.
+- BUF (2026-10-26, not a sync fix): `player_bridge.cpp` demuxer-max-bytes/back-bytes back to 512/256 MiB (upstream
+  0.1.32: 150/50 MiB, ~15 s of a 4K remux), plus the `buffer pN ...` lines in refresh-rate.log (`watchBuffering`,
+  display_mode_matcher.cpp, from H4; feature-on players only). `cache` = network/debrid too slow; `idle` = mpv
+  waiting on something else (audio, video output, decoder).
 - SYNC4 (2026-10-26): upstream's new mpv shader cache (`Cache\mpv-shaders`) goes through the H14 folder, found with the
   known-folder API, which ignores the LOCALAPPDATA redirect, so dev/measure runs wrote the official profile. H14 now
   uses `%LOCALAPPDATA%` when set (`nuvioRrLocalAppDataRoot`, display_mode_matcher.cpp).

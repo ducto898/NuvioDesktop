@@ -5,9 +5,17 @@ The only memory between phases. Read it at the start of every phase; update it a
 ## Current state
 - **2026-10-26: upstream sync by MERGE** of desktop release 0.1.32-alpha (`da6910db`; 0.1.26 -> 0.1.32). Merge
   `6664d86a` (13 conflicts by hand), SYNC2-4 (FORK.md §4), verify -Full green (1875 tests), live runs PASS, zip
-  ..\dist\Nuvio-RR-1.1.32-9814ccbc.zip, patch ..\patches\nuvio-rr-da6910db-9814ccbc.patch. Backup branch
+  ..\dist\Nuvio-RR-1.1.32-a4ed3994.zip (incl. BUF), patch ..\patches\nuvio-rr-da6910db-a4ed3994.patch. Backup branch
   `backup/pre-merge-2026-10-26`. Not pushed. Upstream replaced TorrServer with nuvio-engine (fork fixes S3/S4/#8/#22
   dropped) and now does E4 (Esc on home tabs), R4 and #10 itself (fork versions dropped).
+  BUF (owner, same day; "stream buffers, plays a few s, buffers again" on 1.1.26 with AIOStreams/Comet + Real-Debrid,
+  La La Land 4K remux 81 GB ~84 Mbit/s): not reproduced. Link measured 434 Mbit/s median (min 224) over 87 s, Comet
+  302s to an RD server, ~5 s to first byte per request; headless libmpv with 1.1.26 options, 5 min: 0 cache waits,
+  42-48 s cached. Log 20:06 resample-unhealthy, 21:26 rate-off -8 %: stalls, cause unknown (the spinner also shows on
+  core-idle, not only paused-for-cache). Done: buffer back to 512/256 MiB (upstream 0.1.32 has 150/50), and
+  refresh-rate.log now has `buffer pN cache|idle|seek <s> | start ... | end ...` lines (cache s/MB, cache-speed,
+  raw-input-rate, host only). Open: owner to send those lines the next time it buffers. 1.1.26 had no
+  stream-lavf-o reconnect (0.1.32 has it).
   Note: release targets are the desktop tags `0.1.x-alpha` on Dev, NOT `chore(store): publish x.y.z-beta` (those are
   mobile commits; 0.6.4-beta is not even on Dev).
 - **2026-10-03: upstream sync by MERGE** (owner: maintain the fork with upstream fixes; branch is public, so merge, no
