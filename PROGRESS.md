@@ -5,7 +5,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 ## Current state
 - **2026-10-26: upstream sync by MERGE** of desktop release 0.1.32-alpha (`da6910db`; 0.1.26 -> 0.1.32). Merge
   `6664d86a` (13 conflicts by hand), SYNC2-4 (FORK.md §4), verify -Full green (1875 tests), live runs PASS, zip
-  ..\dist\Nuvio-RR-1.1.32-a4ed3994.zip (incl. BUF), patch ..\patches\nuvio-rr-da6910db-a4ed3994.patch. Backup branch
+  ..\dist\Nuvio-RR-1.1.32-7aba5f98.zip (incl. BUF, RACE), patch ..\patches\nuvio-rr-da6910db-7aba5f98.patch. Backup branch
   `backup/pre-merge-2026-10-26`. Not pushed. Upstream replaced TorrServer with nuvio-engine (fork fixes S3/S4/#8/#22
   dropped) and now does E4 (Esc on home tabs), R4 and #10 itself (fork versions dropped).
   BUF (owner, same day; "stream buffers, plays a few s, buffers again" on 1.1.26 with AIOStreams/Comet + Real-Debrid,

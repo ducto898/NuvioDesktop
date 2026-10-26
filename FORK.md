@@ -125,6 +125,9 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   0.1.32: 150/50 MiB, ~15 s of a 4K remux), plus the `buffer pN ...` lines in refresh-rate.log (`watchBuffering`,
   display_mode_matcher.cpp, from H4; feature-on players only). `cache` = network/debrid too slow; `idle` = mpv
   waiting on something else (audio, video output, decoder).
+- RACE (2026-10-26): upstream's collection card skipped the hover load when the visibility prefetch had filled the
+  codec cache after the hover composition read it (null): the animation never started. CollectionCardRemoteImageTest
+  flaked on it under verify load; CollectionCardHoverRaceTest holds that frame and reproduced it 3/3 before the fix.
 - SYNC4 (2026-10-26): upstream's new mpv shader cache (`Cache\mpv-shaders`) goes through the H14 folder, found with the
   known-folder API, which ignores the LOCALAPPDATA redirect, so dev/measure runs wrote the official profile. H14 now
   uses `%LOCALAPPDATA%` when set (`nuvioRrLocalAppDataRoot`, display_mode_matcher.cpp).
