@@ -106,9 +106,10 @@ Since 2026-10-03 the branch is public on origin, so upstream is **merged in, not
    `scripts\known-upstream-test-failures.txt` if upstream fixed some) and the hook budget met (every added upstream
    line tagged; code 12, strings 3, Gradle 6).
 4. Re-verify on the hardware: §6.
-5. `scripts\package-fork.ps1` (new zip; it also runs `scripts\deploy-testapp.ps1`: unzip into
-   `C:\TestAPP\<zip name>`, repoint the desktop shortcut and the `hdr-meta\*.cmd` launchers, read the shortcut back;
-   `-NoDeploy` skips it; old builds are only removed with `deploy-testapp.ps1 -Keep N`) and `scripts\export-patch.ps1` (archive patch in `..\patches`, checked with
+5. `scripts\package-fork.ps1` (new zip; it also runs `scripts\deploy-testapp.ps1`: installs it at the FIXED path
+   `C:\TestAPP\Nuvio RR\Nuvio RR.exe` (owner: the desktop shortcut, `hdr-meta\*.cmd` and the NVIDIA profile for
+   refresh-rate mode point there), the previous build moves to `C:\TestAPP\old\<build>`, `BUILD.txt` names the zip;
+   the shortcut is read back; `-NoDeploy` skips it; old\ is only trimmed with `-Keep N`) and `scripts\export-patch.ps1` (archive patch in `..\patches`, checked with
    `git apply --check` on the new base).
 6. Fallback if a merge gets messy: `git merge --abort` (or `git reset --hard backup/pre-merge-<date>`), or apply
    the last archived patch on a fresh branch from `upstream/Dev`
