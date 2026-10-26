@@ -265,7 +265,7 @@ fun main(args: Array<String>) {
 
             if (smokePlayerUrl == null) {
                 ProvideDesktopWindowInsets(isFullscreen = windowState.placement == WindowPlacement.Fullscreen) {
-                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().desktopFocusHighlight()) { App() } // nuvio-rr fork, Phase 9 E9
+                    MiddleClickAutoscroll { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().desktopFocusHighlight()) { App() } } // nuvio-rr fork, Phase 9 E9
                 }
             } else {
                 // The player surface reads LocalNuvioPlatformDensity, which only

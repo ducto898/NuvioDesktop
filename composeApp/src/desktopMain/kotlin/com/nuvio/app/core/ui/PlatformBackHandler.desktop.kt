@@ -42,13 +42,16 @@ internal class DesktopBackInput {
     }
 }
 
-// nuvio-rr fork, Phase 9 E4: was a no-op on desktop; now an ordinary handler on the window's back dispatcher.
+// Registers with Compose's window back dispatcher, which already receives Esc and orders
+// handlers against dialogs and NavDisplay the same way BackHandler does on Android.
 @Composable
 actual fun PlatformBackHandler(
     enabled: Boolean,
     onBack: () -> Unit,
-) = NavigationBackHandler(
-    state = rememberNavigationEventState(NavigationEventInfo.None),
-    isBackEnabled = enabled,
-    onBackCompleted = onBack,
-)
+) {
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = enabled,
+        onBackCompleted = onBack,
+    )
+}

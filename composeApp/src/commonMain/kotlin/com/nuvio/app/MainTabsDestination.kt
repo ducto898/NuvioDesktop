@@ -81,7 +81,6 @@ internal fun MainTabsDestination(
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
 ) {
-    // nuvio-rr fork, Phase 9 E4: desktop back is real now; Esc on the home tabs must not ask to exit the app.
     PlatformBackHandler(enabled = rootRouteActive && !isDesktop, onBack = onBack)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {

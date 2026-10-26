@@ -1,5 +1,7 @@
 package com.nuvio.app.core.storage
 
+import java.net.JarURLConnection
+import java.net.URL
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -9,15 +11,10 @@ import java.util.Comparator
 
 internal object DesktopCache {
     fun installVersionedFiles(namespace: String, files: Map<String, ByteArray>): Path {
-        require(namespace.isNotBlank())
         require(files.isNotEmpty())
-        val version = contentVersion(files)
-        val directory = DesktopStorage.cacheDir.resolve(namespace).resolve(version).normalize()
-        require(directory.startsWith(DesktopStorage.cacheDir))
+        val directory = versionedDirectory(namespace, files)
         files.forEach { (relativePath, bytes) ->
-            val target = directory.resolve(relativePath).normalize()
-            require(target.startsWith(directory))
-            writeIfChanged(target, bytes)
+            writeIfChanged(resolveTarget(directory, relativePath), bytes)
         }
         // Phase 9 #6: mark this version as used now, then drop versions no copy of the app used for a day.
         runCatching { Files.setLastModifiedTime(directory, FileTime.fromMillis(System.currentTimeMillis())) }
@@ -25,53 +22,24 @@ internal object DesktopCache {
         return directory
     }
 
-    /**
-     * nuvio-rr fork, Phase 9 #10: like [installVersionedFiles], but the version comes from cheap per-file stamps
-     * ([stampOf]: e.g. the jar entry's CRC-32 and size; null = resource absent, skipped), and a version that was
-     * installed completely (marker file) is returned without reading any resource. [read] is only called to install.
-     */
-    fun installVersionedResources(
-        namespace: String,
-        names: List<String>,
-        stampOf: (String) -> String?,
-        read: (String) -> ByteArray?,
-    ): Path {
-        require(namespace.isNotBlank())
-        val present = names.mapNotNull { name -> stampOf(name)?.let { stamp -> name to stamp } }
-        require(present.isNotEmpty())
-        val digest = MessageDigest.getInstance("SHA-256")
-        present.sortedBy { it.first }.forEach { (name, stamp) ->
-            digest.update(name.toByteArray(Charsets.UTF_8))
-            digest.update(0)
-            digest.update(stamp.toByteArray(Charsets.UTF_8))
-            digest.update(0)
-        }
-        val version = "s" + digest.digest().joinToString("") { byte -> "%02x".format(byte) }.take(23)
-        val directory = DesktopStorage.cacheDir.resolve(namespace).resolve(version).normalize()
-        require(directory.startsWith(DesktopStorage.cacheDir))
-        val marker = directory.resolve(".complete")
-        val complete = Files.isRegularFile(marker) && present.all { (name, _) -> Files.isRegularFile(directory.resolve(name)) }
-        if (!complete) {
-            Files.deleteIfExists(marker)
-            present.forEach { (name, _) ->
-                val target = directory.resolve(name).normalize()
-                require(target.startsWith(directory))
-                writeIfChanged(target, read(name) ?: error("resource $name is gone"))
+    fun installVersionedResources(namespace: String, resources: Map<String, URL>): Path {
+        require(resources.isNotEmpty())
+        val directory = versionedDirectory(
+            namespace,
+            resources.mapValues { (_, url) -> resourceStamp(url).toByteArray(Charsets.UTF_8) },
+        )
+        resources.forEach { (relativePath, url) ->
+            val target = resolveTarget(directory, relativePath)
+            if (!Files.exists(target)) {
+                url.openStream().use { input ->
+                    writeAtomically(target) { pending -> Files.copy(input, pending, StandardCopyOption.REPLACE_EXISTING) }
+                }
             }
-            Files.write(marker, version.toByteArray(Charsets.UTF_8))
         }
+        // Phase 9 #6: mark this version as used now, then drop versions no copy of the app used for a day.
         runCatching { Files.setLastModifiedTime(directory, FileTime.fromMillis(System.currentTimeMillis())) }
         runCatching { pruneOldVersions(directory.parent, keep = directory, olderThanMs = UNUSED_VERSION_AGE_MS) }
         return directory
-    }
-
-    /** Phase 9 #10/#22: a cheap identity of a bundled resource (jar entry CRC-32 + size; classes dir: size + time). */
-    fun resourceStamp(anchor: Class<*>, resource: String): String? {
-        val url = anchor.getResource(resource) ?: return null
-        return when (val connection = url.openConnection()) {
-            is java.net.JarURLConnection -> connection.jarEntry.let { entry -> "crc=${entry.crc} size=${entry.size}" }
-            else -> runCatching { java.io.File(url.toURI()) }.getOrNull()?.let { file -> "size=${file.length()} time=${file.lastModified()}" }
-        }
     }
 
     /**
@@ -94,22 +62,42 @@ internal object DesktopCache {
 
     private const val UNUSED_VERSION_AGE_MS = 24 * 60 * 60 * 1000L
 
-    private fun contentVersion(files: Map<String, ByteArray>): String {
+    private fun versionedDirectory(namespace: String, versionInputs: Map<String, ByteArray>): Path {
+        require(namespace.isNotBlank())
         val digest = MessageDigest.getInstance("SHA-256")
-        files.toSortedMap().forEach { (path, bytes) ->
+        versionInputs.toSortedMap().forEach { (path, bytes) ->
             digest.update(path.toByteArray(Charsets.UTF_8))
             digest.update(0)
             digest.update(bytes)
         }
-        return digest.digest().joinToString("") { byte -> "%02x".format(byte) }.take(24)
+        val version = digest.digest().joinToString("") { byte -> "%02x".format(byte) }.take(24)
+        val directory = DesktopStorage.cacheDir.resolve(namespace).resolve(version).normalize()
+        require(directory.startsWith(DesktopStorage.cacheDir))
+        return directory
     }
+
+    private fun resolveTarget(directory: Path, relativePath: String): Path {
+        val target = directory.resolve(relativePath).normalize()
+        require(target.startsWith(directory))
+        return target
+    }
+
+    private fun resourceStamp(url: URL): String =
+        when (val connection = url.openConnection()) {
+            is JarURLConnection -> connection.jarEntry.let { entry -> "${entry.size}:${entry.crc}" }
+            else -> "${connection.contentLengthLong}:${connection.lastModified}"
+        }
 
     private fun writeIfChanged(target: Path, bytes: ByteArray) {
         if (Files.exists(target) && Files.readAllBytes(target).contentEquals(bytes)) return
+        writeAtomically(target) { pending -> Files.write(pending, bytes) }
+    }
+
+    private fun writeAtomically(target: Path, write: (Path) -> Unit) {
         Files.createDirectories(target.parent)
         val pending = Files.createTempFile(target.parent, target.fileName.toString(), ".part")
         try {
-            Files.write(pending, bytes)
+            write(pending)
             runCatching {
                 Files.move(
                     pending,

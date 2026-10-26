@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player.desktop
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.core.storage.DesktopCache
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,11 +23,22 @@ internal object NativePlayerBridge {
     )
     private val preloadStarted = AtomicBoolean(false)
 
-    init {
-        // nuvio-rr fork, Phase 9 #10: this runs on whichever thread touches the bridge first (startup: main).
-        val started = System.nanoTime()
+    private val log = Logger.withTag("NativePlayerBridge")
+
+    private val loadFailure: Throwable? = try {
         loadNativeLibrary()
-        println("[nuvio] native player bridge loaded in ${(System.nanoTime() - started) / 1_000_000} ms on ${Thread.currentThread().name}")
+        null
+    } catch (error: Throwable) {
+        log.e(error) { "native player library failed to load" }
+        error
+    }
+
+    fun ensureLoaded() {
+        val failure = loadFailure ?: return
+        throw IllegalStateException(
+            "Native player failed to load: ${failure.javaClass.simpleName}: ${failure.message}",
+            failure,
+        )
     }
 
     /**
@@ -51,9 +63,14 @@ internal object NativePlayerBridge {
 
     external fun dispose(handle: Long)
     external fun updateControls(handle: Long, controlsJson: String)
+
+    /** macOS only: title, episode line, and poster for the system now-playing widget (Control Center). */
+    external fun setNowPlayingMetadata(handle: Long, title: String, subtitle: String, artworkUrl: String)
     external fun requestFocus(handle: Long)
     external fun beginWindowDrag(handle: Long)
     external fun setWindowResizable(windowHwnd: Long, enabled: Boolean)
+    external fun setWindowAspectRatio(windowHwnd: Long, ratio: Float)
+    external fun layoutNativeSubviews(handle: Long)
     private external fun reparentSurfaceNative(handle: Long, hostViewPtr: Long)
 
     fun reparentSurface(handle: Long, hostViewPtr: Long): Boolean =
@@ -80,7 +97,9 @@ internal object NativePlayerBridge {
     external fun speed(handle: Long): Float
     external fun audioTracksJson(handle: Long): String
     external fun subtitleTracksJson(handle: Long): String
+    external fun stringProperty(handle: Long, name: String): String
     external fun selectAudioTrack(handle: Long, trackId: Int)
+    external fun setAudioLanguages(handle: Long, languages: String)
     external fun selectSubtitleTrack(handle: Long, trackId: Int)
     external fun addSubtitleUrl(handle: Long, url: String)
     external fun clearExternalSubtitles(handle: Long)
@@ -119,7 +138,10 @@ internal object NativePlayerBridge {
     external fun shutdownWebView2Warmup()
     external fun setWindowsDisplaySleepInhibited(inhibited: Boolean): Boolean
 
-    val controlsPageUrl: String by lazy { controlsPageAssets.url }
+    val controlsPageUrl: String by lazy {
+        ensureLoaded()
+        controlsPageAssets.url
+    }
     private val controlsPageAssets: ControlsPageAssets by lazy { exportControlsPageAssets() }
 
     fun preloadAsync() {
@@ -135,14 +157,15 @@ internal object NativePlayerBridge {
             ) {
                 runCatching { warmupWebView2(controlsPage.url) }
             }
+            if (DesktopHostOs.current == DesktopHostOs.WINDOWS) {
+                runCatching { shutdownWebView2Warmup() }
+            }
         }.apply {
             name = "nuvio-native-player-preload"
             isDaemon = true
             start()
         }
-        if (DesktopHostOs.current == DesktopHostOs.WINDOWS ||
-            DesktopHostOs.current == DesktopHostOs.LINUX
-        ) {
+        if (DesktopHostOs.current == DesktopHostOs.LINUX) {
             Runtime.getRuntime().addShutdownHook(
                 Thread {
                     runCatching { shutdownWebView2Warmup() }
@@ -178,16 +201,13 @@ internal object NativePlayerBridge {
             return
         }
 
-        // nuvio-rr fork, Phase 9 #10: decided from the jar's CRC + size per file; an installed runtime (~115 MB) is not
-        // read, hashed and compared again on every launch.
-        val resource = "/native/$platformDir/$libraryName"
-        if (resourceStamp(resource) == null) error("Missing native player resource: $resource")
-        val directory = DesktopCache.installVersionedResources(
-            namespace = "native-player-bridge/$platformDir",
-            names = listOf(libraryName) + bundledRuntimeResourceNames(platformDir).filter { it != libraryName },
-            stampOf = { name -> resourceStamp("/native/$platformDir/$name") },
-            read = { name -> resourceBytesOrNull("/native/$platformDir/$name") },
-        ).toFile()
+        val resources = (listOf(libraryName) + bundledRuntimeResourceNames(platformDir))
+            .mapNotNull { name ->
+                NativePlayerBridge::class.java.getResource("/native/$platformDir/$name")?.let { url -> name to url }
+            }
+            .toMap()
+        require(libraryName in resources) { "Missing native player resource: /native/$platformDir/$libraryName" }
+        val directory = DesktopCache.installVersionedResources("native-player-bridge/$platformDir", resources).toFile()
         loadNativeRuntimeDependencies(platform, directory)
         System.load(directory.resolve(libraryName).absolutePath)
     }
@@ -206,7 +226,8 @@ internal object NativePlayerBridge {
         windowsNativeRuntimeDependencyNames.forEach { name ->
             val dependency = directory.resolve(name)
             if (dependency.exists()) {
-                System.load(dependency.absolutePath)
+                runCatching { System.load(dependency.absolutePath) }
+                    .onFailure { error -> log.w(error) { "skipping runtime dependency $name" } }
             }
         }
     }
@@ -292,6 +313,9 @@ internal object NativePlayerBridge {
                 .replace("/* __NUVIO_PLAYER_FONT_FACES__ */", nativePlayerFontFaces())
                 .toByteArray(Charsets.UTF_8),
             "controls.js" to readResourceBytes("/player-ui/controls.js"),
+            "party.css" to readResourceBytes("/player-ui/party.css"),
+            "party.js" to readResourceBytes("/player-ui/party.js"),
+            "loading-indicator.js" to readResourceBytes("/player-ui/loading-indicator.js"),
             "fonts/jetbrains_sans_regular.ttf" to readResourceBytes(
                 "/composeResources/nuvio.composeapp.generated.resources/font/jetbrains_sans_regular.ttf",
             ),
@@ -338,15 +362,6 @@ internal object NativePlayerBridge {
 
     private fun readResourceBytes(resource: String): ByteArray =
         resourceBytesOrNull(resource) ?: error("Missing native player resource: $resource")
-
-    /** Phase 9 #10: a cheap identity for a bundled resource (jar entry CRC-32 + size; dev classes dir: size + time). */
-    private fun resourceStamp(resource: String): String? {
-        val url = NativePlayerBridge::class.java.getResource(resource) ?: return null
-        return when (val connection = url.openConnection()) {
-            is java.net.JarURLConnection -> connection.jarEntry.let { entry -> "crc=${entry.crc} size=${entry.size}" }
-            else -> runCatching { File(url.toURI()) }.getOrNull()?.let { file -> "size=${file.length()} time=${file.lastModified()}" }
-        }
-    }
 
     private fun resourceBytesOrNull(resource: String): ByteArray? =
         NativePlayerBridge::class.java.getResourceAsStream(resource)?.use { it.readBytes() }

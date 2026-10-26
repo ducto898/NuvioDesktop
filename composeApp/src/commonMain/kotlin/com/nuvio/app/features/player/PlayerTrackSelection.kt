@@ -464,6 +464,22 @@ internal fun preferredSubtitleTargetsForSettings(settings: PlayerSettingsUiState
     ).filterNot { it == SubtitleLanguageOption.FORCED }
 }
 
+// Players report ISO 639-2 tags such as "cze" or "slo"; preferences are stored as ISO 639-1.
+internal fun findPreferredAudioTrackIndex(
+    tracks: List<AudioTrack>,
+    languages: List<String>,
+): Int {
+    for (language in languages) {
+        val index = tracks.indexOfFirst { languageMatchesPreference(it.language, language) }
+        if (index >= 0) return index
+        val byLabel = tracks.indexOfFirst {
+            normalizeLanguageCode(it.language) == null && audioTrackMatchesLanguage(it, language)
+        }
+        if (byLabel >= 0) return byLabel
+    }
+    return -1
+}
+
 internal fun findPersistedAudioTrackIndex(
     tracks: List<AudioTrack>,
     preference: PersistedPlayerTrackPreference,

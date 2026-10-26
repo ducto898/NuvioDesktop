@@ -28,7 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.LocalNuvioPlatformDensity
+import com.nuvio.app.core.ui.PresenceSnapshot
 import com.nuvio.app.features.player.desktop.DesktopHostOs
 import com.nuvio.app.features.player.desktop.DesktopPlayerPictureInPicture
 import com.nuvio.app.features.player.desktop.NativePlayerController
@@ -51,6 +53,7 @@ actual fun PlatformPlayerSurface(
     initialPositionMs: Long?,
     initialPositionRequestKey: String?,
     resizeMode: PlayerResizeMode,
+    playbackEngine: com.nuvio.app.features.player.AndroidPlaybackEngine?,
     useNativeController: Boolean,
     playerControlsState: PlayerControlsState,
     onPlayerControlsAction: (PlayerControlsAction) -> Boolean,
@@ -244,6 +247,13 @@ private fun NativePlayerSurface(
     }
 
     LaunchedEffect(controller) {
+        AppPresenceState.current.collect { snapshot ->
+            val player = snapshot as? PresenceSnapshot.Player
+            controller.setNowPlayingMetadata(player?.title, player?.episodeLabel, player?.posterUrl)
+        }
+    }
+
+    LaunchedEffect(controller) {
         desktopFullscreenChanges.drop(1).collect {
             controller.onDesktopFullscreenChanged()
         }
@@ -251,9 +261,9 @@ private fun NativePlayerSurface(
 
     LaunchedEffect(controller) {
         while (true) {
-            onSnapshot(controller.snapshot())
+            if (!controller.isReleasing) onSnapshot(controller.snapshot())
             controller.takePlaybackError()?.let { message -> latestOnError.value(message) }  // Phase 9 #4
-            delay(500L)
+            delay(250L)
         }
     }
 
