@@ -1817,6 +1817,14 @@ std::string audioDeviceListJson() {
 }  // namespace nuvio_rr
 }  // namespace
 
+// SYNC4 (H14): upstream's bridge now also keeps mpv's shader cache under %LOCALAPPDATA%\Nuvio, through the known-folder
+// API, which ignores the LOCALAPPDATA redirect of dev and measure runs, so those wrote the official profile. Use
+// %LOCALAPPDATA% when it is set (in a normal process it is the same folder), else the known folder [knownFolder].
+std::wstring nuvioRrLocalAppDataRoot(const std::wstring &knownFolder) {
+    std::wstring local = nuvio_rr::envValue(L"LOCALAPPDATA");
+    return local.empty() ? knownFolder : local;
+}
+
 // Phase 8 (H14, Q39): the bridge's WebView2 folder follows the fork's app identity, so the packaged "Nuvio RR" never
 // writes the official %LOCALAPPDATA%\Nuvio\WebView2 (D6). One rule for all folders: Kotlin ForkIdentity.appDirName.
 // Asked once; if the JVM, the class or the call is unavailable, upstream's "Nuvio" stays. Declared at block scope in

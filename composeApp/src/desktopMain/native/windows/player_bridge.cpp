@@ -490,7 +490,7 @@ std::wstring localAppDataDirectory(const wchar_t *name) {
     }
     std::wstring directory(localAppData);
     CoTaskMemFree(localAppData);
-    std::wstring nuvioRrAppDirName(); directory += L"\\" + nuvioRrAppDirName() + L"\\"; // nuvio-rr fork hook H14
+    std::wstring nuvioRrAppDirName(), nuvioRrLocalAppDataRoot(const std::wstring &); directory = nuvioRrLocalAppDataRoot(directory) + L"\\" + nuvioRrAppDirName() + L"\\"; // nuvio-rr fork hook H14
     directory += name;
     int createResult = SHCreateDirectoryExW(nullptr, directory.c_str(), nullptr);
     if (createResult != ERROR_SUCCESS && createResult != ERROR_ALREADY_EXISTS && createResult != ERROR_FILE_EXISTS) {
