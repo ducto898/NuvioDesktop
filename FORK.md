@@ -94,7 +94,7 @@ pwsh -File scripts/run-dev.ps1        # run the dev build with an ISOLATED profi
 Since 2026-10-03 the branch is public on origin, so upstream is **merged in, not rebased** (no force-push).
 `scripts\sync-upstream.ps1` runs steps 1–5 (`-DryRun` = report + trial merge only; `-SkipVerify`, `-SkipLive`,
 `-NoPackage`; `-Target <release commit>` to sync to a release). Sync on each upstream release
-(`chore(store): publish x.y.z`). The steps by hand:
+(desktop tag `0.1.x-alpha` on Dev; the `chore(store): publish x.y.z-beta` commits are mobile releases, some not on Dev). The steps by hand:
 1. `git fetch upstream` and read what changed in the hook files (§5): `git diff <old base> upstream/Dev -- <file>`.
    The script also lists `scripts\fork-fixes.txt` files upstream touched: if upstream fixed the same bug, drop the
    fork's fix (fewer modified upstream files means easier merges).
@@ -117,6 +117,13 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   left `WatchProgressIdentityTest#legacy payload ...` on a 1 s fixture; the fork uses a real episode length there.
   Fork test `PlaceholderDurationCompletionTest` guards that Trakt rows (`durationMs = 1` placeholder, explicit
   `isCompleted`/`progressPercent = 100`) stay watched, and that a short clip alone is not derived as watched.
+- SYNC2 (2026-10-26): upstream's watch party can lock the controls; then `finishTimelineSeek` skips the seek, so the
+  fork's scrub preview (E7) would leave the player at the preview position. No preview seeks while locked.
+- SYNC3 (2026-10-26): upstream `DesktopCache.resourceStamp()`/install used cached `URLConnection`s, which kept the jar or
+  file open; on Windows `DesktopCacheTest` failed in cleanup. Uncached and closed now.
+- SYNC4 (2026-10-26): upstream's new mpv shader cache (`Cache\mpv-shaders`) goes through the H14 folder, found with the
+  known-folder API, which ignores the LOCALAPPDATA redirect, so dev/measure runs wrote the official profile. H14 now
+  uses `%LOCALAPPDATA%` when set (`nuvioRrLocalAppDataRoot`, display_mode_matcher.cpp).
 
 ## 5. Known conflict hot spots
 - `PlaybackSettingsPage.kt`, the `if (isWindows)` "NVIDIA RTX Video" section: H9 sits on the line right after it.

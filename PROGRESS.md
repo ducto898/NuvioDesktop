@@ -3,6 +3,13 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-10-26: upstream sync by MERGE** of desktop release 0.1.32-alpha (`da6910db`; 0.1.26 -> 0.1.32). Merge
+  `6664d86a` (13 conflicts by hand), SYNC2-4 (FORK.md §4), verify -Full green (1875 tests), live runs PASS, zip
+  ..\dist\Nuvio-RR-1.1.32-9814ccbc.zip, patch ..\patches\nuvio-rr-da6910db-9814ccbc.patch. Backup branch
+  `backup/pre-merge-2026-10-26`. Not pushed. Upstream replaced TorrServer with nuvio-engine (fork fixes S3/S4/#8/#22
+  dropped) and now does E4 (Esc on home tabs), R4 and #10 itself (fork versions dropped).
+  Note: release targets are the desktop tags `0.1.x-alpha` on Dev, NOT `chore(store): publish x.y.z-beta` (those are
+  mobile commits; 0.6.4-beta is not even on Dev).
 - **2026-10-03: upstream sync by MERGE** (owner: maintain the fork with upstream fixes; branch is public, so merge, no
   more rebases). Merged upstream/Dev `ed77003b` (0.5.6). Future syncs: `scripts/sync-upstream.ps1` (FORK.md §4).
   The upstream test failure it brought in is fixed in the fork (SYNC1, FORK.md §4); verify -Full green.
@@ -153,7 +160,7 @@ The only memory between phases. Read it at the start of every phase; update it a
 - Upstream default branch is **`Dev`** (not `main`). Upstream HEAD at fork time: `083921cf`.
 - Clone: `C:\Users\vicon\ClaudeProjects\NuvioRate\NuvioDesktop`
   - `origin` = ducto898/NuvioDesktop (**public** fork); `upstream` = NuvioMedia/NuvioDesktop
-- Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`; since 2026-10-03 upstream is merged in (last: `ed77003b`). **Pushed to origin (public fork)**:
+- Feature branch: `feature/refresh-rate-matching` from `upstream/Dev` @ `083921cf`; since 2026-10-03 upstream is merged in (last: `da6910db`, 2026-10-26). **Pushed to origin (public fork)**:
   `origin/feature/refresh-rate-matching` = `6a9ae226` (2026-10-01 17:13), local is ahead (24 commits on 2026-10-02).
   Checked 2026-10-02: no secrets in any git object (Real-Debrid key scan, all refs + unreachable: 0 hits).
 - Submodules: only `MPVKit` is mapped. `libass-android`, `vendor/TorrServer` and `vendor/quickjs-kt`
