@@ -11,8 +11,11 @@
 
 .PARAMETER NoZip
   Build the folder only.
+
+.PARAMETER NoDeploy
+  Don't unzip the package into C:\TestAPP and repoint the desktop shortcut (deploy-testapp.ps1, owner 2026-10-26).
 #>
-param([switch]$NoZip)
+param([switch]$NoZip, [switch]$NoDeploy)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $root = Split-Path -Parent $repo
@@ -68,4 +71,5 @@ if (-not $NoZip) {
     if (Test-Path $zip) { Remove-Item $zip }
     [IO.Compression.ZipFile]::CreateFromDirectory($app, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
     Write-Host ("zip: {0} ({1:n0} MB)" -f $zip, ((Get-Item $zip).Length / 1MB))
+    if (-not $NoDeploy) { & (Join-Path $PSScriptRoot 'deploy-testapp.ps1') -Zip $zip }
 }
