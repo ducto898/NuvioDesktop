@@ -262,7 +262,9 @@ internal actual fun CollectionCardRemoteImage(
         }
 
         LaunchedEffect(imageUrl) {
-            if (codecHolder == null && synchronized(gifCodecCache) { !gifCodecCache.containsKey(imageUrl) }) {
+            // nuvio-rr fork, RACE: the prefetch can fill the cache after [codecHolder] was read (null) and before this
+            // runs; skipping on a cache hit then left the card still forever. loadDesktopGifCodec reads the cache first.
+            if (codecHolder == null) {
                 codecHolder = loadDesktopGifCodec(imageUrl)
             }
         }
