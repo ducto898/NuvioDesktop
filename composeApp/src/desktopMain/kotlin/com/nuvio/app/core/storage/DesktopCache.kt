@@ -31,7 +31,8 @@ internal object DesktopCache {
         resources.forEach { (relativePath, url) ->
             val target = resolveTarget(directory, relativePath)
             if (!Files.exists(target)) {
-                url.openStream().use { input ->
+                // SYNC3: uncached, so closing the stream releases the jar/file (Windows kept it locked).
+                url.openConnection().apply { useCaches = false }.getInputStream().use { input ->
                     writeAtomically(target) { pending -> Files.copy(input, pending, StandardCopyOption.REPLACE_EXISTING) }
                 }
             }
@@ -82,10 +83,11 @@ internal object DesktopCache {
         return target
     }
 
+    // SYNC3: uncached and closed, so the jar/file is not left open (Windows kept it locked).
     private fun resourceStamp(url: URL): String =
-        when (val connection = url.openConnection()) {
-            is JarURLConnection -> connection.jarEntry.let { entry -> "${entry.size}:${entry.crc}" }
-            else -> "${connection.contentLengthLong}:${connection.lastModified}"
+        when (val connection = url.openConnection().apply { useCaches = false }) {
+            is JarURLConnection -> connection.jarFile.use { connection.jarEntry.let { entry -> "${entry.size}:${entry.crc}" } }
+            else -> connection.getInputStream().use { "${connection.contentLengthLong}:${connection.lastModified}" }
         }
 
     private fun writeIfChanged(target: Path, bytes: ByteArray) {
