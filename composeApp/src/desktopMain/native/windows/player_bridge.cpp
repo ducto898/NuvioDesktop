@@ -1883,8 +1883,9 @@ private:
                 setMpvOptionStringLocked("scale", "spline36");
                 setMpvOptionStringLocked("cscale", "spline36");
             }
-            setMpvOptionStringLocked("demuxer-max-bytes", "150MiB");
-            setMpvOptionStringLocked("demuxer-max-back-bytes", "50MiB");
+            // nuvio-rr fork, BUF: upstream 0.1.32 cut these to 150/50 MiB (~15 s of a 4K remux); back to 512/256 MiB.
+            setMpvOptionStringLocked("demuxer-max-bytes", "512MiB");
+            setMpvOptionStringLocked("demuxer-max-back-bytes", "256MiB");
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
             setMpvOptionStringLocked(
                 "stream-lavf-o",

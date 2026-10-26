@@ -1518,10 +1518,130 @@ void cacheTimingStats(mpv_handle *mpv) {
     entry->statsReady.store(true);
 }
 
+// BUF: why the player shows its buffering spinner. The bridge's rule (isBuffering): file not ready, or mpv idle while
+// not paused and not at the end, or paused for the cache. Only "cache" means the network did not keep up; "idle"
+// is mpv waiting on something else (audio output, video output, decoder). One line per stall of 0.5 s or more, one
+// every 10 s while it lasts, and a summary per file. Same players as the rest of this log (feature on). No URL: the
+// stream host only (debrid links carry an API key).
+struct BufferWatch {
+    mpv_handle *mpv = nullptr;
+    bool active = false;
+    double since = 0.0;
+    double lastNote = 0.0;
+    double lastPoll = 0.0;
+    std::string reason;
+    std::string startText;
+    int stalls = 0;
+    double stalledSeconds = 0.0;
+};
+
+std::string bufferSnapshot(mpv_handle *mpv) {
+    MpvApi &api = mpvApi();
+    auto real = [&](const char *name) {
+        double v = 0.0;
+        return api.getProperty(mpv, name, MPV_FORMAT_DOUBLE, &v) >= 0 ? v : std::nan("");
+    };
+    auto count = [&](const char *name) {
+        int64_t v = 0;
+        return api.getProperty(mpv, name, MPV_FORMAT_INT64, &v) >= 0 ? (double)v : std::nan("");
+    };
+    // demuxer-cache-state is a node; its sub-keys can't be read by path, so take its JSON string form.
+    std::string state;
+    readStringProperty(mpv, "demuxer-cache-state", state);
+    auto key = [&](const char *name) {
+        std::string needle = std::string("\"") + name + "\":";
+        size_t at = state.find(needle);
+        return at == std::string::npos ? std::nan("") : std::strtod(state.c_str() + at + needle.size(), nullptr);
+    };
+    return strf("pos=%.1f cache=%.1fs fw=%.0fMB speed=%.1fMB/s input=%.0fMbit/s", real("time-pos"),
+        real("demuxer-cache-duration"), key("fw-bytes") / 1e6, count("cache-speed") / 1e6,
+        key("raw-input-rate") * 8.0 / 1e6);
+}
+
+void watchBuffering(mpv_handle *mpv, mpv_event *event, bool stopping) {
+    thread_local BufferWatch w;
+    auto entry = findPlayer([mpv](const PlayerEntry &p) { return p.mpv == mpv; });
+    if (!entry) return;
+    long long id = (long long)entry->id;
+    if (w.mpv != mpv) w = BufferWatch(), w.mpv = mpv;
+    int eventId = event ? (int)event->event_id : 0;
+    if (eventId == 8) {  // MPV_EVENT_FILE_LOADED
+        std::string path, host = "local";
+        if (readStringProperty(mpv, "path", path)) {
+            size_t scheme = path.find("://");
+            if (scheme != std::string::npos) {
+                size_t end = path.find_first_of("/?#", scheme + 3);
+                host = path.substr(scheme + 3, end == std::string::npos ? std::string::npos : end - scheme - 3);
+                size_t at = host.rfind('@');
+                if (at != std::string::npos) host = host.substr(at + 1);
+            }
+        }
+        nlog(strf("buffer p%lld file loaded from %s", id, host.c_str()));
+        w.stalls = 0;
+        w.stalledSeconds = 0.0;
+    }
+    if (eventId == 7 || stopping) {  // MPV_EVENT_END_FILE
+        if (w.stalls > 0 || w.active) {
+            nlog(strf("buffer p%lld file summary: %d stall(s), %.1f s stalled%s", id, w.stalls, w.stalledSeconds,
+                w.active ? " (one still open)" : ""));
+        }
+        w.active = false;
+        w.stalls = 0;
+        w.stalledSeconds = 0.0;
+        return;
+    }
+    double now = nowSeconds();
+    if (now - w.lastPoll < 0.25) return;
+    w.lastPoll = now;
+    MpvApi &api = mpvApi();
+    auto flag = [&](const char *name, int fallback) {
+        int v = fallback;
+        api.getProperty(mpv, name, MPV_FORMAT_FLAG, &v);
+        return v != 0;
+    };
+    double duration = 0.0;
+    int64_t tracks = 0;
+    api.getProperty(mpv, "duration", MPV_FORMAT_DOUBLE, &duration);
+    api.getProperty(mpv, "track-list/count", MPV_FORMAT_INT64, &tracks);
+    bool ready = duration > 0.0 || tracks > 0;
+    bool forCache = flag("paused-for-cache", 0);
+    bool idle = flag("core-idle", 1) && !flag("pause", 0) && !flag("eof-reached", 0);
+    std::string reason;
+    if (!ready) reason = "opening";
+    else if (forCache) reason = "cache";
+    else if (idle) reason = flag("seeking", 0) ? "seek" : "idle";
+    if (!reason.empty() && !w.active) {
+        w.active = true;
+        w.since = now;
+        w.lastNote = now;
+        w.reason = reason;
+        w.startText = bufferSnapshot(mpv);
+    } else if (!reason.empty()) {
+        if (reason == "cache" && w.reason != "cache") w.reason = reason;  // a seek or idle that became a cache wait
+        if (now - w.lastNote >= 10.0) {
+            w.lastNote = now;
+            nlog(strf("buffer p%lld still %s after %.0f s: %s", id, w.reason.c_str(), now - w.since,
+                bufferSnapshot(mpv).c_str()));
+        }
+    } else if (w.active) {
+        w.active = false;
+        double took = now - w.since;
+        if (took >= 0.5 && w.reason != "opening") {
+            w.stalls++;
+            w.stalledSeconds += took;
+            nlog(strf("buffer p%lld %s %.1f s | start %s | end %s", id, w.reason.c_str(), took, w.startText.c_str(),
+                bufferSnapshot(mpv).c_str()));
+        } else if (w.reason == "opening") {
+            nlog(strf("buffer p%lld opened in %.1f s | %s", id, took, bufferSnapshot(mpv).c_str()));
+        }
+    }
+}
+
 inline void onMpvEvent(mpv_handle *mpv, mpv_event *event, HWND hwnd, bool stopping) {
     bool used = gFeatureUsed.load(std::memory_order_relaxed);
     if (used && mpv && event && (int)event->event_id == kMpvEventHook) onHookEvent(mpv, event);
     if (used && mpv && !stopping) cacheTimingStats(mpv);
+    if (used && mpv) watchBuffering(mpv, event, stopping);
     if (!measureConfig().enabled || !mpv) return;
     struct Holder {
         MeasureSession session;
