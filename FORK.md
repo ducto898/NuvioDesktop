@@ -129,10 +129,21 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   display_mode_matcher.cpp, from H4; feature-on players only). `cache` = network/debrid too slow; `idle` = mpv
   waiting on something else (audio, video output, decoder).
 - BUF2 (2026-10-27, owner log 2026-10-26: no mid-play stalls, but a 38 s seek back waited 47 s with the cache
-  stuck): demuxer-max-back-bytes 256 -> 512 MiB (~50 s of an 84 Mbit/s remux) and network-timeout 15 s (mpv: 60 s),
+  stuck): demuxer-max-back-bytes 256 -> 512 MiB (~50 s of an 84 Mbit/s remux) and network-timeout 30 s (mpv: 60 s; 15 s at first, raised for PAR: Comet links took 15-16 s to the first byte),
   so a hung debrid read fails fast and stream-lavf-o reconnects. The `buffer pN file summary` line was never written:
   H5 clears the entry's mpv before END_FILE reaches H4; `BufferWatch` now keeps the id, and the summary is written
   for every loaded file (stalls, and how many of them were cache waits).
+- PAR (2026-10-27, owner: "multi-connection download"; Oppenheimer remux from an RD server, 45 Mbit/s per connection,
+  later 5-30 and 0.5-120 by file region): `fork/ParallelStreamProxy.kt`. Remote http(s) files (not 127.*, not
+  playlists) go through a 127.0.0.1 proxy: 8 MiB segments over 6 range requests (`NUVIO_RR_STREAM_CONNECTIONS`,
+  0 = off), 192 MiB ahead and 640 MiB behind mpv's read point kept in direct buffers, the file's last segment (mkv
+  Cues) fetched early and kept, the reader's segment split over up to half the connections when it waits, trickling
+  connections dropped (256 KiB in 8 s), 302 back to the source when it has no range support. Hooked in
+  NativePlayerController's default `nativeCreate` (tests inject their own). Log: `Cache\stream-proxy.log`
+  (hosts only). Measured: dev app, 70 Mbit/s clip, 40 Mbit/s per connection, 90 s: direct 21 stalls / 42.5 s, proxy
+  0; live RD 5 -> 13 Mbit/s and 11 -> 38. Subtitle switch (mpv refresh seek drops its cache and re-reads from
+  ~11 s back + the Cues): libmpv harness at 2x bitrate per connection, direct 10 s stall, proxy 0.0 s.
+  `measure.ps1 -StreamUrl` plays a URL (use a host like localtest.me: 127.* is not proxied).
 - RACE (2026-10-26): upstream's collection card skipped the hover load when the visibility prefetch had filled the
   codec cache after the hover composition read it (null): the animation never started. CollectionCardRemoteImageTest
   flaked on it under verify load; CollectionCardHoverRaceTest holds that frame and reproduced it 3/3 before the fix.

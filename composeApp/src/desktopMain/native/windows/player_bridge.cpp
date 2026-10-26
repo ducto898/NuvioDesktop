@@ -1887,9 +1887,10 @@ private:
             // BUF2: 512 MiB behind too (~50 s of an 84 Mbit/s remux), so a short seek back stays in the cache.
             setMpvOptionStringLocked("demuxer-max-bytes", "512MiB");
             setMpvOptionStringLocked("demuxer-max-back-bytes", "512MiB");
-            // BUF2: a debrid read that hangs (owner log 2026-10-26: a seek back stuck 47 s) times out after 15 s instead
-            // of mpv's 60 s; the reconnect options below then retry it.
-            setMpvOptionStringLocked("network-timeout", "15");
+            // BUF2: a debrid read that hangs (owner log 2026-10-26: a seek back stuck 47 s) times out after 30 s instead
+            // of mpv's 60 s; the reconnect options below then retry it. Not 15: a Comet link took 15-16 s to its first
+            // byte. Remote files go through ParallelStreamProxy (PAR), which drops a hung upstream read itself.
+            setMpvOptionStringLocked("network-timeout", "30");
             setMpvOptionStringLocked("demuxer-seekable-cache", "yes");
             setMpvOptionStringLocked(
                 "stream-lavf-o",

@@ -27,6 +27,8 @@
   timing-set = the interpolation set fails at the hook, drop-mode = the temporary mode is dropped at 20 s and 50 s).
   Phase 5: summary.json mpv.after5s = counters from 5 s of playback to the end (P2b-13 / P5-12 rule), speed
   corrections, and the timing options mpv reports.
+  PAR: -StreamUrl <http url> plays that URL (e.g. a local Range server serving -Clip) instead of the clip file, so the
+  app's ParallelStreamProxy is in the path; -Clip still names the run and gives the expected fps.
   -CloseAfterSwitchMs <ms> closes the window <ms> after the feature's switch call (dispose-mid-switch, P4-12).
 
   Phase 6 (the setting): NUVIO_RR_ENABLE is the override ("1" on, "0" off, unset = the "Match display refresh rate"
@@ -53,6 +55,7 @@
 #>
 param(
     [string]$Clip,
+    [string]$StreamUrl = '',
     [int]$Seconds = 120,
     [switch]$Fullscreen,
     [switch]$PresentMon,
@@ -279,7 +282,7 @@ $savedEnv = @{}
 $envSet = @{
     NUVIO_RR_MEASURE = '1'; NUVIO_RR_MEASURE_DIR = $out
     NUVIO_RR_MEASURE_SYNC = $Sync; NUVIO_RR_MEASURE_SWITCH_HZ = $(if ($SwitchHz) { "$SwitchHz" } else { '' })
-    NUVIO_DESKTOP_SMOKE_PLAYER_URL = 'file:///' + ($clipPath -replace '\\', '/')
+    NUVIO_DESKTOP_SMOKE_PLAYER_URL = if ($StreamUrl) { $StreamUrl } else { 'file:///' + ($clipPath -replace '\\', '/') }
     NUVIO_RR_MEASURE_IPC = $(if ($Actions) { '1' } else { '' })
     NUVIO_RR_MEASURE_OPTS = $Opts; NUVIO_RR_MEASURE_HIDE_OVERLAY = $(if ($HideOverlay) { '1' } else { '' })
     NUVIO_RR_ENABLE = $enableValue; NUVIO_RR_FAULT = $Fault

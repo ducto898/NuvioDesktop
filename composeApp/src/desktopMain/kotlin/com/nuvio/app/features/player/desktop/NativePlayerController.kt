@@ -55,7 +55,9 @@ internal class NativePlayerController(
     private val host: NativePlayerHost,
     private val nativeCreate: NativePlayerCreate = { hostViewPtr, source, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, sink ->
         NativePlayerBridge.ensureLoaded()
-        NativePlayerBridge.create(hostViewPtr, source, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, sink)
+        // nuvio-rr fork, PAR: remote files are fetched over parallel connections (ParallelStreamProxy)
+        val streamed = com.nuvio.app.fork.ParallelStreamProxy.wrap(source, headers.toList())
+        NativePlayerBridge.create(hostViewPtr, streamed, headers, playWhenReady, positionMs, controlsUrl, decoder, rtx, sink)
     },
     private val nativeDispose: (Long) -> Unit = NativePlayerBridge::dispose,
     private val nativeSeekTo: (Long, Long) -> Unit = NativePlayerBridge::seekTo,
