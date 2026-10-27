@@ -481,6 +481,7 @@ const chromeInteractionSelector = [
   ".modal-layer",
   ".skip-prompt",
   ".next-episode-card",
+  ".stats-panel", // nuvio-rr fork, STATS
 ].join(",");
 
 const send = (type, value = 0) => {

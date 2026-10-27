@@ -144,6 +144,15 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   0; live RD 5 -> 13 Mbit/s and 11 -> 38. Subtitle switch (mpv refresh seek drops its cache and re-reads from
   ~11 s back + the Cues): libmpv harness at 2x bitrate per connection, direct 10 s stall, proxy 0.0 s.
   `measure.ps1 -StreamUrl` plays a URL (use a host like localtest.me: 127.* is not proxied).
+- STATS (2026-10-27, owner: YouTube-style "Stats for nerds", "smartly designed"): I in the player toggles an overlay
+  (`player-ui/stats.js` + `stats.css`; close button too; remembered for the app's lifetime). `fork/StatsForNerds.kt`
+  samples mpv properties and `ParallelStreamProxy.snapshot` once a second while it is shown and sends display-ready
+  rows plus a verdict: the worst current problem is the headline (waiting for cache, frames dropped in the last 10 s,
+  buffer low, refresh rate not a multiple of the frame rate, network slower than the file's average bitrate while the
+  buffer is under 20 s, proxy retries in the last 30 s). Charts: buffer health, and network with the file's bitrate
+  as a dashed line. Copy button = plain-text report. Host only, never the URL (debrid keys). New JNI
+  `NativePlayerBridge.updateStats` -> `window.playerStats`. `NUVIO_RR_STATS=1` starts it shown (measure runs:
+  SendKeys reach AWT, not the WebView); `measure.ps1 -Actions` gained `i` and `shot` (window PNG).
 - RACE (2026-10-26): upstream's collection card skipped the hover load when the visibility prefetch had filled the
   codec cache after the hover composition read it (null): the animation never started. CollectionCardRemoteImageTest
   flaked on it under verify load; CollectionCardHoverRaceTest holds that frame and reproduced it 3/3 before the fix.

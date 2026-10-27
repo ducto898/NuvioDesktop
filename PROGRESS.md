@@ -22,6 +22,7 @@ The only memory between phases. Read it at the start of every phase; update it a
   summary line is now written (it never was).
   PAR (2026-10-27): parallel-connection proxy for remote files + subtitle-switch stall cause (FORK.md §4). Next:
   owner to watch a debrid remux and send stream-proxy.log + the buffer lines.
+  STATS (2026-10-27): "Stats for nerds" overlay, key I (FORK.md §4). Dev run screenshots in measurements\*-hibit-stats3/4.
   Note: release targets are the desktop tags `0.1.x-alpha` on Dev, NOT `chore(store): publish x.y.z-beta` (those are
   mobile commits; 0.6.4-beta is not even on Dev).
 - **2026-10-03: upstream sync by MERGE** (owner: maintain the fork with upstream fixes; branch is public, so merge, no

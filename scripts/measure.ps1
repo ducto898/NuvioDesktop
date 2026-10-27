@@ -51,7 +51,8 @@
 .PARAMETER Actions
   Comma list of key@second (seconds after file-loaded): space (pause toggle), right/left (seek),
   mouse (wiggle the cursor over the window so the controls show), f11 (confirmed from the next sample's fs=, retried
-  once), alttab (Alt+Tab away for 3 s, then back). Example: 'space@40,space@60'.
+  once), alttab (Alt+Tab away for 3 s, then back), i (the I key: stats overlay, STATS), shot (a PNG of the app
+  window into the run folder, shot-<s>.png). Example: 'space@40,space@60'.
 #>
 param(
     [string]$Clip,
@@ -340,6 +341,9 @@ if ($loadedAt -and $app -and -not $closedEarlyAt) {
         Add-Type -Namespace '' -Name RrWin -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+[DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+public struct RECT { public int Left, Top, Right, Bottom; }
 '@
     }
     # Windows refuses SetForegroundWindow from a background process unless it just "had input": a synthetic
@@ -415,6 +419,15 @@ if ($loadedAt -and $app -and -not $closedEarlyAt) {
                     Start-Sleep -Seconds 3
                     & $focusApp
                     $result = 'away 3 s, back'
+                }
+                'i' { & $focusApp; $shell.SendKeys('i'); $result = 'I key' }
+                'shot' {
+                    [void][RrWin]::SetProcessDPIAware()
+                    $app.Refresh(); $r = New-Object RrWin+RECT; [void][RrWin]::GetWindowRect($app.MainWindowHandle, [ref]$r)
+                    $bmp = New-Object System.Drawing.Bitmap(($r.Right - $r.Left), ($r.Bottom - $r.Top))
+                    $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.Left, $r.Top, 0, 0, $bmp.Size); $g.Dispose()
+                    $file = "$out\shot-{0:n0}.png" -f $elapsed; $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+                    $result = $file
                 }
                 'mouse' {
                     $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds

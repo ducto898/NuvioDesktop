@@ -92,6 +92,31 @@ internal object ParallelStreamProxy {
 
     fun hostOf(url: String): String = runCatching { URI(url).host }.getOrNull() ?: "?"
 
+    /** What the stats overlay (STATS) shows for mpv's [path]: null when [path] is not a URL of this proxy. */
+    fun snapshot(path: String?): Snapshot? {
+        val server = instance ?: return null
+        val uri = runCatching { URI(path ?: return null) }.getOrNull() ?: return null
+        if (uri.host != "127.0.0.1" || uri.port != server.port) return null
+        val id = uri.path?.removePrefix("/s/")?.substringBefore('/') ?: return null
+        return server.session(id)?.snapshot()
+    }
+
+    /** Totals since the session started; the overlay derives rates from two of them. */
+    data class Snapshot(
+        val host: String,
+        val state: String, // starting, proxy, direct (no range support: mpv reads the source), failed, asleep
+        val connections: Int,
+        val loading: Int,
+        val fetchedBytes: Long,
+        val heldBytes: Long,
+        val aheadBytes: Long, // contiguous bytes ready after mpv's read point
+        val sizeBytes: Long,
+        val readerWaiting: Boolean,
+        val trickles: Int,
+        val failures: Int,
+        val splits: Int,
+    )
+
     class Server(val config: Config) {
         private val http: HttpServer = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 64)
         private val sessions = ConcurrentHashMap<String, Session>()
@@ -208,6 +233,12 @@ internal object ParallelStreamProxy {
         private var statsSince = System.currentTimeMillis()
         var upstreamRequests = 0
             private set
+        // totals for the stats overlay (STATS)
+        private var totalFetched = 0L
+        private var readPos = 0L
+        private var trickles = 0
+        private var failures = 0
+        private var splits = 0
 
         private val lastIndex: Long get() = (size - 1) / config.segmentBytes
 
@@ -283,6 +314,7 @@ internal object ParallelStreamProxy {
                     if (failure != null || segment == null) return
                     segment.lastUsed = System.nanoTime()
                     lastActivity = System.currentTimeMillis()
+                    readPos = pos
                     val remaining = end - pos + 1
                     val n = minOf(segment.filled - offset, buffer.size).let { if (remaining < it) remaining.toInt() else it }
                     segment.data.get(offset, buffer, 0, n)
@@ -432,6 +464,7 @@ internal object ParallelStreamProxy {
             val piece = Piece(segment, mid, largest.end)
             largest.end = mid
             segment.pieces.add(segment.pieces.indexOf(largest) + 1, piece)
+            splits++
             return piece
         }
 
@@ -488,6 +521,7 @@ internal object ParallelStreamProxy {
                         piece.errors = 0
                         piece.got += n // a split may have moved [end] below this; the extra bytes are the new piece's too
                         fetched += n
+                        totalFetched += n
                         changed.signalAll()
                     }
                 }
@@ -537,6 +571,7 @@ internal object ParallelStreamProxy {
             val errors = lock.withLock {
                 piece.loading = false
                 piece.errors++
+                if (reason.startsWith("trickle")) trickles++ else failures++
                 changed.signalAll()
                 if (expired && reResolves < 3) {
                     reResolves++
@@ -583,6 +618,41 @@ internal object ParallelStreamProxy {
                 text
             }
             log.line(line)
+        }
+
+        fun snapshot(): Snapshot = lock.withLock {
+            var ahead = 0L
+            var index = readPos / config.segmentBytes
+            var offset = (readPos % config.segmentBytes).toInt()
+            while (true) {
+                val segment = segments[index] ?: break
+                val ready = segment.filled - offset
+                if (ready <= 0) break
+                ahead += ready
+                if (segment.filled < segment.length) break
+                index++
+                offset = 0
+            }
+            Snapshot(
+                host = target?.host ?: hostOf(source),
+                state = when {
+                    redirect != null -> "direct"
+                    failure != null -> "failed"
+                    target == null -> "starting"
+                    segments.isEmpty() && readers == 0 -> "asleep"
+                    else -> "proxy"
+                },
+                connections = config.connections,
+                loading = segments.values.sumOf { segment -> segment.pieces.count { it.loading } },
+                fetchedBytes = totalFetched,
+                heldBytes = segments.values.sumOf { it.filled.toLong() },
+                aheadBytes = ahead,
+                sizeBytes = size,
+                readerWaiting = readerWaitingSince != 0L,
+                trickles = trickles,
+                failures = failures,
+                splits = splits,
+            )
         }
 
         // test hooks

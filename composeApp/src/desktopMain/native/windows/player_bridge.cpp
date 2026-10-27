@@ -1053,6 +1053,19 @@ public:
         });
     }
 
+    // nuvio-rr fork, STATS: the stats overlay's data (StatsForNerds.kt), drawn by player-ui/stats.js
+    void updateStatsJson(const std::string &statsJson) {
+        if (statsJson.empty()) return;
+        postUiTask([self = shared_from_this(), statsJson]() {
+            if (!self->webView || !self->controlsWebReady.load()) return;
+            std::wstring script =
+                L"(function(){if(window.playerStats)window.playerStats(JSON.parse(" +
+                javaScriptStringLiteral(statsJson) +
+                L"));})()";
+            self->webView->ExecuteScript(script.c_str(), nullptr);
+        });
+    }
+
     void requestFocus() {
         postUiTask([self = shared_from_this()]() {
             self->focusNativeControls();
@@ -2643,6 +2656,13 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updateControls(JNI
     auto player = playerFromHandle(handle);
     std::string controlsJsonText = jstringToUtf8(env, controlsJson);
     if (player) player->updateControlsJson(controlsJsonText);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_updateStats(JNIEnv *env, jobject, jlong handle, jstring statsJson) {
+    auto player = playerFromHandle(handle);
+    std::string statsJsonText = jstringToUtf8(env, statsJson);
+    if (player) player->updateStatsJson(statsJsonText);
 }
 
 extern "C" JNIEXPORT void JNICALL

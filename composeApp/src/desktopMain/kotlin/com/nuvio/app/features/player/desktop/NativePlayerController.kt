@@ -130,6 +130,7 @@ internal class NativePlayerController(
     private var onEvent: (String, Double) -> Boolean = { _, _ -> false }
     private var onScrubChange: (Long) -> Boolean = { false }
     private var onScrubFinished: (Long) -> Boolean = { false }
+    private val statsForNerds = com.nuvio.app.fork.StatsForNerds.Runner({ handle }, { releaseRequested }) // nuvio-rr fork, STATS
     private val eventSink = NativePlayerEventSink { type, value ->
         SwingUtilities.invokeLater {
             handlePlayerEvent(type, value)
@@ -367,6 +368,7 @@ internal class NativePlayerController(
                             setNowPlayingMetadata(currentNowPlayingTitle, currentNowPlayingSubtitle, currentArtworkUrl)
                         }
                         applyPendingSubtitleSettings()
+                        statsForNerds.start() // nuvio-rr fork, STATS
                     }
                 }.onFailure { error ->
                     log.w(error) { "attach failed source=${pending.sourceUrl.toPlaybackLogKey()}" }
@@ -548,6 +550,7 @@ internal class NativePlayerController(
         }
         when (type) {
             "cursorActivity" -> host.noteCursorActivity()
+            "statsForNerds" -> statsForNerds.toggle() // nuvio-rr fork, STATS
             "scrubChange" -> {
                 val handled = onScrubChange(value.toLong())
                 log.d { "scrubChange positionMs=${value.toLong()} handled=$handled handle=$handle" }
