@@ -1,9 +1,13 @@
 // nuvio-rr fork, STATS: "Stats for nerds" overlay. I (or the close button) asks the app to toggle it; the app then
 // sends window.playerStats(...) once a second (StatsForNerds.kt) with display-ready rows and a verdict, and
-// {visible:false} to hide it. This file keeps only the chart history and which sections are collapsed.
+// {visible:false} to hide it. This file keeps only the chart history, which sections are collapsed, and where the
+// panel was dragged to (anywhere but its buttons and its scrolling rows; a double-click there puts it back).
 (() => {
   const historyLength = 60;
   const collapsedKey = "nuvio-rr-stats-collapsed";
+  const positionKey = "nuvio-rr-stats-position";
+  const footText = 'Drag to move · double-click to reset · <kbd>I</kbd> hides';
+  const margin = 8;
   const history = { buffer: [], net: [], need: [] };
   let panel = null;
   let lastStats = null;
@@ -27,6 +31,77 @@
     } catch (_) {
       // private storage unavailable: collapsing still works for this page
     }
+  };
+
+  // where the user put the panel, as a share of the free space on each axis (0 = left/top edge, 1 = right/bottom),
+  // so it keeps its corner when the window is resized or goes fullscreen; null = the default place (CSS)
+  let placed = (() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(positionKey) || "null");
+      return value && Number.isFinite(value.fx) && Number.isFinite(value.fy) ? value : null;
+    } catch (_) {
+      return null;
+    }
+  })();
+  const savePlaced = () => {
+    try {
+      if (placed) localStorage.setItem(positionKey, JSON.stringify(placed));
+      else localStorage.removeItem(positionKey);
+    } catch (_) {
+      // private storage unavailable: the position lasts for this page
+    }
+  };
+  const freeSpace = () => ({
+    x: Math.max(0, window.innerWidth - panel.offsetWidth - 2 * margin),
+    y: Math.max(0, window.innerHeight - panel.offsetHeight - 2 * margin),
+  });
+  const applyPlaced = () => {
+    if (!panel) return;
+    if (!placed) {
+      panel.style.left = "";
+      panel.style.top = "";
+      return;
+    }
+    const free = freeSpace();
+    panel.style.left = `${Math.round(margin + Math.min(1, Math.max(0, placed.fx)) * free.x)}px`;
+    panel.style.top = `${Math.round(margin + Math.min(1, Math.max(0, placed.fy)) * free.y)}px`;
+  };
+
+  const makeDraggable = handle => {
+    const grabbable = target => !target.closest("button, .stats-body");
+    handle.addEventListener("pointerdown", event => {
+      if (event.button !== 0 || !grabbable(event.target)) return;
+      event.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      const grabX = event.clientX - rect.left;
+      const grabY = event.clientY - rect.top;
+      handle.setPointerCapture(event.pointerId);
+      panel.classList.add("dragging");
+      const move = moveEvent => {
+        const free = freeSpace();
+        const x = Math.min(Math.max(moveEvent.clientX - grabX, margin), margin + free.x);
+        const y = Math.min(Math.max(moveEvent.clientY - grabY, margin), margin + free.y);
+        placed = { fx: free.x ? (x - margin) / free.x : 0, fy: free.y ? (y - margin) / free.y : 0 };
+        panel.style.left = `${Math.round(x)}px`;
+        panel.style.top = `${Math.round(y)}px`;
+      };
+      const end = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", end);
+        handle.removeEventListener("pointercancel", end);
+        panel.classList.remove("dragging");
+        savePlaced();
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", end);
+      handle.addEventListener("pointercancel", end);
+    });
+    handle.addEventListener("dblclick", event => {
+      if (!grabbable(event.target)) return;
+      placed = null;
+      savePlaced();
+      applyPlaced();
+    });
   };
 
   const el = (tag, className, text) => {
@@ -63,14 +138,16 @@
     close.append(icon('<path d="M6 6l12 12M18 6L6 18"/>'));
     close.addEventListener("click", () => post("statsForNerds"));
     head.append(copy, close);
+    head.title = "Drag to move · double-click to put back";
 
     const headline = el("div", "stats-headline");
     const charts = el("div", "stats-charts");
     charts.append(chartCard("buffer", "Buffer health"), chartCard("net", "Network"));
     const body = el("div", "stats-body");
     const foot = el("div", "stats-foot");
-    foot.innerHTML = 'Press <kbd>I</kbd> to hide · updates every second';
+    foot.innerHTML = footText;
     panel.append(head, headline, charts, body, foot);
+    makeDraggable(panel);
     // clicks in the panel must not reach the player (play/pause, chrome toggling)
     ["pointerdown", "click", "dblclick", "wheel"].forEach(type => panel.addEventListener(type, event => event.stopPropagation()));
     (document.getElementById("playerRoot") || document.body).append(panel);
@@ -273,7 +350,7 @@
     const foot = panel.querySelector(".stats-foot");
     const done = ok => {
       foot.innerHTML = ok ? '<span class="stats-toast">Copied</span>' : "Copy failed";
-      window.setTimeout(() => { foot.innerHTML = 'Press <kbd>I</kbd> to hide · updates every second'; }, 1500);
+      window.setTimeout(() => { foot.innerHTML = footText; }, 1500);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => done(true), () => done(fallbackCopy(text)));
@@ -316,6 +393,7 @@
     renderHead(stats);
     renderBody(stats);
     panel.classList.add("shown");
+    if (!panel.classList.contains("dragging")) applyPlaced(); // the panel's height can change with its rows
     renderCharts(stats);
   };
 
@@ -325,5 +403,9 @@
     event.preventDefault();
     post("statsForNerds");
   });
-  window.addEventListener("resize", () => { if (lastStats && panel) renderCharts(lastStats); });
+  window.addEventListener("resize", () => {
+    if (!panel) return;
+    applyPlaced();
+    if (lastStats) renderCharts(lastStats);
+  });
 })();

@@ -44,6 +44,9 @@
   gap: 8px;
   padding: 10px 10px 8px 14px;
 }
+.stats-panel { cursor: grab; touch-action: none; }
+.stats-body { cursor: default; }
+.stats-panel.dragging { cursor: grabbing; transition: opacity 160ms ease; box-shadow: 0 18px 50px rgba(0, 0, 0, .55); }
 .stats-title {
   flex: 1;
   font-weight: 600;
@@ -76,6 +79,7 @@
 [data-status="bad"] { --tone: var(--stats-bad); }
 
 .stats-icon {
+  cursor: pointer;
   display: grid;
   place-items: center;
   width: 26px;
@@ -205,9 +209,9 @@
   .stats-body, .stats-foot { display: none; }
 }
 
-/* big fullscreen windows: a little larger, still out of the way */
+/* big fullscreen windows: a little larger (not zoom: it would scale the dragged left/top too) */
 @media (min-width: 1800px) and (min-height: 1000px) {
-  .stats-panel { zoom: 1.15; }
+  .stats-panel { width: 430px; font-size: 13.5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -150,7 +150,8 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   rows plus a verdict: the worst current problem is the headline (waiting for cache, frames dropped in the last 10 s,
   buffer low, refresh rate not a multiple of the frame rate, network slower than the file's average bitrate while the
   buffer is under 20 s, proxy retries in the last 30 s). Charts: buffer health, and network with the file's bitrate
-  as a dashed line. Copy button = plain-text report. Host only, never the URL (debrid keys). New JNI
+  as a dashed line. Copy button = plain-text report. Drag anywhere but the buttons and the rows to move it
+  (kept as a share of the free space, so it keeps its corner across resizes; double-click resets). `measure.ps1 -Actions drag`. Host only, never the URL (debrid keys). New JNI
   `NativePlayerBridge.updateStats` -> `window.playerStats`. `NUVIO_RR_STATS=1` starts it shown (measure runs:
   SendKeys reach AWT, not the WebView); `measure.ps1 -Actions` gained `i` and `shot` (window PNG).
 - RACE (2026-10-26): upstream's collection card skipped the hover load when the visibility prefetch had filled the
