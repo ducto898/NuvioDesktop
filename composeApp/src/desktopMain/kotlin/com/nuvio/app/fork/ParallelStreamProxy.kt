@@ -74,7 +74,9 @@ internal object ParallelStreamProxy {
         }.getOrElse { source }
     }
 
-    const val DEFAULT_CONNECTIONS = 6
+    // live RD test 2026-10-27 (8 MiB segments, 30 s x 2 rounds): ~23 Mbit/s per connection up to 12 with no failed
+    // fetch; from 16 the server refused fetches (38-109 failures per run) and the rate became erratic
+    const val DEFAULT_CONNECTIONS = 12
 
     fun configuredConnections(value: String?): Int = value?.trim()?.toIntOrNull()?.coerceIn(0, 16) ?: DEFAULT_CONNECTIONS
 

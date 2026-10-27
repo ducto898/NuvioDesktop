@@ -135,7 +135,7 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   for every loaded file (stalls, and how many of them were cache waits).
 - PAR (2026-10-27, owner: "multi-connection download"; Oppenheimer remux from an RD server, 45 Mbit/s per connection,
   later 5-30 and 0.5-120 by file region): `fork/ParallelStreamProxy.kt`. Remote http(s) files (not 127.*, not
-  playlists) go through a 127.0.0.1 proxy: 8 MiB segments over 6 range requests (`NUVIO_RR_STREAM_CONNECTIONS`,
+  playlists) go through a 127.0.0.1 proxy: 8 MiB segments over 12 range requests (`NUVIO_RR_STREAM_CONNECTIONS`,
   0 = off), 192 MiB ahead and 640 MiB behind mpv's read point kept in direct buffers, the file's last segment (mkv
   Cues) fetched early and kept, the reader's segment split over up to half the connections when it waits, trickling
   connections dropped (256 KiB in 8 s), 302 back to the source when it has no range support. Hooked in
@@ -144,6 +144,9 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   0; live RD 5 -> 13 Mbit/s and 11 -> 38. Subtitle switch (mpv refresh seek drops its cache and re-reads from
   ~11 s back + the Cues): libmpv harness at 2x bitrate per connection, direct 10 s stall, proxy 0.0 s.
   `measure.ps1 -StreamUrl` plays a URL (use a host like localtest.me: 127.* is not proxied).
+  Default 6 -> 12 (2026-10-27, live RD Oppenheimer, 30 s x 2 interleaved rounds, Mbit/s): 1: 25/25, 6: 141/127,
+  8: 189/182, 12: 275/248 (0 failed fetches), 16: 259/340 (38/0 failed), 24: 387/199 (32/70), 32: 66/289 (109/70).
+  ParallelStreamProxyLiveTest now has NUVIO_RR_LIVE_ROUNDS and prints failed/trickled/split counts.
 - STATS (2026-10-27, owner: YouTube-style "Stats for nerds", "smartly designed"): I in the player toggles an overlay
   (`player-ui/stats.js` + `stats.css`; close button too; remembered for the app's lifetime). `fork/StatsForNerds.kt`
   samples mpv properties and `ParallelStreamProxy.snapshot` once a second while it is shown and sends display-ready
