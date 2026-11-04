@@ -163,9 +163,23 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
 - SYNC4 (2026-10-26): upstream's new mpv shader cache (`Cache\mpv-shaders`) goes through the H14 folder, found with the
   known-folder API, which ignores the LOCALAPPDATA redirect, so dev/measure runs wrote the official profile. H14 now
   uses `%LOCALAPPDATA%` when set (`nuvioRrLocalAppDataRoot`, display_mode_matcher.cpp).
+- SYNC5 (2026-11-04, 0.1.34): Compose 1.13 made `onFocusedBoundsChanged` a deprecated no-op (error level), so the E9
+  focus ring could never draw. `desktopFocusHighlight` is now a node: a never-focusable `FocusTargetModifierNode` at the
+  window root, `getFocusedRect()` on each draw, redrawn for 700 ms after each key press/focus change (rows that scroll
+  the focused card into view). `FocusRingBoundsTest`. Also the E5 `isDesktop` import upstream removed.
+- SYNC6 (2026-11-04): upstream plays GIF/WebP artwork (`NuvioDesktopAnimation`); Reduce Motion (E5) now forces it Off
+  in `NuvioAsyncImage` (`effectiveDesktopAnimation`).
+- SYNC7 (2026-11-04, owner "fork wins"): upstream's `setSubtitleAppearance` re-sends font and shadow on every subtitle
+  style change, over the H2 options. `forkSubtitleAppearance` replaces them with the fork's font choice and 1.0/#80000000
+  shadow (upstream's font only when the fork has none installed); upstream's font/shadow controls have no effect.
+  Owner also asked for the RTX Video Super Resolution switch back (upstream dropped it from settings): Video quality section.
+- Sync note 2026-11-04: the machine PATH has `C:\Program Files\PowerShell\7"` (stray quote), which breaks vcvars64.bat
+  ("\Windows was unexpected at this time"). Run verify with the quote stripped from PATH in that process.
+- Baseline 2026-11-04: 3 upstream test failures added (ChapterSkipIntervalsTest x2, SettingsNavigationTest buffer).
 
 ## 5. Known conflict hot spots
-- `PlaybackSettingsPage.kt`, the `if (isWindows)` "NVIDIA RTX Video" section: H9 sits on the line right after it.
+- `PlaybackVideoSettings.kt` (upstream 0.1.34 split Playback into sub-pages and dropped the RTX section): H9 is the
+  last line of the page's Column, after the decoder/iOS sections. Before 0.1.34 it sat after the RTX section of `PlaybackSettingsPage.kt`.
   If upstream moves or removes that section, keep H9 at the same level (inside `PlaybackSettingsSection`), below RTX.
 - `values/strings.xml` around `settings_playback_nvidia_rtx_super_resolution_desc` (H10, 3 lines).
 - `player_bridge.cpp` `startMpv()` / `drainMpvEvents()` / `shutdown()` (H2, H4, H5) and `PlayerEngine.desktop.kt`

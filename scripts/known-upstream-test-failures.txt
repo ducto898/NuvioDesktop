@@ -22,3 +22,10 @@
 # QuickJs NPE ("this.closed" is null in QuickJs.evaluateBytecode) during 32 concurrent runs; failed 4 of ~10 full runs,
 # passes when run alone (3/3). Unrelated to the patch. Remove if upstream fixes it.
 com.nuvio.app.features.plugins.PluginRuntimeDesktopTest#desktop runtime handles concurrent scraper executions[desktop]
+
+# Added 2026-11-04 at upstream 0.1.34-alpha 1a600da8 (sync): upstream's own failures, the code under test is unchanged
+# by the fork. SettingsNavigationTest is a commonTest that assumes a non-desktop platform (visiblePlaybackSections
+# hides Buffer on desktop via isDesktop); ChapterSkipIntervalsTest covers upstream's WIP chapter skip intervals.
+com.nuvio.app.features.player.ChapterSkipIntervalsTest#midCreditsChapterIsExcluded[desktop]
+com.nuvio.app.features.player.ChapterSkipIntervalsTest#postCreditsSceneChapterIsExcluded[desktop]
+com.nuvio.app.features.settings.SettingsNavigationTest#bufferOptionsFollowThePlatformAndPlaybackEngine[desktop]

@@ -3,7 +3,7 @@
 Describes ONLY what this patch adds or changes. It's the reference for re-applying and
 re-verifying the patch after an upstream update. Keep it in sync with the code.
 
-Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `da6910db` (desktop 0.1.32-alpha, merged 2026-10-26; before: `ed77003b` merged 2026-10-03; earlier rebases onto `fe92d414`, `cf185993`; forked at `083921cf` on 2026-09-27).
+Upstream base: NuvioMedia/NuvioDesktop `Dev` @ `1a600da8` (desktop 0.1.34-alpha, merged 2026-11-04; before: `da6910db` merged 2026-10-26, `ed77003b` merged 2026-10-03; earlier rebases onto `fe92d414`, `cf185993`; forked at `083921cf` on 2026-09-27).
 
 ## 1. Behaviour
 State after Phase 8 (details in §4 per phase):
@@ -46,7 +46,7 @@ Every hook line ends with a `nuvio-rr fork hook Hn` comment (grep for it after a
 | same | H5 `nuvio_rr::onPlayerShutdown(this)` first line of `shutdown()` | 1 |
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt` | H6 `RefreshRateMatch.onScreenGone()` (fully qualified, no import) first line of `DisposableEffect(host).onDispose` | 1 |
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt` | H8 `RefreshRateMatch.onAppExit()` (fully qualified) first line of `onCloseRequest` | 1 |
-| `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/PlaybackSettingsPage.kt` | H9 `RefreshRateMatchSettingsSection(isTablet = isTablet)` (fully qualified) right after the `if (isWindows)` "NVIDIA RTX Video" section | 1 |
+| `composeApp/src/commonMain/kotlin/com/nuvio/app/features/settings/PlaybackVideoSettings.kt` | H9 `RefreshRateMatchSettingsSection(isTablet = isTablet)` (fully qualified), last line of the page's Column (since 0.1.34 split Playback into sub-pages; was after the RTX section of `PlaybackSettingsPage.kt`) | 1 |
 | `composeApp/src/commonMain/composeResources/values/strings.xml` | H10 3 strings after `settings_playback_nvidia_rtx_super_resolution_desc` (`settings_playback_display_section`, `settings_playback_match_refresh_rate`, `settings_playback_match_refresh_rate_desc`, `settings_playback_rate_badge`, `settings_playback_rate_badge_desc`), XML comment on each; other locales fall back to English | 5 |
 
 | `composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopStorage.kt` | H11 Roaming folder, H12 Local cache folder: `ForkIdentity.appDirName` instead of `"Nuvio"` (Windows branches only) | 2 |
