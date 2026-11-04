@@ -104,6 +104,17 @@ fun subtitleMpvOptions(choice: String, installed: List<String>): List<Pair<Strin
         "sub-blur" to "0.3",
     )
 
+/** What upstream's per-load subtitle appearance (0.1.34, setSubtitleAppearance) sends to mpv. */
+data class SubtitleAppearanceOptions(val font: String, val shadowColor: String, val shadowOffset: Float)
+
+/**
+ * SYNC7 (owner 2026-11-04, "fork wins"): upstream 0.1.34 re-sends font and shadow on every subtitle style change,
+ * over the H2 options above. The fork's font choice and shadow replace upstream's; upstream's font is used only
+ * when the fork has none (automatic with none of its fonts installed).
+ */
+fun forkSubtitleAppearance(choice: String, installed: List<String>, upstream: SubtitleAppearanceOptions): SubtitleAppearanceOptions =
+    upstream
+
 /** mpv's sub-font for [font]; none for the default or a name that can't be passed as one option line. */
 fun subtitleFontMpvOptions(font: String): List<Pair<String, String>> {
     val name = font.trim()

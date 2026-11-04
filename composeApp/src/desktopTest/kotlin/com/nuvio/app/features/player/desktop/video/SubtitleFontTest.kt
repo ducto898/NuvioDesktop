@@ -3,6 +3,8 @@ package com.nuvio.app.features.player.desktop.video
 import com.nuvio.app.core.storage.DesktopStorage
 import com.nuvio.app.features.player.SubtitleStyleState
 import com.nuvio.app.features.settings.DEFAULT_SUBTITLE_FONT
+import com.nuvio.app.features.settings.SubtitleAppearanceOptions
+import com.nuvio.app.features.settings.forkSubtitleAppearance
 import com.nuvio.app.features.settings.resolveSubtitleFont
 import com.nuvio.app.features.settings.subtitleFontChoices
 import com.nuvio.app.features.settings.subtitleFontMpvOptions
@@ -117,5 +119,23 @@ class SubtitleFontTest {
         assertEquals("Netflix Sans", SubtitleFontPreference(DesktopStorage.Store(file)).load())
         preference.save(DEFAULT_SUBTITLE_FONT)
         assertEquals(DEFAULT_SUBTITLE_FONT, SubtitleFontPreference(DesktopStorage.Store(file)).load())
+    }
+
+    @Test
+    fun `the fork's font and shadow win over upstream's per-load appearance`() {
+        val upstream = SubtitleAppearanceOptions(font = "sans-serif", shadowColor = "#00000000", shadowOffset = 0f)
+        assertEquals(
+            SubtitleAppearanceOptions("NetflixSans-Medium", "#80000000", 1.0f),
+            forkSubtitleAppearance(DEFAULT_SUBTITLE_FONT, listOf("Netflix Sans Med"), upstream),
+        )
+        assertEquals(
+            SubtitleAppearanceOptions("Gandhi Sans", "#80000000", 1.0f),
+            forkSubtitleAppearance("Gandhi Sans", emptyList(), upstream),
+        )
+        assertEquals(
+            SubtitleAppearanceOptions("sans-serif", "#80000000", 1.0f),
+            forkSubtitleAppearance(DEFAULT_SUBTITLE_FONT, emptyList(), upstream),
+            "no fork font installed: upstream's font, the fork's shadow",
+        )
     }
 }
