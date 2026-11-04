@@ -10,7 +10,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.FocusTargetModifierNode
+import androidx.compose.ui.focus.Focusability
+import androidx.compose.ui.focus.getFocusedRect
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.PointerInputModifierNode
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
@@ -100,5 +115,65 @@ object DesktopShortcuts {
     }
 }
 
-/** One focus ring for the whole window (stub). */
-fun Modifier.desktopFocusHighlight(): Modifier = this
+/**
+ * One focus ring for the whole window: the bounds of whatever has keyboard focus (any focusable, including
+ * clickables drawn without an indication) get a white outline, while [FocusRingVisibility] says the keyboard is in use.
+ * SYNC5 (Compose 1.13): onFocusedBoundsChanged became a no-op; the root is now a never-focusable focus target that
+ * asks for its focused descendant's rect on every draw. Each key press (and focus change) redraws it for a short
+ * while, so the ring follows a row that scrolls the focused card into view.
+ */
+fun Modifier.desktopFocusHighlight(): Modifier = if (!isDesktop) this else this then FocusRingElement
+
+private object FocusRingElement : ModifierNodeElement<FocusRingNode>() {
+    override fun create() = FocusRingNode()
+    override fun update(node: FocusRingNode) = Unit
+    override fun hashCode() = 0x7f0c5
+    override fun equals(other: Any?) = other === this
+}
+
+private const val FocusRingFollowMillis = 700L
+
+private class FocusRingNode : DelegatingNode(), DrawModifierNode, PointerInputModifierNode {
+    private val target = delegate(FocusTargetModifierNode(Focusability.Never) { _, _ -> follow() })
+    private var followJob: Job? = null
+
+    private fun follow() {
+        if (!isAttached) return
+        invalidateDraw()
+        followJob?.cancel()
+        followJob = coroutineScope.launch {
+            val end = System.nanoTime() + FocusRingFollowMillis * 1_000_000
+            while (System.nanoTime() < end) withFrameNanos { invalidateDraw() }
+        }
+    }
+
+    override fun onAttach() {
+        coroutineScope.launch { snapshotFlow { FocusRingVisibility.keyPresses }.collect { follow() } }
+    }
+
+    override fun ContentDrawScope.draw() {
+        drawContent()
+        val bounds = if (FocusRingVisibility.visible) target.getFocusedRect()?.takeIf { it.width > 0f && it.height > 0f } else null
+        FocusRingVisibility.lastDrawnBounds = bounds
+        if (bounds == null) return
+        val stroke = 2.dp.toPx()
+        drawRoundRect(
+            color = Color.White,
+            topLeft = Offset(bounds.left - stroke, bounds.top - stroke),
+            size = Size(bounds.width + 2 * stroke, bounds.height + 2 * stroke),
+            cornerRadius = CornerRadius(12.dp.toPx()),
+            style = Stroke(width = stroke),
+        )
+    }
+
+    // Observe (never consume) mouse presses and wheel turns anywhere in the window: they hide the ring.
+    override fun onPointerEvent(pointerEvent: PointerEvent, pass: PointerEventPass, bounds: IntSize) {
+        if (pass == PointerEventPass.Initial &&
+            (pointerEvent.type == PointerEventType.Press || pointerEvent.type == PointerEventType.Scroll)
+        ) {
+            FocusRingVisibility.onPointer()
+        }
+    }
+
+    override fun onCancelPointerInput() = Unit
+}
