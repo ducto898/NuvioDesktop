@@ -66,4 +66,13 @@ class ReduceMotionTest {
         assertEquals(200, proceededCrossfade(reduce = false))
         assertEquals(0, proceededCrossfade(reduce = true))
     }
+
+    // SYNC6: upstream 0.1.34 plays GIF/WebP artwork; Reduce Motion stills it like the other motion.
+    @Test
+    fun `reduce motion stops animated artwork`() {
+        for (requested in NuvioDesktopAnimation.entries) {
+            assertEquals(requested, effectiveDesktopAnimation(requested, reduceMotion = false))
+            assertEquals(NuvioDesktopAnimation.Off, effectiveDesktopAnimation(requested, reduceMotion = true))
+        }
+    }
 }

@@ -53,6 +53,10 @@ private val IsWindowsDesktop: Boolean =
         ?.startsWith("Windows", ignoreCase = true)
         ?: false
 
+/** nuvio-rr fork, SYNC6: Reduce Motion (E5) stills animated artwork too. */
+internal fun effectiveDesktopAnimation(requested: NuvioDesktopAnimation, reduceMotion: Boolean): NuvioDesktopAnimation =
+    requested
+
 private val AlwaysPlaying: () -> Boolean = { true }
 private val NeverPlaying: () -> Boolean = { false }
 private val NeverHovered: State<Boolean> = mutableStateOf(false)
