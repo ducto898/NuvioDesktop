@@ -1,5 +1,6 @@
 package com.nuvio.app
 
+import com.nuvio.app.features.autosync.AutoSyncPreferencesDesktop
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.SwingWindow
@@ -92,6 +93,7 @@ fun main(args: Array<String>) {
     com.nuvio.app.features.player.desktop.video.bindVideoQualitySetting() // nuvio-rr fork, video quality
     com.nuvio.app.features.player.desktop.video.bindSubtitleFontSetting() // nuvio-rr fork, subtitle font
     AppIconRepository.ensureLoaded()
+    AutoSyncPreferencesDesktop.initialize()
     DiscordPresenceManager.start()
 
     application {
