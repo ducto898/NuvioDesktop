@@ -6,6 +6,8 @@ import com.nuvio.app.features.settings.DEFAULT_SUBTITLE_FONT
 import com.nuvio.app.features.settings.HdrOutput
 import com.nuvio.app.features.settings.SubtitleFontSetting
 import com.nuvio.app.features.settings.subtitleMpvOptions
+import com.nuvio.app.features.settings.SubtitleAppearanceOptions
+import com.nuvio.app.features.settings.forkSubtitleAppearance
 import com.nuvio.app.features.settings.VideoDownscaler
 import com.nuvio.app.features.settings.VideoQuality
 import com.nuvio.app.features.settings.VideoQualitySetting
@@ -129,6 +131,10 @@ internal object VideoQualityNative {
         runCatching { java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toList() }
             .getOrDefault(emptyList())
     }
+
+    /** SYNC7: upstream's per-load subtitle font/shadow with the fork's choice applied (see forkSubtitleAppearance). */
+    fun subtitleAppearance(upstream: SubtitleAppearanceOptions): SubtitleAppearanceOptions =
+        forkSubtitleAppearance(SubtitleFontSetting.font.value, installedFonts, upstream)
 
     /**
      * Called by the native bridge at hook H2 for each new player with the EDID (hex, "" if unknown) of the monitor

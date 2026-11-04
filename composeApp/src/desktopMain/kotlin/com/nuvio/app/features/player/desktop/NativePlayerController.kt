@@ -1172,12 +1172,20 @@ internal class NativePlayerController(
             stripSdh = style.stripSdh,
         )
         val shadowAlpha = if (style.appearance.shadowEnabled) (style.appearance.shadowOpacity * 255 / 100) else 0
+        // nuvio-rr fork, SYNC7: the fork's subtitle font and shadow win over upstream's appearance.
+        val appearance = com.nuvio.app.features.player.desktop.video.VideoQualityNative.subtitleAppearance(
+            com.nuvio.app.features.settings.SubtitleAppearanceOptions(
+                font = SubtitleFontResolver.mpvFontName(style.appearance.fontId),
+                shadowColor = "#" + shadowAlpha.toHexByte() + "000000",
+                shadowOffset = if (style.appearance.shadowEnabled) style.appearance.shadowSize.toFloat() else 0f,
+            ),
+        )
         NativePlayerBridge.setSubtitleAppearance(
             handle = handle,
-            font = SubtitleFontResolver.mpvFontName(style.appearance.fontId),
+            font = appearance.font,
             fontsDir = SubtitleFontResolver.fontsDir(),
-            shadowColor = "#" + shadowAlpha.toHexByte() + "000000",
-            shadowOffset = if (style.appearance.shadowEnabled) style.appearance.shadowSize.toFloat() else 0f,
+            shadowColor = appearance.shadowColor,
+            shadowOffset = appearance.shadowOffset,
         )
     }
 

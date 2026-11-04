@@ -99,8 +99,8 @@ private val AUTOMATIC_SUBTITLE_FONTS = listOf(
 fun subtitleMpvOptions(choice: String, installed: List<String>): List<Pair<String, String>> =
     subtitleFontMpvOptions(resolveSubtitleFont(choice, installed) ?: DEFAULT_SUBTITLE_FONT) + listOf(
         "sub-border-size" to "2.0",
-        "sub-shadow-offset" to "1.0",
-        "sub-shadow-color" to "#80000000",
+        "sub-shadow-offset" to FORK_SUBTITLE_SHADOW_OFFSET,
+        "sub-shadow-color" to FORK_SUBTITLE_SHADOW_COLOR,
         "sub-blur" to "0.3",
     )
 
@@ -113,7 +113,14 @@ data class SubtitleAppearanceOptions(val font: String, val shadowColor: String, 
  * when the fork has none (automatic with none of its fonts installed).
  */
 fun forkSubtitleAppearance(choice: String, installed: List<String>, upstream: SubtitleAppearanceOptions): SubtitleAppearanceOptions =
-    upstream
+    SubtitleAppearanceOptions(
+        font = resolveSubtitleFont(choice, installed) ?: upstream.font,
+        shadowColor = FORK_SUBTITLE_SHADOW_COLOR,
+        shadowOffset = FORK_SUBTITLE_SHADOW_OFFSET.toFloat(),
+    )
+
+private const val FORK_SUBTITLE_SHADOW_COLOR = "#80000000"
+private const val FORK_SUBTITLE_SHADOW_OFFSET = "1.0"
 
 /** mpv's sub-font for [font]; none for the default or a name that can't be passed as one option line. */
 fun subtitleFontMpvOptions(font: String): List<Pair<String, String>> {
