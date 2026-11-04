@@ -5,6 +5,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -55,7 +57,7 @@ private val IsWindowsDesktop: Boolean =
 
 /** nuvio-rr fork, SYNC6: Reduce Motion (E5) stills animated artwork too. */
 internal fun effectiveDesktopAnimation(requested: NuvioDesktopAnimation, reduceMotion: Boolean): NuvioDesktopAnimation =
-    requested
+    if (reduceMotion) NuvioDesktopAnimation.Off else requested
 
 private val AlwaysPlaying: () -> Boolean = { true }
 private val NeverPlaying: () -> Boolean = { false }
@@ -82,18 +84,20 @@ internal actual fun NuvioAsyncImage(
     imageLoader: ImageLoader?,
     desktopAnimation: NuvioDesktopAnimation,
 ) {
+    val reduceMotion by ReduceMotion.enabled.collectAsState() // nuvio-rr fork, SYNC6
+    val animation = effectiveDesktopAnimation(desktopAnimation, reduceMotion)
     // Hover tracking only exists for On hover, so the common case pays nothing for it.
     val hoverSource = remember { MutableInteractionSource() }
     val hovered: State<Boolean> =
-        if (desktopAnimation == NuvioDesktopAnimation.OnHover) hoverSource.collectIsHoveredAsState() else NeverHovered
-    val playing: () -> Boolean = when (desktopAnimation) {
+        if (animation == NuvioDesktopAnimation.OnHover) hoverSource.collectIsHoveredAsState() else NeverHovered
+    val playing: () -> Boolean = when (animation) {
         NuvioDesktopAnimation.Always -> AlwaysPlaying
         NuvioDesktopAnimation.OnHover -> remember(hovered) { { hovered.value } }
         NuvioDesktopAnimation.Off -> NeverPlaying
     }
     val imageModifier =
-        if (desktopAnimation == NuvioDesktopAnimation.OnHover) modifier.hoverable(hoverSource) else modifier
-    val animated = desktopAnimation != NuvioDesktopAnimation.Off
+        if (animation == NuvioDesktopAnimation.OnHover) modifier.hoverable(hoverSource) else modifier
+    val animated = animation != NuvioDesktopAnimation.Off
 
     val context = LocalPlatformContext.current
     val effectiveDesktopImageScaling = remember(desktopImageScaling) {
