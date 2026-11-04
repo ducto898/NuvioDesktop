@@ -1,23 +1,16 @@
 package com.nuvio.app.core.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.onFocusedBoundsChanged
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
@@ -71,8 +64,18 @@ object FocusRingVisibility {
         private set
 
     fun onKey(type: KeyEventType, key: Key) {
-        if (type == KeyEventType.KeyDown && key in FocusNavigationKeys) visible = true
+        if (type != KeyEventType.KeyDown) return
+        if (key in FocusNavigationKeys) visible = true
+        if (visible) keyPresses++
     }
+
+    /** Counts key presses while the ring shows: the ring redraws after each (focus moves without a layout change). */
+    var keyPresses by mutableStateOf(0)
+        private set
+
+    /** The ring's last drawn bounds in the root's pixels, null when hidden (tests). */
+    @Volatile
+    internal var lastDrawnBounds: Rect? = null
 
     fun onPointer() {
         if (visible) visible = false
@@ -97,43 +100,5 @@ object DesktopShortcuts {
     }
 }
 
-/**
- * One focus ring for the whole window: the bounds of whatever has keyboard focus (any focusable, including
- * clickables drawn without an indication) get a white outline, while [FocusRingVisibility] says the keyboard is in use.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun Modifier.desktopFocusHighlight(): Modifier {
-    if (!isDesktop) return this
-    var self by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    var focused by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    return onGloballyPositioned { self = it }
-        .onFocusedBoundsChanged { focused = it }
-        // Observe (never consume) mouse presses and wheel turns anywhere in the window: they hide the ring.
-        .pointerInput(Unit) {
-            awaitPointerEventScope {
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    if (event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) {
-                        FocusRingVisibility.onPointer()
-                    }
-                }
-            }
-        }
-        .drawWithContent {
-            drawContent()
-            if (!FocusRingVisibility.visible) return@drawWithContent
-            val root = self ?: return@drawWithContent
-            val target = focused?.takeIf { it.isAttached && root.isAttached } ?: return@drawWithContent
-            val bounds = runCatching { root.localBoundingBoxOf(target, clipBounds = true) }.getOrNull() ?: return@drawWithContent
-            if (bounds.width <= 0f || bounds.height <= 0f) return@drawWithContent
-            val stroke = 2.dp.toPx()
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(bounds.left - stroke, bounds.top - stroke),
-                size = Size(bounds.width + 2 * stroke, bounds.height + 2 * stroke),
-                cornerRadius = CornerRadius(12.dp.toPx()),
-                style = Stroke(width = stroke),
-            )
-        }
-}
+/** One focus ring for the whole window (stub). */
+fun Modifier.desktopFocusHighlight(): Modifier = this
