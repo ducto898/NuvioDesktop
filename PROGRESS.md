@@ -3,6 +3,17 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-11-04: upstream sync by MERGE** of desktop release 0.1.34-alpha (`1a600da8`; 262 commits). Pushed c35025a7
+  first (owner). Merge `c02b53649`, 5 conflicts by hand (upstream split Playback settings into sub-pages: H9 now in
+  PlaybackVideoSettings.kt). Audit (1 review agent): SYNC5 E9 focus ring rebuilt for Compose 1.13, SYNC6 Reduce Motion
+  stills animated artwork, SYNC7 fork subtitle font/shadow win over upstream's (owner), RTX switch back (owner), Audio
+  output stays on the Video page (owner). verify -Full green (2044 tests, 4 known failures: 3 new upstream ones
+  baselined), live runs PASS, zip ..\dist\Nuvio-RR-1.1.34-b115f8ec.zip deployed to C:\TestAPP, patch
+  ..\patches\nuvio-rr-1a600da8-b115f8ec.patch. Backup branch `backup/pre-merge-2026-11-04`. Not pushed.
+  Machine PATH has `C:\Program Files\PowerShell\7"` (stray quote): breaks vcvars; strip it in the process (FORK.md §4).
+  Open for the owner: keyboard focus ring and the subtitle font in the app (tests only); upstream's own subtitle
+  font/shadow controls now have no effect (by choice). Audit note: the I key toggles Stats AND lowers subtitle
+  opacity (upstream key, pre-existing).
 - **2026-10-26: upstream sync by MERGE** of desktop release 0.1.32-alpha (`da6910db`; 0.1.26 -> 0.1.32). Merge
   `6664d86a` (13 conflicts by hand), SYNC2-4 (FORK.md §4), verify -Full green (1875 tests), live runs PASS, zip
   ..\dist\Nuvio-RR-1.1.32-7aba5f98.zip (incl. BUF, RACE), patch ..\patches\nuvio-rr-da6910db-7aba5f98.patch. Backup branch
