@@ -3,6 +3,15 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-11-12: upstream sync by MERGE** of desktop release 0.1.35-alpha (`a81a207b`; 50 commits). Merge `4249946e`,
+  2 conflicts (CollectionCardRemoteImage + test). SYNC8 (FORK.md §4): upstream #1038 fixed the GIF codec
+  use-after-close itself (fork #14 user count dropped, off-thread decode kept; test back to upstream's, R4 dropped) and
+  upstream restored the RTX switch (fork's SYNC7 copy dropped: it showed twice). verify -Full green (2092 tests, 3 known
+  upstream failures), live runs PASS (240 already, cap144 switch), zip ..\dist\Nuvio-RR-1.1.35-3c0a598c.zip deployed to
+  C:\TestAPP, patch ..\patches\nuvio-rr-a81a207b-3c0a598c.patch. Backup branch `backup/pre-merge-2026-11-12`. Not pushed.
+  Local `git config submodule.MPVKit.ignore all`: the MPVKit (iOS) checkout drifted and blocked the sync precondition.
+  Open for the owner: upstream f32277ee now always uses libass `scale` + background-box for subtitles; check the
+  fork font/shadow (SYNC7) and an ASS subtitle in the app.
 - **2026-11-04: upstream sync by MERGE** of desktop release 0.1.34-alpha (`1a600da8`; 262 commits). Pushed c35025a7
   first (owner). Merge `c02b53649`, 5 conflicts by hand (upstream split Playback settings into sub-pages: H9 now in
   PlaybackVideoSettings.kt). Audit (1 review agent): SYNC5 E9 focus ring rebuilt for Compose 1.13, SYNC6 Reduce Motion
