@@ -179,6 +179,8 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   no longer closes an evicted codec (Skia's cleaner frees it after the last card drops it). The fork's user count /
   `evicted` flag was dropped; #14's off-thread decode into a back buffer stays. Upstream also dropped the pre-hover
   request assertion that the fork's R4 had loosened: the test is upstream's again (R4 gone from fork-fixes.txt).
+  Upstream `2436858a` also restored the RTX Video Super Resolution switch (Video page, Windows): the fork's SYNC7 copy
+  in the Video quality section was dropped (it showed twice).
 - Baseline 2026-11-04: 3 upstream test failures added (ChapterSkipIntervalsTest x2, SettingsNavigationTest buffer).
 
 ## 5. Known conflict hot spots

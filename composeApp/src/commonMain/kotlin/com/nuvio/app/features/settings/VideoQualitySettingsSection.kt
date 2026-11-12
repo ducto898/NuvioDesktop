@@ -15,10 +15,7 @@ import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtons
 import com.nuvio.app.core.ui.DialogOption
 import com.nuvio.app.core.ui.DialogSurface
-import com.nuvio.app.features.player.PlayerSettingsRepository
 import nuvio.composeapp.generated.resources.Res
-import nuvio.composeapp.generated.resources.settings_playback_nvidia_rtx_super_resolution
-import nuvio.composeapp.generated.resources.settings_playback_nvidia_rtx_super_resolution_desc
 import nuvio.composeapp.generated.resources.action_done
 import nuvio.composeapp.generated.resources.settings_playback_audio_next_playback
 import nuvio.composeapp.generated.resources.settings_playback_video_downscaler
@@ -52,7 +49,6 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
     val subtitleFont by SubtitleFontSetting.font.collectAsState()
     val defaultFontLabel = stringResource(Res.string.settings_playback_subtitle_font_default)
     val nextPlayback = stringResource(Res.string.settings_playback_audio_next_playback)
-    val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
 
     SettingsSection(title = stringResource(Res.string.settings_playback_video_section), isTablet = isTablet) {
         SettingsGroup(isTablet = isTablet) {
@@ -75,15 +71,6 @@ internal fun VideoQualitySettingsSection(isTablet: Boolean) {
                 description = hdrLabel(settings.hdr) + " · " + nextPlayback,
                 isTablet = isTablet,
                 onClick = { showHdr = true },
-            )
-            // SYNC7 (owner 2026-11-04): upstream 0.1.34 dropped this switch from settings; the player still reads it.
-            SettingsGroupDivider(isTablet = isTablet)
-            SettingsSwitchRow(
-                title = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution),
-                description = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution_desc),
-                checked = playerSettings.nvidiaRtxSuperResolutionEnabled,
-                isTablet = isTablet,
-                onCheckedChange = PlayerSettingsRepository::setNvidiaRtxSuperResolutionEnabled,
             )
             if (SubtitleFontSetting.available) {
                 SettingsGroupDivider(isTablet = isTablet)
