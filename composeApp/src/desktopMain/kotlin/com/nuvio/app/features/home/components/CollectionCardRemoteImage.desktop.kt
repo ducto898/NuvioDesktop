@@ -126,30 +126,16 @@ private class GifCodecHolder(
     val targetWidth: Int,
     val targetHeight: Int,
     val needsScale: Boolean,
-) {
-    // nuvio-rr fork, Phase 9 #14: cards animating this codec. The LRU used to close an evicted codec while a card was
-    // still reading frames from it; now the last user closes it. Both counters are guarded by gifCodecCache's lock.
-    var users = 0
-    var evicted = false
-
-    fun closeQuietly() {
-        try {
-            codec.close()
-        } catch (_: Exception) {}
-    }
-}
+)
 
 // LRU Cache holding raw GIF Codecs (max 15 items in memory, tiny compressed bytes ~10-20MB total)
 private val gifCodecCache = object : LinkedHashMap<String, GifCodecHolder?>(16, 0.75f, true) {
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, GifCodecHolder?>?): Boolean {
-        val shouldRemove = size > 15
-        if (shouldRemove) {
-            eldest?.value?.let { holder ->
-                holder.evicted = true
-                if (holder.users == 0) holder.closeQuietly()  // else the last card using it closes it
-            }
-        }
-        return shouldRemove
+        // A visible/hovered card can retain this holder after cache eviction.
+        // Codec is a Skia Managed object: let its cleaner release native memory
+        // after the last user drops it. Explicit close here invalidates a live
+        // card's codec and makes its next readPixels call crash in native code.
+        return size > 15
     }
 }
 
@@ -305,17 +291,6 @@ internal actual fun CollectionCardRemoteImage(
                     }
                 } catch (_: Exception) {
                     null
-                }
-            }
-
-            DisposableEffect(currentHolder) {
-                synchronized(gifCodecCache) { currentHolder.users++ }
-                onDispose {
-                    val close = synchronized(gifCodecCache) {
-                        currentHolder.users--
-                        currentHolder.users == 0 && currentHolder.evicted
-                    }
-                    if (close) currentHolder.closeQuietly()
                 }
             }
 

@@ -175,6 +175,10 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   Owner also asked for the RTX Video Super Resolution switch back (upstream dropped it from settings): Video quality section.
 - Sync note 2026-11-04: the machine PATH has `C:\Program Files\PowerShell\7"` (stray quote), which breaks vcvars64.bat
   ("\Windows was unexpected at this time"). Run verify with the quote stripped from PATH in that process.
+- SYNC8 (2026-11-12, 0.1.35): upstream #1038 (`329f309f`) fixed the same GIF codec use-after-close as fork #14: the LRU
+  no longer closes an evicted codec (Skia's cleaner frees it after the last card drops it). The fork's user count /
+  `evicted` flag was dropped; #14's off-thread decode into a back buffer stays. Upstream also dropped the pre-hover
+  request assertion that the fork's R4 had loosened: the test is upstream's again (R4 gone from fork-fixes.txt).
 - Baseline 2026-11-04: 3 upstream test failures added (ChapterSkipIntervalsTest x2, SettingsNavigationTest buffer).
 
 ## 5. Known conflict hot spots

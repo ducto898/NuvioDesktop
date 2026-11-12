@@ -26,7 +26,6 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/features/tmdb/TmdbMetadataService
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/plugins/runtime/PluginRuntime.desktop.kt | 7
 gradle.properties | R5
 composeApp/src/desktopTest/kotlin/com/nuvio/app/features/updater/LinuxUpdateInstallTest.kt | R4
-composeApp/src/desktopTest/kotlin/com/nuvio/app/features/home/components/CollectionCardRemoteImageTest.kt | R4
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/ui/PlatformBackHandler.desktop.kt | E4
 composeApp/src/commonMain/kotlin/com/nuvio/app/core/ui/ShelfComponents.kt | E6, E9
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/home/components/HomeHeroSection.kt | E5, E9
