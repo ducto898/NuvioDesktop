@@ -3,6 +3,17 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-11-22: upstream sync by MERGE** of desktop release 0.1.38-alpha (`35bdb2a7`; ~380 commits incl. 0.1.36/37).
+  Merge `3a4da277` by hand (9 files, 13 hunks), SYNC9 `da36012a` (FORK.md §4): SYNC1 + fork #17 now upstream's;
+  S3 redaction moved to StreamSearchSessions; E6/H8/fix 2 re-applied into upstream's restructured code; VSR fit keeps
+  upstream's new RTX Video HDR. Owner: fork focus ring dropped where upstream duplicates it (upstream's keyboard/
+  controller navigation took arrows): E9 arrow moves, ring, poster focus scale removed (Ctrl+F kept); Alt+Left (E4) was
+  swallowed by upstream's AWT dispatcher, now handled by a fork dispatcher registered first (checked in a dev run).
+  verify -Full green (2303 tests, 1 known upstream failure; ChapterSkipIntervalsTest x2 fixed upstream), live runs PASS
+  (240 already; cap144 switch, 2nd run: the known 1st-run audioMax 1.002063 flake), zip
+  ..\dist\Nuvio-RR-1.1.38-da36012a.zip, patch ..\patches\nuvio-rr-35bdb2a7-da36012a.patch. NOT deployed to C:\TestAPP
+  (the owner's Nuvio RR was running): `scripts\deploy-testapp.ps1` once it is closed. Backup branch
+  `backup/pre-merge-2026-11-22`. Not pushed.
 - **2026-11-12: upstream sync by MERGE** of desktop release 0.1.35-alpha (`a81a207b`; 50 commits). Merge `4249946e`,
   2 conflicts (CollectionCardRemoteImage + test). SYNC8 (FORK.md §4): upstream #1038 fixed the GIF codec
   use-after-close itself (fork #14 user count dropped, off-thread decode kept; test back to upstream's, R4 dropped) and
