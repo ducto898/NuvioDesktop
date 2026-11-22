@@ -39,6 +39,25 @@ internal class DesktopBackInput {
         /** Alt+Left. Not Esc (Compose maps it already) and not Backspace (it would go back from an empty text field). */
         fun isBackShortcut(type: KeyEventType, key: Key, altPressed: Boolean): Boolean =
             type == KeyEventType.KeyDown && altPressed && key == Key.DirectionLeft
+
+        /** The same shortcut as an AWT key event: Alt+Left pressed, without Ctrl, Shift or AltGr. */
+        fun isAwtBackShortcut(id: Int, keyCode: Int, modifiersEx: Int): Boolean {
+            val mods = modifiersEx and (java.awt.event.InputEvent.ALT_DOWN_MASK or java.awt.event.InputEvent.CTRL_DOWN_MASK or
+                java.awt.event.InputEvent.SHIFT_DOWN_MASK or java.awt.event.InputEvent.ALT_GRAPH_DOWN_MASK)
+            return id == java.awt.event.KeyEvent.KEY_PRESSED && keyCode == java.awt.event.KeyEvent.VK_LEFT &&
+                mods == java.awt.event.InputEvent.ALT_DOWN_MASK
+        }
+
+        /**
+         * SYNC9 (0.1.38): upstream's keyboard navigation takes every Left press at the AWT level, Alt or not, so
+         * Alt+Left never reached Compose. This dispatcher is registered in main(), before upstream's (added when App()
+         * composes): the focus manager asks dispatchers in order, so Alt+Left goes back here and nowhere else.
+         */
+        fun installAwtShortcut() {
+            java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher { event ->
+                isAwtBackShortcut(event.id, event.keyCode, event.modifiersEx).also { if (it) main.back() }
+            }
+        }
     }
 }
 

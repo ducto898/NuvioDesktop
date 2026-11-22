@@ -1,53 +1,29 @@
 package com.nuvio.app.core.ui
 
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-// nuvio-rr fork, Phase 9 E9
+// nuvio-rr fork, Phase 9 E9 (arrow keys and the focus ring are upstream's since SYNC9)
 class DesktopKeyboardNavigationTest {
     private fun action(key: Key, ctrl: Boolean = false, alt: Boolean = false, shift: Boolean = false, type: KeyEventType = KeyEventType.KeyDown) =
         desktopNavigationAction(type, key, ctrl, alt, shift)
 
     @Test
-    fun `plain arrows move focus`() {
-        assertEquals(DesktopNavigationAction.Move(FocusDirection.Left), action(Key.DirectionLeft))
-        assertEquals(DesktopNavigationAction.Move(FocusDirection.Right), action(Key.DirectionRight))
-        assertEquals(DesktopNavigationAction.Move(FocusDirection.Up), action(Key.DirectionUp))
-        assertEquals(DesktopNavigationAction.Move(FocusDirection.Down), action(Key.DirectionDown))
-    }
-
-    @Test
     fun `ctrl+F opens search`() {
         assertEquals(DesktopNavigationAction.Search, action(Key.F, ctrl = true))
         assertNull(action(Key.F))
+        assertNull(action(Key.F, ctrl = true, shift = true))
+        assertNull(action(Key.F, ctrl = true, type = KeyEventType.KeyUp))
     }
 
     @Test
-    fun `modified arrows, key up and other keys are left alone`() {
-        assertNull(action(Key.DirectionLeft, alt = true), "Alt+Left is back (E4)")
-        assertNull(action(Key.DirectionRight, ctrl = true))
-        assertNull(action(Key.DirectionDown, shift = true))
-        assertNull(action(Key.DirectionDown, type = KeyEventType.KeyUp))
+    fun `arrows and other keys are left to upstream`() {
+        assertNull(action(Key.DirectionLeft))
+        assertNull(action(Key.DirectionDown))
+        assertNull(action(Key.Tab))
         assertNull(action(Key.Enter))
-    }
-
-    @Test
-    fun `the ring shows after arrow keys or Tab and hides on a mouse click or wheel`() {
-        FocusRingVisibility.reset()
-        assertEquals(false, FocusRingVisibility.visible)
-        FocusRingVisibility.onKey(KeyEventType.KeyDown, Key.DirectionDown)
-        assertEquals(true, FocusRingVisibility.visible)
-        FocusRingVisibility.onPointer()
-        assertEquals(false, FocusRingVisibility.visible)
-        FocusRingVisibility.onKey(KeyEventType.KeyDown, Key.Tab)
-        assertEquals(true, FocusRingVisibility.visible)
-        FocusRingVisibility.onPointer()
-        FocusRingVisibility.onKey(KeyEventType.KeyDown, Key.A)
-        FocusRingVisibility.onKey(KeyEventType.KeyUp, Key.DirectionDown)
-        assertEquals(false, FocusRingVisibility.visible, "typing and key-up do not show it")
     }
 }

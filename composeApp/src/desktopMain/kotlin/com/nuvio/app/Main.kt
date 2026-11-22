@@ -27,8 +27,6 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.deeplink.handleAppUrl
 import com.nuvio.app.core.diagnostics.SentryInitializer
 import com.nuvio.app.core.ui.DesktopBackInput
-import com.nuvio.app.core.ui.desktopFocusHighlight
-import com.nuvio.app.core.ui.moveDesktopFocus
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
@@ -66,7 +64,6 @@ import javax.swing.JComponent
 import nuvio.composeapp.generated.resources.settings_playback_display_section
 
 private val NuvioDesktopNativeBackground = AwtColor(0x0D, 0x0D, 0x0D)
-private var desktopFocusManager: androidx.compose.ui.focus.FocusManager? = null // nuvio-rr fork, Phase 9 E9 (UI thread)
 private const val MacosDarkAquaAppearance = "NSAppearanceNameDarkAqua"
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -92,6 +89,7 @@ fun main(args: Array<String>) {
     // Load cached profile data synchronously so the profile color is available
     // on the very first Compose frame (matching Android's SharedPreferences behavior).
     ProfileRepository.loadCachedProfiles()
+    com.nuvio.app.core.ui.DesktopBackInput.installAwtShortcut() // nuvio-rr fork, Phase 9 E4 (SYNC9: before upstream's key dispatcher)
     com.nuvio.app.core.ui.bindReduceMotion() // nuvio-rr fork, Phase 9 E5
     com.nuvio.app.features.player.desktop.audio.bindAudioOutputSetting() // nuvio-rr fork, Phase 9 E1
     com.nuvio.app.features.player.desktop.video.bindVideoQualitySetting() // nuvio-rr fork, video quality
@@ -166,19 +164,16 @@ fun main(args: Array<String>) {
             init = ::configureMacosWindowBeforePeer,
             // nuvio-rr fork, Phase 9 E4: Alt+Left goes back like Esc (same dispatcher, newest enabled handler wins).
             onPreviewKeyEvent = { event ->
-                com.nuvio.app.core.ui.FocusRingVisibility.onKey(event.type, event.key) // nuvio-rr fork, Phase 9 E9
                 DesktopBackInput.isBackShortcut(event.type, event.key, event.isAltPressed).also { if (it) DesktopBackInput.main.back() }
             },
-            // nuvio-rr fork, Phase 9 E9: keys nothing focused used: arrows move focus, Ctrl+F opens Search.
+            // nuvio-rr fork, Phase 9 E9: Ctrl+F opens Search (arrow keys are upstream's since SYNC9).
             onKeyEvent = { event ->
                 when (val action = com.nuvio.app.core.ui.desktopNavigationAction(event.type, event.key, event.isCtrlPressed, event.isAltPressed, event.isShiftPressed)) {
-                    is com.nuvio.app.core.ui.DesktopNavigationAction.Move -> desktopFocusManager?.moveDesktopFocus(action.direction) ?: false
                     com.nuvio.app.core.ui.DesktopNavigationAction.Search -> true.also { com.nuvio.app.core.ui.DesktopShortcuts.requestSearch() }
                     null -> false
                 }
             },
         ) {
-            desktopFocusManager = androidx.compose.ui.platform.LocalFocusManager.current // nuvio-rr fork, Phase 9 E9
             val backDispatcher = LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher
             DisposableEffect(backDispatcher) {
                 backDispatcher?.let(DesktopBackInput.main::attach)
@@ -286,7 +281,7 @@ fun main(args: Array<String>) {
                     ProvideDesktopWindowInsets(
                         isFullscreen = windowState.placement == WindowPlacement.Fullscreen,
                     ) {
-                        MiddleClickAutoscroll { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().desktopFocusHighlight()) { App() } } // nuvio-rr fork, Phase 9 E9
+                        MiddleClickAutoscroll { App() }
                     }
                 }
             } else {

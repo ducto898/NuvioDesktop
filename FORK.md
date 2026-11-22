@@ -187,6 +187,12 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   providers (E6 hover Box re-applied inside), turned the close handler into `closeApplication` (H8 inside it) and
   split the download loop into `transferToTempFile` (fix 2's progress throttle re-applied there). Upstream's new RTX
   Video HDR filter: with VSR on, E8's `fitVsrScale` keeps the HDR part of the vf (`vsrHdr`); HDR alone is upstream's.
+  Upstream's keyboard/controller navigation (`PlatformKeyboardNavigationHost`, AWT `KeyEventDispatcher`) takes every
+  arrow key and draws its own focus ring and focus scale (owner 2026-11-22: drop the fork's if duplicated): E9's arrow
+  moves, window-wide ring (`desktopFocusHighlight`, `FocusRingBoundsTest`) and poster focus scale were removed; Ctrl+F
+  stays. Upstream's dispatcher also took Alt+Left as Left (E4 back broke; seen in a dev run): `DesktopBackInput.
+  installAwtShortcut()` registers an AWT dispatcher in main(), ahead of upstream's, that handles Alt+Left only.
+  Known failures: ChapterSkipIntervalsTest x2 fixed upstream.
 - Baseline 2026-11-04: 3 upstream test failures added (ChapterSkipIntervalsTest x2, SettingsNavigationTest buffer).
 
 ## 5. Known conflict hot spots

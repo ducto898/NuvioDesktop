@@ -46,4 +46,17 @@ class DesktopBackInputTest {
         assertFalse(DesktopBackInput.isBackShortcut(KeyEventType.KeyDown, Key.Escape, altPressed = false))
         assertFalse(DesktopBackInput.isBackShortcut(KeyEventType.KeyDown, Key.Backspace, altPressed = false))
     }
+
+    @Test
+    fun `the AWT shortcut is Alt+Left pressed and nothing else`() {
+        val pressed = java.awt.event.KeyEvent.KEY_PRESSED
+        val left = java.awt.event.KeyEvent.VK_LEFT
+        val alt = java.awt.event.InputEvent.ALT_DOWN_MASK
+        assertTrue(DesktopBackInput.isAwtBackShortcut(pressed, left, alt))
+        assertFalse(DesktopBackInput.isAwtBackShortcut(java.awt.event.KeyEvent.KEY_RELEASED, left, alt))
+        assertFalse(DesktopBackInput.isAwtBackShortcut(pressed, left, 0), "plain Left stays upstream's focus move")
+        assertFalse(DesktopBackInput.isAwtBackShortcut(pressed, left, alt or java.awt.event.InputEvent.SHIFT_DOWN_MASK))
+        assertFalse(DesktopBackInput.isAwtBackShortcut(pressed, left, alt or java.awt.event.InputEvent.CTRL_DOWN_MASK))
+        assertFalse(DesktopBackInput.isAwtBackShortcut(pressed, java.awt.event.KeyEvent.VK_RIGHT, alt))
+    }
 }
