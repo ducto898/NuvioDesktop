@@ -1,6 +1,7 @@
 package com.nuvio.app
 
 import com.nuvio.app.features.autosync.AutoSyncPreferencesDesktop
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.awt.SwingWindow
@@ -36,6 +37,7 @@ import androidx.compose.ui.input.key.type
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.ProvideDesktopWindowInsets
+import com.nuvio.app.core.ui.platformTouchScroll
 import com.nuvio.app.features.discordrpc.DiscordPresenceManager
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.plugins.configureDesktopQuickJsLibrary
@@ -48,6 +50,8 @@ import com.nuvio.app.features.player.desktop.NativePlayerBridge
 import com.nuvio.app.features.player.desktop.applyNativeDesktopWindowChrome
 import com.nuvio.app.features.player.desktop.configureMacosWindowBeforePeer
 import com.nuvio.app.features.player.desktop.installDesktopAppFullscreenShortcuts
+import com.nuvio.app.features.player.desktop.macosTitleBarDoubleClick
+import com.nuvio.app.features.player.desktop.MacosAppMenuBar
 import com.nuvio.app.features.player.desktop.preloadNativePlayerBridgeAsync
 import com.nuvio.app.features.player.desktop.registerDesktopAppFullscreenToggle
 import com.nuvio.app.features.player.desktop.trackMaximizedBoundsForCurrentScreen
@@ -146,15 +150,16 @@ fun main(args: Array<String>) {
             placement = initialPlacement,
         )
         val fullscreenController = remember { DesktopAppFullscreenController() }
+        val closeApplication = {
+            com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateMatch.onAppExit() // nuvio-rr fork hook H8
+            P2pStreamingEngine.shutdown()
+            DiscordPresenceManager.shutdown()
+            SentryInitializer.close()
+            exitApplication()
+        }
 
         SwingWindow(
-            onCloseRequest = {
-                com.nuvio.app.features.player.desktop.refreshrate.runtime.RefreshRateMatch.onAppExit() // nuvio-rr fork hook H8
-                P2pStreamingEngine.shutdown()
-                DiscordPresenceManager.shutdown()
-                SentryInitializer.close()
-                exitApplication()
-            },
+            onCloseRequest = closeApplication,
             title = if (smokePlayerUrl == null) "Nuvio" else "Nuvio Player Smoke",
             state = windowState,
             icon = painterResource(appIconState.selected.transparentPreviewResource),
@@ -179,6 +184,10 @@ fun main(args: Array<String>) {
                 backDispatcher?.let(DesktopBackInput.main::attach)
                 onDispose { DesktopBackInput.main.detach() }
             }
+            MacosAppMenuBar(
+                onCloseRequest = closeApplication,
+                onMinimizeRequest = { windowState.isMinimized = true },
+            )
             SideEffect {
                 window.background = NuvioDesktopNativeBackground
                 window.rootPane.background = NuvioDesktopNativeBackground
@@ -198,6 +207,7 @@ fun main(args: Array<String>) {
             LaunchedEffect(window) {
                 applyNativeDesktopWindowChrome(window)
                 installLinuxExtendedMouseButtons()
+                installWindowsTouchScroll()
                 // Windows fullscreen is emulated natively and isn't reflected by
                 // WindowPlacement, so it must be re-applied once the window peer exists.
                 fullscreenController.applyRestoredFullscreenState(window, windowState, wasFullscreenOnLastExit)
@@ -266,8 +276,18 @@ fun main(args: Array<String>) {
             }
 
             if (smokePlayerUrl == null) {
-                ProvideDesktopWindowInsets(isFullscreen = windowState.placement == WindowPlacement.Fullscreen) {
-                    MiddleClickAutoscroll { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().desktopFocusHighlight()) { App() } } // nuvio-rr fork, Phase 9 E9
+                ClickableHandCursor(window)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .platformTouchScroll()
+                        .macosTitleBarDoubleClick(window = window, windowState = windowState),
+                ) {
+                    ProvideDesktopWindowInsets(
+                        isFullscreen = windowState.placement == WindowPlacement.Fullscreen,
+                    ) {
+                        MiddleClickAutoscroll { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().desktopFocusHighlight()) { App() } } // nuvio-rr fork, Phase 9 E9
+                    }
                 }
             } else {
                 // The player surface reads LocalNuvioPlatformDensity, which only
@@ -289,6 +309,9 @@ fun main(args: Array<String>) {
 private fun configureDesktopChrome() {
     if (System.getProperty("os.name").contains("mac", ignoreCase = true)) {
         System.setProperty("apple.awt.application.appearance", MacosDarkAquaAppearance)
+        // AWT only installs a window's JMenuBar in the macOS screen menu bar when this is set
+        // before AWT starts; otherwise it would be drawn inside our full-window-content window.
+        System.setProperty("apple.laf.useScreenMenuBar", "true")
     }
 }
 

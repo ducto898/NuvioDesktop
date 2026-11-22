@@ -78,7 +78,6 @@ class WatchProgressIdentityTest {
 
     @Test
     fun `legacy payload derives episode progress key and preserves completed position`() {
-        // nuvio-rr fork (SYNC1): a real episode length; upstream 80860602 made clips under 121 s never complete.
         val decoded = WatchProgressCodec.decodeEntries(
             """
             {
@@ -90,8 +89,8 @@ class WatchProgressIdentityTest {
                 "title": "Show",
                 "seasonNumber": 1,
                 "episodeNumber": 2,
-                "lastPositionMs": 940000,
-                "durationMs": 1000000,
+                "lastPositionMs": 2820000,
+                "durationMs": 3000000,
                 "lastUpdatedEpochMs": 100
               }]
             }
@@ -99,7 +98,7 @@ class WatchProgressIdentityTest {
         )
 
         assertEquals("show_s1e2", decoded.single().progressKey)
-        assertEquals(940_000L, decoded.single().lastPositionMs)
+        assertEquals(2_820_000L, decoded.single().lastPositionMs)
         assertTrue(decoded.single().isCompleted)
     }
 

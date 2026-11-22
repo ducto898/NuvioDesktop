@@ -181,6 +181,12 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   request assertion that the fork's R4 had loosened: the test is upstream's again (R4 gone from fork-fixes.txt).
   Upstream `2436858a` also restored the RTX Video Super Resolution switch (Video page, Windows): the fork's SYNC7 copy
   in the Video quality section was dropped (it showed twice).
+- SYNC9 (2026-11-22, 0.1.38): upstream now uses a real episode length in `WatchProgressIdentityTest` (SYNC1 dropped,
+  file is upstream's again) and seeks `absolute+exact` itself (fork #17's change is upstream's line now). Upstream
+  moved stream fetching into `StreamSearchSessions` (S3 URL redaction moved with it), wrapped shelves in controller
+  providers (E6 hover Box re-applied inside), turned the close handler into `closeApplication` (H8 inside it) and
+  split the download loop into `transferToTempFile` (fix 2's progress throttle re-applied there). Upstream's new RTX
+  Video HDR filter: with VSR on, E8's `fitVsrScale` keeps the HDR part of the vf (`vsrHdr`); HDR alone is upstream's.
 - Baseline 2026-11-04: 3 upstream test failures added (ChapterSkipIntervalsTest x2, SettingsNavigationTest buffer).
 
 ## 5. Known conflict hot spots

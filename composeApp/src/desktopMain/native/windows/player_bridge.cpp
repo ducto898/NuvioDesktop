@@ -902,6 +902,7 @@ public:
         JavaVM *vm,
         int decoderPriority,
         bool nvidiaRtxSuperResolutionEnabled,
+        bool nvidiaRtxHdrEnabled,
         jobject sink,
         jmethodID method
     ) {
@@ -917,8 +918,8 @@ public:
         auto initState = std::make_shared<InitializationState>();
         auto self = shared_from_this();
         uiThread = std::thread(
-            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState]() {
-                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, initState);
+            [self, sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, nvidiaRtxHdrEnabled, initState]() {
+                self->runNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, nvidiaRtxHdrEnabled, initState);
             }
         );
 
@@ -1171,8 +1172,6 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)positionMs / 1000.0);
-        // nuvio-rr fork, Phase 9 #17: absolute seeks (scrub release, skip intro, chapters) land where asked; with a
-        // 10 s keyframe interval "+keyframes" landed up to 7 s early. Relative +-10 s steps stay on keyframes (fast).
         const char *command[] = {"seek", seconds.c_str(), "absolute+exact", nullptr};
         mpvApi().command(mpv, command);
     }
@@ -1190,7 +1189,7 @@ public:
         std::lock_guard<std::mutex> lock(mpvMutex);
         if (!mpv) return;
         std::string seconds = std::to_string((double)offsetMs / 1000.0);
-        const char *command[] = {"seek", seconds.c_str(), "relative+keyframes", nullptr};
+        const char *command[] = {"seek", seconds.c_str(), "relative+exact", nullptr};
         mpvApi().command(mpv, command);
     }
 
@@ -1288,6 +1287,9 @@ public:
             char buffer[96];
             std::snprintf(buffer, sizeof(buffer), "d3d11vpp=scale=%.3f:scaling-mode=nvidia", scale);
             vf = buffer;
+            if (vsrHdr) vf += ":format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020";
+        } else if (vsrHdr) {
+            vf = "d3d11vpp=format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020";
         }
         if (vf == appliedVf) return;
         appliedVf = vf;
@@ -1441,7 +1443,7 @@ public:
         bool stripSdhChanged = !hasAppliedSubtitleStyle || appliedSubtitleStripSdh != stripSdh;
 
         if (modeChanged) {
-            setStringProperty("sub-ass-override", "scale");
+            setStringProperty("sub-ass-override", "no");
         }
         if (modeChanged) {
             std::lock_guard<std::mutex> lock(mpvMutex);
@@ -1533,6 +1535,7 @@ private:
     std::map<std::string, std::pair<uint64_t, std::string>> tracksCache;
     std::atomic_bool vsrEnabled = false;  // Phase 9 E8
     std::string appliedVf;                // event thread only after start
+    bool vsrHdr = false;                  // SYNC9: VSR + upstream RTX HDR; set before start
     uint64_t subtitleAddCounter = 0x5355420000000000ull;  // "SUB": reply ids of async sub-add requests (Phase 9 #5)
     uint64_t pendingSubtitleAdd = 0;                       // guarded by mpvMutex
     std::mutex playbackErrorMutex;
@@ -1574,11 +1577,12 @@ private:
         std::string controlsUrl,
         int decoderPriority,
         bool nvidiaRtxSuperResolutionEnabled,
+        bool nvidiaRtxHdrEnabled,
         std::shared_ptr<InitializationState> initState
     ) {
         std::string failure;
         try {
-            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+            initializeOnNativeUiThread(sourceUrl, headerLines, playWhenReady, initialPositionMs, controlsUrl, decoderPriority, nvidiaRtxSuperResolutionEnabled, nvidiaRtxHdrEnabled);
         } catch (const std::exception &error) {
             failure = error.what();
             cleanupUiResources();
@@ -1609,7 +1613,8 @@ private:
         long long initialPositionMs,
         const std::string &controlsUrl,
         int decoderPriority,
-        bool nvidiaRtxSuperResolutionEnabled
+        bool nvidiaRtxSuperResolutionEnabled,
+        bool nvidiaRtxHdrEnabled
     ) {
         registerWindowClasses();
         uiThreadId = GetCurrentThreadId();
@@ -1661,7 +1666,7 @@ private:
         }
 
         startWebView(controlsUrl);
-        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled);
+        startMpv(sourceUrl, headerLines, playWhenReady, initialPositionMs, decoderPriority, nvidiaRtxSuperResolutionEnabled, nvidiaRtxHdrEnabled);
         layoutNativeSubviews();
         if (!SetTimer(messageHwnd, NUVIO_TIMER_ID, 500, nullptr)) {
             throw std::runtime_error("Unable to start native player timer.");
@@ -1856,10 +1861,12 @@ private:
         bool playWhenReady,
         long long initialPositionMs,
         int decoderPriority,
-        bool nvidiaRtxSuperResolutionEnabled
+        bool nvidiaRtxSuperResolutionEnabled,
+        bool nvidiaRtxHdrEnabled
     ) {
         MpvApi &api = mpvApi();
-        bool fastProfile = !nvidiaRtxSuperResolutionEnabled && unifiedMemoryGpu();
+        bool rtxVideoEnabled = nvidiaRtxSuperResolutionEnabled || nvidiaRtxHdrEnabled;
+        bool fastProfile = !rtxVideoEnabled && unifiedMemoryGpu();
         {
             std::lock_guard<std::mutex> lock(mpvMutex);
             // libmpv requires LC_NUMERIC=C: non-"C" locales that use comma
@@ -1881,7 +1888,7 @@ private:
             setMpvOptionStringLocked("keep-open", "yes");
             setMpvOptionStringLocked("volume-max", "200");
             setMpvOptionStringLocked("vo", "gpu-next,gpu,");
-            if (nvidiaRtxSuperResolutionEnabled) {
+            if (rtxVideoEnabled) {
                 setMpvOptionStringLocked("gpu-api", "d3d11");
                 setMpvOptionStringLocked("hwdec", "d3d11va");
                 setMpvOptionStringLocked("d3d11-adapter", "NVIDIA");
@@ -1891,11 +1898,25 @@ private:
             }
             setMpvOptionStringLocked("hwdec-codecs", "all");
 
-            if (nvidiaRtxSuperResolutionEnabled) {
+            if (nvidiaRtxSuperResolutionEnabled && nvidiaRtxHdrEnabled) {
+                setMpvOptionStringLocked(
+                    "vf",
+                    "d3d11vpp=scale=2:scaling-mode=nvidia:format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020"
+                );
+                // nuvio-rr fork, Phase 9 E8 (SYNC9): fitted like VSR alone, keeping RTX HDR.
+                vsrEnabled.store(true);
+                vsrHdr = true;
+                appliedVf = "d3d11vpp=scale=2:scaling-mode=nvidia:format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020";
+            } else if (nvidiaRtxSuperResolutionEnabled) {
                 setMpvOptionStringLocked("vf", "d3d11vpp=scale=2:scaling-mode=nvidia");
                 // nuvio-rr fork, Phase 9 E8: the scale is fitted to the video once mpv knows its size (fitVsrScale).
                 vsrEnabled.store(true);
                 appliedVf = "d3d11vpp=scale=2:scaling-mode=nvidia";
+            } else if (nvidiaRtxHdrEnabled) {
+                setMpvOptionStringLocked(
+                    "vf",
+                    "d3d11vpp=format=x2bgr10:nvidia-true-hdr,format=x2bgr10:transfer=pq:primaries=bt.2020"
+                );
             }
             setMpvOptionStringLocked("target-colorspace-hint", "yes");
             if (decoderPriority == 0) {
@@ -1930,7 +1951,6 @@ private:
                 "stream-lavf-o",
                 "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=%23%408,429,500,502,503,504,reconnect_delay_max=15"
             );
-            setMpvOptionStringLocked("hr-seek", "no");
             std::string shaderCacheDirectory = mpvShaderCacheDirectory();
             if (!shaderCacheDirectory.empty()) {
                 setMpvOptionStringLocked("gpu-shader-cache-dir", shaderCacheDirectory.c_str());
@@ -2598,6 +2618,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
     jstring controlsPageUrl,
     jint decoderPriority,
     jboolean nvidiaRtxSuperResolutionEnabled,
+    jboolean nvidiaRtxHdrEnabled,
     jobject eventSink
 ) {
     HWND hostHwnd = (HWND)(intptr_t)hostViewPtr;
@@ -2633,6 +2654,7 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_create(
             javaVm,
             decoderPriority,
             nvidiaRtxSuperResolutionEnabled == JNI_TRUE,
+            nvidiaRtxHdrEnabled == JNI_TRUE,
             eventSinkRef,
             eventMethod
         );
