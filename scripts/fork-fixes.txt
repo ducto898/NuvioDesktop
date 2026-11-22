@@ -7,7 +7,7 @@ composeApp/src/desktopMain/kotlin/com/nuvio/app/features/downloads/DownloadsPlat
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/downloads/DownloadsRepository.kt | 2
 composeApp/src/desktopMain/kotlin/com/nuvio/app/Main.kt | 3, 20, E4, E5, E9, E1, VQ
 composeApp/src/desktopMain/kotlin/com/nuvio/app/core/storage/DesktopCache.kt | 6, SYNC3
-composeApp/src/desktopMain/native/windows/player_bridge.cpp | 4, E7, SUB, BUF, BUF2, STATS
+composeApp/src/desktopMain/native/windows/player_bridge.cpp | 4, E7, BUF, BUF2, STATS
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerBridge.kt | 4, E7, STATS
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/desktop/NativePlayerController.kt | 4, E7, PAR, STATS, SYNC7
 composeApp/src/desktopMain/kotlin/com/nuvio/app/features/player/PlayerEngine.desktop.kt | 4

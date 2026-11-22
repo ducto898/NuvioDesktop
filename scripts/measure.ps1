@@ -51,7 +51,7 @@
 .PARAMETER Actions
   Comma list of key@second (seconds after file-loaded): space (pause toggle), right/left (seek),
   mouse (wiggle the cursor over the window so the controls show), f11 (confirmed from the next sample's fs=, retried
-  once), alttab (Alt+Tab away for 3 s, then back), i (the I key: stats overlay, STATS), shot (a PNG of the app
+  once), alttab (Alt+Tab away for 3 s, then back), i (the I key: stats overlay, STATS), subprops (mpv subtitle properties), shot (a PNG of the app
   window into the run folder, shot-<s>.png), drag (left-drag from 120,75 px inside the window to its centre: moves
   the stats overlay). Example: 'space@40,space@60'.
 #>
@@ -424,6 +424,13 @@ public struct RECT { public int Left, Top, Right, Bottom; }
                     $result = 'away 3 s, back'
                 }
                 'i' { & $focusApp; $shell.SendKeys('i'); $result = 'I key' }
+                'subprops' {
+                    # SYNC9 subtitle audit: what the subtitle style actually reached mpv.
+                    $result = (@('sid', 'sub-font', 'sub-font-size', 'sub-scale', 'sub-outline-size', 'sub-shadow-offset', 'sub-blur', 'sub-ass-override') | ForEach-Object {
+                        $reply = & $mpvCommand ('{"command":["get_property","' + $_ + '"]}')
+                        "$_=" + $(if ($reply -match '"data":\s*("?[^",}]*"?)') { $Matches[1] } else { $reply })
+                    }) -join ' '
+                }
                 'shot' {
                     [void][RrWin]::SetProcessDPIAware()
                     $app.Refresh(); $r = New-Object RrWin+RECT; [void][RrWin]::GetWindowRect($app.MainWindowHandle, [ref]$r)

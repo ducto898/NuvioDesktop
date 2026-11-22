@@ -193,6 +193,14 @@ Fixes made during a sync are listed in `scriptsork-fixes.txt` as `SYNC<n>`:
   stays. Upstream's dispatcher also took Alt+Left as Left (E4 back broke; seen in a dev run): `DesktopBackInput.
   installAwtShortcut()` registers an AWT dispatcher in main(), ahead of upstream's, that handles Alt+Left only.
   Known failures: ChapterSkipIntervalsTest x2 fixed upstream.
+  Subtitle audit (owner): upstream f32277ee (0.1.35) set `sub-scale=1` with `sub-font-size=size` in both modes, and
+  5762a6036 hid the libass switch on desktop (default on): the fork's SUB pin (`sub-font-size=54` in libass mode)
+  froze every size at 54 (owner's profile: size 12 = 36 intended). Pin dropped, the bridge line is upstream's.
+  Checked fine: upstream's styled overlay is Android/iOS only; its new outline width control is applied after the
+  fork's H2 `sub-border-size=2.0` and wins (default 2 = same look); ASS now `sub-ass-override=no` (keeps its own
+  styling, as the fork font doc assumes). Upstream's font/shadow controls still do nothing (SYNC7, owner choice).
+  `measure.ps1 -Actions subprops@<s>` prints the mpv subtitle properties; the smoke player measure uses does NOT
+  apply the app's subtitle style (mpv defaults), so style checks need the real player.
 - Baseline 2026-11-04: 3 upstream test failures added (ChapterSkipIntervalsTest x2, SettingsNavigationTest buffer).
 
 ## 5. Known conflict hot spots
@@ -385,6 +393,7 @@ and Java both see. With a Medium/Bold face chosen, keep the app's subtitle Bold 
 Optimised defaults (owner, 2026-10-01): the default is now **Automatic** = the best installed of NetflixSans-Medium,
 Gandhi Sans, Segoe UI Semibold (else Arial). Every player also gets `sub-border-size=2.0`, `sub-shadow-offset=1.0`,
 `sub-shadow-color=#80000000`, `sub-blur=0.3` (plain-text only). Size: upstream's libass mode set both
-`sub-font-size=size` and `sub-scale=size/54`, so plain-text size went with the square of the slider; the bridge now
-sets a fixed `sub-font-size=54` in that mode (player_bridge.cpp, fork fix "SUB"), and the desktop default size is 15
+`sub-font-size=size` and `sub-scale=size/54`, so plain-text size went with the square of the slider; the bridge
+set a fixed `sub-font-size=54` in that mode (fork fix "SUB"; dropped in SYNC9: upstream f32277ee keeps `sub-scale=1`,
+so the pin froze every size at 54 from 0.1.35 on), and the desktop default size is 15
 (`SubtitleAudioModels.kt`, fork fix "SUB"). Kept from mpv: `sub-hdr-peak=sdr` (203 nits), `blend-subtitles=no`.
