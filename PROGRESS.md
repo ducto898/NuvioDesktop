@@ -11,8 +11,10 @@ The only memory between phases. Read it at the start of every phase; update it a
   swallowed by upstream's AWT dispatcher, now handled by a fork dispatcher registered first (checked in a dev run).
   verify -Full green (2303 tests, 1 known upstream failure; ChapterSkipIntervalsTest x2 fixed upstream), live runs PASS
   (240 already; cap144 switch, 2nd run: the known 1st-run audioMax 1.002063 flake), zip
-  ..\dist\Nuvio-RR-1.1.38-da36012a.zip, patch ..\patches\nuvio-rr-35bdb2a7-da36012a.patch. NOT deployed to C:\TestAPP
-  (the owner's Nuvio RR was running): `scripts\deploy-testapp.ps1` once it is closed. Backup branch
+  ..\dist\Nuvio-RR-1.1.38-e4ca34ff.zip deployed to C:\TestAPP, patch ..\patches\nuvio-rr-35bdb2a7-e4ca34ff.patch.
+  Subtitle audit (`e4ca34ff`): the fork's SUB size pin froze every subtitle size at 54 since 0.1.35 (owner's size 12
+  = 36 intended); dropped. Open for the owner: subtitles will look smaller, re-pick the size; check the slider works
+  in the real player (measure's smoke player does not apply the app's subtitle style). Backup branch
   `backup/pre-merge-2026-11-22`. Not pushed.
 - **2026-11-12: upstream sync by MERGE** of desktop release 0.1.35-alpha (`a81a207b`; 50 commits). Merge `4249946e`,
   2 conflicts (CollectionCardRemoteImage + test). SYNC8 (FORK.md §4): upstream #1038 fixed the GIF codec
