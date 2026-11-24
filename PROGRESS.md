@@ -5,8 +5,9 @@ The only memory between phases. Read it at the start of every phase; update it a
 ## Current state
 - **2026-11-24: account login enabled.** Owner chose to fill `NUVIO_SUPABASE_URL/ANON_KEY/FALLBACK_URL` in the
   git-ignored local.properties with the official app's values (read from `C:\Program Files\Nuvio` jar,
-  SupabaseConfig.class; shared account with the official app). Other keys (TMDB, Trakt, Simkl, MDBList, IntroDB, IMDb
-  ratings) still blank; Sentry stays blank. Deployed Nuvio-RR-1.1.38-f9e12fba to C:\TestAPP (zip now holds the anon
+  SupabaseConfig.class; shared account with the official app). Same day, owner: all other keys too (TMDB, Trakt,
+  Simkl, IntroDB, IMDb ratings, Premiumize, Discord, community URLs; MDBList blank in the official build too); Sentry
+  stays blank (H16 check). Built Nuvio-RR-1.1.38-1833594b. Deployed Nuvio-RR-1.1.38-f9e12fba to C:\TestAPP (zip now holds the anon
   key: keep dist\ local). Login not yet tried by the owner.
 - **2026-11-22: upstream sync by MERGE** of desktop release 0.1.38-alpha (`35bdb2a7`; ~380 commits incl. 0.1.36/37).
   Merge `3a4da277` by hand (9 files, 13 hunks), SYNC9 `da36012a` (FORK.md §4): SYNC1 + fork #17 now upstream's;
