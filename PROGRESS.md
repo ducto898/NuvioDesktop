@@ -3,6 +3,15 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-11-25: fix LANG `22c1680a`** (scripts/fork-fixes.txt): popup NPE "Map$Entry.getKey() because it is null" in
+  normalizeLanguageCode (per-call sort of 73 name aliases, run per subtitle track per recomposition) on Demon Slayer
+  Infinity Castle (20 subs, names like "French (Canadian)"). Alias list now sorted once; LanguageNormalizeForkTest pins
+  the pre-fix outputs. Repro outside the app (pure Java, real keys): nulls appear inside Arrays.sort only on P-cores
+  with AVX (P-cores 11/2.0M, E-cores 0/4.6M, -XX:UseAVX=0 0/7.5M; JVM C2 also crashed once compiling Arrays.sort) =>
+  suspected CPU instability; owner disputes hardware. With -XX:UseAVX=0 the same title then died silently once (exit
+  0xC0000005, no hs_err, 0.5 s into playback); a run with NUVIO_RR_MEASURE=1 did not crash. Diagnostics:
+  ..\tools\run-rr-logged.ps1 (-ExtraJvmArgs; console log + exit code in %LOCALAPPDATA%\Nuvio RR\Cache).
+  Deployed Nuvio-RR-1.1.38-22c1680a.
 - **2026-11-25: owner checked in the app:** subtitle size after the SUB pin drop OK; Watchly addon (Nuvio history) OK. Pushed 1dd6e5dd.
 - **2026-11-24: account login enabled.** Owner chose to fill `NUVIO_SUPABASE_URL/ANON_KEY/FALLBACK_URL` in the
   git-ignored local.properties with the official app's values (read from `C:\Program Files\Nuvio` jar,
