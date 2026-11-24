@@ -3,6 +3,7 @@
 The only memory between phases. Read it at the start of every phase; update it at the end.
 
 ## Current state
+- **2026-11-25: owner checked in the app:** subtitle size after the SUB pin drop OK; Watchly addon (Nuvio history) OK. Pushed 1dd6e5dd.
 - **2026-11-24: account login enabled.** Owner chose to fill `NUVIO_SUPABASE_URL/ANON_KEY/FALLBACK_URL` in the
   git-ignored local.properties with the official app's values (read from `C:\Program Files\Nuvio` jar,
   SupabaseConfig.class; shared account with the official app). Same day, owner: all other keys too (TMDB, Trakt,
