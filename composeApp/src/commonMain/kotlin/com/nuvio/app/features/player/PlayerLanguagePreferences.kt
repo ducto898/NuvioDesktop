@@ -377,6 +377,11 @@ private val LanguageNameAliases = mapOf(
     "zulu" to "zu",
 )
 
+// Fork fix LANG (2026-11-25): sorted once instead of on every call. normalizeLanguageCode runs per subtitle track on
+// every recomposition of the player controls; the per-call sort crashed the app ("Map$Entry.getKey() because it is null").
+private val LanguageNameAliasesLongestFirst: List<Pair<String, String>> =
+    LanguageNameAliases.entries.sortedByDescending { it.key.length }.map { it.key to it.value }
+
 fun normalizeLanguageCode(language: String?): String? {
     val raw = language
         ?.trim()
@@ -415,15 +420,14 @@ fun normalizeLanguageCode(language: String?): String? {
 
     LanguageCodeAliases[raw]?.let { return it.replace('_', '-').lowercase() }
     LanguageNameAliases[tokenized]?.let { return it }
-    LanguageNameAliases.entries
-        .sortedByDescending { it.key.length }
+    LanguageNameAliasesLongestFirst
         .firstOrNull { (name, _) ->
             tokenized == name ||
                 tokenized.startsWith("$name ") ||
                 tokenized.endsWith(" $name") ||
                 tokenized.contains(" $name ")
         }
-        ?.let { return it.value }
+        ?.let { return it.second }
 
     val primary = raw.substringBefore('-')
     val primaryAlias = LanguageCodeAliases[primary]?.replace('_', '-')?.lowercase()

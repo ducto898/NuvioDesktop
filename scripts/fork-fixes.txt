@@ -39,3 +39,4 @@ composeApp/src/commonMain/kotlin/com/nuvio/app/MainAppContent.kt | E9
 composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/SubtitleAudioModels.kt | SUB
 composeApp/src/desktopMain/resources/player-ui/controls.html | STATS
 composeApp/src/desktopMain/resources/player-ui/controls.js | STATS
+composeApp/src/commonMain/kotlin/com/nuvio/app/features/player/PlayerLanguagePreferences.kt | LANG
