@@ -15,8 +15,8 @@ The only memory between phases. Read it at the start of every phase; update it a
   **2026-11-25 after owner's BIOS update (BIOS 1846):** same pure-Java stress (Pure3 clone mode, 60 s runs): P-cores
   3 runs 17.2M calls 0 NPE / 0 null (was 11 in 2.0M), E-cores 13.8M 0. Consistent with the BIOS (microcode) fixing it. Owner then ran OCCT 17.2.3: CPU (Large,
   Extreme, Variable, AVX2, all threads) 0 errors; CPU+RAM 1 h done (owner reported done). WHEA log: only ID 3
-  informational boot records (none since 23/11, no ID 18/19). Open: re-check Demon Slayer in a normal (no
-  UseAVX=0) run.
+  informational boot records (none since 23/11, no ID 18/19). Owner then used the app normally (no
+  UseAVX=0): no crashes. CLOSED: crash cause = old BIOS/microcode, not the app; fix LANG kept (cheaper anyway).
 - **2026-11-25: owner checked in the app:** subtitle size after the SUB pin drop OK; Watchly addon (Nuvio history) OK. Pushed 1dd6e5dd.
 - **2026-11-24: account login enabled.** Owner chose to fill `NUVIO_SUPABASE_URL/ANON_KEY/FALLBACK_URL` in the
   git-ignored local.properties with the official app's values (read from `C:\Program Files\Nuvio` jar,
